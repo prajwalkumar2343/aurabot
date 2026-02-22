@@ -1,0 +1,20 @@
+{
+  "$schema": "https://wails.io/schemas/config.v2.json",
+  "name": "Mem0",
+  "outputfilename": "mem0",
+  "frontend": {
+    "dir": "./frontend/dist",
+    "install": "echo 'No install needed for vanilla JS'",
+    "build": "echo 'No build needed for vanilla JS'",
+    "package": "echo 'No package needed for vanilla JS'"
+  },
+  "author": {
+    "name": "Mem0 Team",
+    "email": "team@mem0.ai"
+  },
+  "info": {
+    "productVersion": "1.0.0",
+    "copyright": "Copyright © 2024",
+    "comments": "Screen Memory Assistant powered by AI"
+  }
+}
