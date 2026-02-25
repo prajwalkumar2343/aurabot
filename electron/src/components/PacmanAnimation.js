@@ -27,30 +27,32 @@ EnhancedInput.prototype.initPacmanDOM = function () {
         </svg>
     `;
     this.wrapper.appendChild(this.pacmanContainer);
-
-    // Create dots container (pellets to eat)
-    this.dotsContainer = document.createElement('div');
-    this.dotsContainer.className = 'pacman-dots';
-    this.wrapper.appendChild(this.dotsContainer);
+    
+    // Create text eating trail container (shows text being eaten)
+    this.trailContainer = document.createElement('div');
+    this.trailContainer.className = 'pacman-trail';
+    this.wrapper.appendChild(this.trailContainer);
 };
 
 /**
- * Create dots (pellets) along the path for Pac-Man to eat
+ * Create text segments along the path for Pac-Man to eat
  */
 EnhancedInput.prototype.createDots = function () {
-    this.dotsContainer.innerHTML = '';
+    this.trailContainer.innerHTML = '';
     const containerWidth = this.wrapper.offsetWidth || 500;
-    const numDots = Math.max(5, Math.floor(containerWidth / 60));
-
-    for (let i = 0; i < numDots; i++) {
-        const dot = document.createElement('div');
-        dot.className = 'pacman-dot';
-        dot.style.left = `${(i + 1) * (100 / (numDots + 1))}%`;
-        dot.dataset.index = i;
-        this.dotsContainer.appendChild(dot);
+    
+    // Create text pieces that will be "eaten" - one per character
+    const textLength = this.originalText.length;
+    const charsPerSegment = Math.ceil(textLength / 20); // Show ~20 text segments
+    
+    for (let i = 0; i < this.charSpans.length; i++) {
+        const char = this.charSpans[i];
+        if (char && !char.classList.contains('eaten')) {
+            char.classList.add('eaten');
+        }
     }
-
-    this.dots = Array.from(this.dotsContainer.querySelectorAll('.pacman-dot'));
+    
+    this.dots = [];
 };
 
 /**
@@ -78,7 +80,7 @@ EnhancedInput.prototype.enhanceText = async function (newText, options = {}) {
     // Sync text overlay for animation
     this.syncTextOverlay();
 
-    // Create dots
+    // Prepare characters for eating
     this.createDots();
 
     // Disable input
@@ -90,18 +92,15 @@ EnhancedInput.prototype.enhanceText = async function (newText, options = {}) {
     // Show status
     this.statusLabel.classList.add('show');
 
-    // Show dots
-    this.dotsContainer.classList.add('show');
-
-    // Start Pac-Man animation
+    // Start Pac-Man animation eating the text
     await this.animatePacManEating(duration);
 
     // Hide Pac-Man instantly
     this.pacmanContainer.classList.remove('animating');
     this.pacmanContainer.style.opacity = '0';
 
-    // Hide dots
-    this.dotsContainer.classList.remove('show');
+    // Hide text overlay
+    this.textOverlay.style.opacity = '0';
 
     // Show enhanced text
     await this.revealEnhancedText(useTypewriter);
@@ -141,28 +140,18 @@ EnhancedInput.prototype.animatePacManEating = function (duration) {
             progressBar.style.width = '100%';
         });
 
-        // Character eating and dot eating timing
+        // Character eating timing
         const eatStartTime = performance.now();
-        const dotsCount = this.dots ? this.dots.length : 0;
 
         const eatFrame = () => {
             const elapsed = (performance.now() - eatStartTime) / 1000;
             const progress = Math.min(1, elapsed / duration);
 
-            // Eat characters
+            // Eat characters as pacman moves across
             const charsToEat = Math.floor(progress * charCount);
             for (let i = 0; i < charsToEat && i < charCount; i++) {
                 if (this.charSpans[i] && !this.charSpans[i].classList.contains('eaten')) {
                     this.charSpans[i].classList.add('eaten');
-                }
-            }
-
-            // Eat dots
-            const dotsToEat = Math.floor(progress * dotsCount);
-            for (let i = 0; i < dotsToEat && i < dotsCount; i++) {
-                if (this.dots[i] && !this.dots[i].classList.contains('eaten')) {
-                    this.dots[i].classList.add('eaten');
-                    this.createWakaEffect(this.dots[i]);
                 }
             }
 
@@ -171,33 +160,12 @@ EnhancedInput.prototype.animatePacManEating = function (duration) {
             } else {
                 // Ensure everything is eaten
                 this.charSpans.forEach(span => span.classList.add('eaten'));
-                this.dots.forEach(dot => dot.classList.add('eaten'));
                 resolve();
             }
         };
 
         requestAnimationFrame(eatFrame);
     });
-};
-
-/**
- * Create "WAKA" text effect when eating dots
- */
-EnhancedInput.prototype.createWakaEffect = function (dotElement) {
-    // Occasionally show "WAKA" text (20% chance)
-    if (Math.random() > 0.8) {
-        const waka = document.createElement('div');
-        waka.className = 'waka-text';
-        waka.textContent = 'WAKA';
-        waka.style.left = dotElement.style.left;
-        this.dotsContainer.appendChild(waka);
-
-        requestAnimationFrame(() => {
-            waka.classList.add('show');
-        });
-
-        setTimeout(() => waka.remove(), 500);
-    }
 };
 
 /**

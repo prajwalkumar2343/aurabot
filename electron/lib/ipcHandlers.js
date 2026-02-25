@@ -57,9 +57,18 @@ function triggerQuickEnhance(mainWindowProvider) {
     }
 }
 
+function triggerGhostEnhance(mainWindowProvider) {
+    const mainWindow = mainWindowProvider ? mainWindowProvider() : null;
+    if (mainWindow) {
+        // Send ghost trigger without showing/focusing window
+        mainWindow.webContents.send('trigger-ghost-enhance');
+    }
+}
+
 module.exports = {
     setupIPC,
     setBackendPort,
     createToggleCapture,
-    triggerQuickEnhance
+    triggerQuickEnhance,
+    triggerGhostEnhance
 };
