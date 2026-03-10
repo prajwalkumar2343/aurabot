@@ -8,7 +8,6 @@ A native Windows desktop application for AuraBot built with Electron.
 - **System Tray Integration** - Minimize to tray and run in background
 - **Global Hotkeys** - Quick Enhance with Ctrl+Alt+E from anywhere
 - **Auto-updater Support** - Built-in update checking
-- **Same Backend** - Uses the same Go backend as the original app
 
 ## Prerequisites
 
@@ -98,7 +97,6 @@ electron/
 │  - Screen capture                       │
 │  - LLM integration                      │
 │  - Memory management                    │
-│  - Extension API server                 │
 └─────────────────────────────────────────┘
 ```
 
@@ -171,17 +169,6 @@ const BACKEND_PORT = 7346; // Different port
 
 ### CORS errors
 The backend API includes CORS headers. If you see CORS errors, ensure the backend is running and accessible.
-
-## Differences from Wails Version
-
-| Feature | Wails (Original) | Electron (Windows) |
-|---------|-----------------|-------------------|
-| Window Frame | Native macOS | Custom Windows |
-| System Tray | Limited | Full support |
-| Global Hotkeys | Limited | Full support |
-| Auto-updater | Manual | Built-in |
-| Bundle Size | Smaller | Larger (~100MB) |
-| Memory Usage | Lower | Higher |
 
 ## License
 

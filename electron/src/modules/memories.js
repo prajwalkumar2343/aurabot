@@ -92,9 +92,13 @@ AuraApp.prototype.renderMemories = function (memoriesToRender = this.memories) {
                     <div class="empty-icon">🧠</div>
                     <h3>No memories yet</h3>
                     <p>Start screen capture to begin recording your activities</p>
-                    <button class="btn-primary" onclick="app.openModal()">Add Memory</button>
+                    <button class="btn-primary" id="btn-add-memory-empty">Add Memory</button>
                 </div>
             `;
+            // Add listener after injection
+            document.getElementById('btn-add-memory-empty')?.addEventListener('click', () => {
+                this.openModal();
+            });
         } else {
             dashboardList.innerHTML = html;
         }

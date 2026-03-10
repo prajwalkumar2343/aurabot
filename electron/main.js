@@ -3,7 +3,7 @@
  * Handles window management, Go backend spawning, and IPC
  */
 
-const { app, BrowserWindow, dialog } = require('electron');
+const { app, BrowserWindow } = require('electron');
 const path = require('path');
 const { createSplashWindow, updateSplashStatus, closeSplashWindow } = require('./lib/splash');
 const { createTray, updateTrayMenu } = require('./lib/tray');
@@ -47,6 +47,7 @@ function createWindow() {
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
+      webSecurity: false,
       preload: path.join(__dirname, 'preload.js')
     },
     show: false, // Don't show until ready
@@ -55,6 +56,11 @@ function createWindow() {
 
   // Load the app
   mainWindow.loadFile(path.join(__dirname, 'src', 'index.html'));
+
+  // Redirect console messages to terminal
+  mainWindow.webContents.on('console-message', (event, level, message, line, sourceId) => {
+    console.log(`[Renderer] ${message} (${path.basename(sourceId)}:${line})`);
+  });
 
   // Show window when ready
   mainWindow.once('ready-to-show', () => {
@@ -86,26 +92,32 @@ function createWindow() {
 // ========================================
 
 app.whenReady().then(async () => {
+  const startupStart = Date.now();
+  
   // Show splash screen immediately
   createSplashWindow();
 
   // Start Python server first since Go depends on it
+  console.log('[Startup] Starting Python server...');
+  const pythonStart = Date.now();
   await startPythonServer(ROOT_DIR, updateSplashStatus);
+  console.log(`[Startup] Python server took ${Date.now() - pythonStart}ms`);
 
   // Start backend
+  console.log('[Startup] Starting Go backend...');
+  const backendStart = Date.now();
   const backendStarted = await startGoBackend({ ROOT_DIR, GO_BACKEND_PATH }, { BACKEND_PORT }, {
     updateSplashStatus,
     mainWindowProvider: () => mainWindow,
     isQuittingProvider: () => isQuitting
   });
+  console.log(`[Startup] Go backend took ${Date.now() - backendStart}ms`);
+  
+  console.log(`[Startup] Total startup time: ${Date.now() - startupStart}ms`);
 
   if (!backendStarted) {
-    updateSplashStatus('Failed to start AI engine');
-    setTimeout(() => {
-      closeSplashWindow();
-      dialog.showErrorBox('Startup Failed', 'Failed to start the AI backend. Please check your configuration.');
-    }, 2000);
-    return;
+    console.log('[Main] Go backend not available — app will run without backend services');
+    updateSplashStatus('Starting without backend...');
   }
 
   // Create UI

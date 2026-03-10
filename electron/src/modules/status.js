@@ -4,6 +4,11 @@
  */
 
 AuraApp.prototype.loadStatus = async function () {
+    // Skip if user recently toggled capture (within last 2 seconds)
+    if (this._captureToggledRecently) {
+        return;
+    }
+    
     try {
         const result = await window.electronAPI?.getStatus();
         if (result?.success) {
@@ -77,15 +82,20 @@ AuraApp.prototype.updateBackendStatus = function () {
 
 AuraApp.prototype.updateCaptureUI = function () {
     const toggle = document.getElementById('sidebar-capture-toggle');
+    const settingsToggle = document.getElementById('setting-capture-enabled');
     const statusText = document.getElementById('capture-status-text');
     const capDot = document.getElementById('status-capture');
 
     if (toggle) toggle.checked = this.isCaptureEnabled;
+    if (settingsToggle) settingsToggle.checked = this.isCaptureEnabled;
     if (statusText) statusText.textContent = this.isCaptureEnabled ? 'Active' : 'Paused';
     if (capDot) capDot.className = 'status-dot ' + (this.isCaptureEnabled ? 'online' : 'offline');
 };
 
 AuraApp.prototype.toggleCapture = async function (enabled) {
+    // Set flag to prevent polling from overwriting our change
+    this._captureToggledRecently = true;
+    
     try {
         const result = await window.electronAPI?.toggleCapture(enabled);
         if (result?.success) {
@@ -99,4 +109,9 @@ AuraApp.prototype.toggleCapture = async function (enabled) {
         this.isCaptureEnabled = enabled;
         this.updateCaptureUI();
     }
+    
+    // Clear the flag after 2 seconds
+    setTimeout(() => {
+        this._captureToggledRecently = false;
+    }, 2000);
 };

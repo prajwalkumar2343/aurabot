@@ -14,7 +14,7 @@ function setBackendPort(port) {
 async function apiRequest(endpoint, method = 'GET', data = null) {
     return new Promise((resolve, reject) => {
         const options = {
-            hostname: 'localhost',
+            hostname: '127.0.0.1',
             port: BACKEND_PORT,
             path: endpoint,
             method: method,
@@ -27,6 +27,11 @@ async function apiRequest(endpoint, method = 'GET', data = null) {
             let body = '';
             res.on('data', (chunk) => body += chunk);
             res.on('end', () => {
+                // Check for error status codes
+                if (res.statusCode < 200 || res.statusCode >= 300) {
+                    reject(new Error(`HTTP ${res.statusCode}: ${body || 'Request failed'}`));
+                    return;
+                }
                 try {
                     const parsed = JSON.parse(body);
                     resolve(parsed);

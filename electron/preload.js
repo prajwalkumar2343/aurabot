@@ -34,6 +34,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Clipboard
   readClipboard: () => ipcRenderer.invoke('read-clipboard'),
   writeClipboard: (text) => ipcRenderer.invoke('write-clipboard', text),
+  pasteClipboard: () => ipcRenderer.invoke('paste-clipboard'),
 
   // External Links
   openExternal: (url) => ipcRenderer.invoke('open-external', url),
@@ -41,12 +42,17 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Version
   getVersion: () => ipcRenderer.invoke('get-version'),
 
+  // Overlay Window Control
+  hideOverlay: () => ipcRenderer.invoke('hide-overlay'),
+  showOverlayResult: (text) => ipcRenderer.invoke('show-overlay-result', text),
+
   // Event Listeners
   onNavigate: (callback) => ipcRenderer.on('navigate', (_, view) => callback(view)),
   onCaptureStatus: (callback) => ipcRenderer.on('capture-status', (_, status) => callback(status)),
   onBackendStatus: (callback) => ipcRenderer.on('backend-status', (_, status) => callback(status)),
   onTriggerQuickEnhance: (callback) => ipcRenderer.on('trigger-quick-enhance', () => callback()),
-  onTriggerGhostEnhance: (callback) => ipcRenderer.on('trigger-ghost-enhance', () => callback()),
+  onTriggerGhostEnhance: (callback) => ipcRenderer.on('trigger-ghost-enhance', (_, data) => callback(data)),
+  onTextCaptureError: (callback) => ipcRenderer.on('text-capture-error', (_, data) => callback(data)),
 
   // Remove listeners
   removeAllListeners: (channel) => ipcRenderer.removeAllListeners(channel)

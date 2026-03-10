@@ -35,5 +35,12 @@ AuraApp.prototype.setupKeyboardShortcuts = function () {
                 document.getElementById('btn-save-memory')?.click();
             }
         }
+
+        // DEBUG: Ctrl + Shift + P to test Pacman animation
+        if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'P') {
+            e.preventDefault();
+            console.log('[DEBUG] Manual Pacman trigger - use Ctrl+Alt+E with selected text instead');
+            this.showToast('Use Ctrl+Alt+E with selected text to test', 'info');
+        }
     });
 };
