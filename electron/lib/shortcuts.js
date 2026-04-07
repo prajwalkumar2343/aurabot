@@ -3,19 +3,27 @@
  * Handles registration of global keyboard shortcuts
  */
 
-const { globalShortcut } = require('electron');
-const { triggerQuickEnhance } = require('./ipcHandlers');
+const { globalShortcut, app } = require('electron');
+const { triggerGhostEnhance } = require('./ipcHandlers');
 
 function registerShortcuts(mainWindowProvider) {
+    if (!app.isReady()) return;
+
     // Register global shortcuts
     globalShortcut.register('Ctrl+Alt+E', () => {
-        triggerQuickEnhance(mainWindowProvider);
+        triggerGhostEnhance(mainWindowProvider);
     });
 }
 
 function unregisterShortcuts() {
-    // Unregister all global shortcuts
-    globalShortcut.unregisterAll();
+    // Only attempt if app is ready and we won't crash
+    try {
+        if (app.isReady()) {
+            globalShortcut.unregisterAll();
+        }
+    } catch (e) {
+        console.warn('[Shortcuts] Failed to unregister shortcuts (possibly not ready):', e.message);
+    }
 }
 
 module.exports = {

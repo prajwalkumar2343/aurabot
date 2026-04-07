@@ -74,7 +74,7 @@ AuraApp.prototype.setupQuickEnhance = function () {
         if (!resultText) return;
 
         try {
-            await navigator.clipboard.writeText(resultText);
+            await window.electronAPI?.writeClipboard(resultText);
             this.showToast('Copied to clipboard');
         } catch (err) {
             console.error('Copy failed:', err);
@@ -134,4 +134,74 @@ AuraApp.prototype.openQuickEnhance = function (text = '') {
     // Show modal
     modal.classList.add('active');
     overlay.classList.add('active');
+};
+
+/**
+ * Handle Ghost Mode (Shortcut without modal)
+ */
+AuraApp.prototype.triggerGhostEnhance = async function () {
+    let clipboardText = '';
+    
+    try {
+        // 1. Get clipboard text using Electron IPC (more reliable than browser API)
+        clipboardText = await window.electronAPI?.readClipboard();
+        
+        if (!clipboardText || !clipboardText.trim()) {
+            this.showToast('Clipboard is empty', 'error');
+            return;
+        }
+
+        // 2. Start global Pacman animation on the orb
+        this.showGhostAnimation(true);
+        this.showToast('🚀 Aura is enhancing your clipboard...', 'info');
+
+        // 3. Call enhancement API
+        const result = await window.electronAPI?.enhancePrompt(clipboardText, '');
+
+        if (result?.success) {
+            const enhanced = result.data?.enhancedPrompt || result.data?.enhanced_prompt || result.data?.response;
+
+            // 4. Update clipboard
+            await window.electronAPI?.writeClipboard(enhanced);
+
+            // 5. Success feedback
+            this.showGhostAnimation(false, true);
+            this.showToast('✨ Text rewritten to clipboard', 'success');
+        } else {
+            throw new Error(result?.error || 'Enhancement failed');
+        }
+    } catch (err) {
+        console.error('Ghost enhancement error:', err);
+        this.showGhostAnimation(false);
+        this.showToast('Enhancement failed: ' + (err.message || 'Unknown error'), 'error');
+    }
+};
+
+/**
+ * Show ghost animation on the overlay orb
+ */
+AuraApp.prototype.showGhostAnimation = function (active, success = false) {
+    const orb = document.getElementById('overlay-orb');
+    const ghostContainer = document.getElementById('ghost-pacman-container');
+    if (!orb || !ghostContainer) return;
+
+    if (active) {
+        orb.classList.add('ghost-mode');
+        ghostContainer.innerHTML = `
+            <div class="ghost-pacman">
+                <svg viewBox="0 0 36 36">
+                    <path d="M 18 18 L 34 18 A 16 16 0 0 0 18 2 L 18 18" fill="#FFFF00" />
+                    <path d="M 18 18 L 18 34 A 16 16 0 0 0 34 18 L 18 18" fill="#FFFF00" />
+                    <path d="M 18 2 A 16 16 0 0 0 18 34 L 18 18" fill="#FFFF00" />
+                </svg>
+            </div>
+        `;
+    } else {
+        orb.classList.remove('ghost-mode');
+        if (success) {
+            orb.classList.add('success-pulse');
+            setTimeout(() => orb.classList.remove('success-pulse'), 2000);
+        }
+        ghostContainer.innerHTML = '';
+    }
 };

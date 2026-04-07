@@ -200,10 +200,9 @@ class EnhancedInput {
             this.pacmanContainer.style.animationDuration = '';
         }
 
-        // Reset dots
-        if (this.dotsContainer) {
-            this.dotsContainer.classList.remove('show');
-            this.dotsContainer.innerHTML = '';
+        // Reset trail/text
+        if (this.trailContainer) {
+            this.trailContainer.innerHTML = '';
         }
 
         // Reset progress bar
@@ -213,6 +212,7 @@ class EnhancedInput {
 
         // Reset overlays
         this.textOverlay.innerHTML = '';
+        this.textOverlay.style.opacity = '1';
         this.resultContainer.textContent = '';
         this.resultContainer.classList.remove('show', 'typewriter');
 

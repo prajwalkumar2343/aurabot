@@ -26,4 +26,9 @@ AuraApp.prototype.setupIPCListeners = function () {
     window.electronAPI?.onTriggerQuickEnhance?.(() => {
         this.openQuickEnhance();
     });
+
+    // Ghost enhance trigger (shortcut without modal)
+    window.electronAPI?.onTriggerGhostEnhance?.(() => {
+        this.triggerGhostEnhance();
+    });
 };
