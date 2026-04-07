@@ -21,11 +21,13 @@ type Service struct {
 	llm      *llm.Client
 	memory   *memory.Store
 
-	running   bool
-	stopChan  chan struct{}
-	wg        sync.WaitGroup
-	lastState string
-	
+	running      bool
+	stopChan     chan struct{}
+	wg           sync.WaitGroup
+	lastState    string
+	llmHealthy   bool
+	memoryHealthy bool
+
 	// Rate limiting for LLM vision requests
 	visionSem chan struct{}
 }
@@ -46,11 +48,22 @@ func New(cfg *config.Config) (*Service, error) {
 	}, nil
 }
 
+// Memory returns the memory store instance
+func (s *Service) Memory() *memory.Store {
+	return s.memory
+}
+
+// GetConfig returns the current configuration
+func (s *Service) GetConfig() *config.Config {
+	return s.config
+}
+
 // Run starts the service
 func (s *Service) Run(ctx context.Context) error {
-	// Health checks
+	// Health checks (log but don't fail - let API stay available)
 	if err := s.checkDependencies(ctx); err != nil {
-		return fmt.Errorf("dependency check failed: %w", err)
+		log.Printf("⚠ Warning: dependency check failed: %v", err)
+		log.Println("Service will continue in degraded mode")
 	}
 
 	log.Println("Screen Memory Assistant started")
@@ -59,8 +72,8 @@ func (s *Service) Run(ctx context.Context) error {
 
 	s.running = true
 
-	// Start capture loop if enabled
-	if s.config.Capture.Enabled {
+	// Start capture loop if enabled (and only if dependencies are healthy)
+	if s.config.Capture.Enabled && s.isHealthy() {
 		s.wg.Add(1)
 		go s.captureLoop(ctx)
 	}
@@ -208,9 +221,12 @@ func (s *Service) Chat(ctx context.Context, message string) (string, error) {
 // GetStatus returns current service status
 func (s *Service) GetStatus() map[string]interface{} {
 	return map[string]interface{}{
-		"running":    s.running,
-		"platform":   capture.GetPlatform(),
-		"last_state": s.lastState,
+		"running":        s.running,
+		"platform":       capture.GetPlatform(),
+		"last_state":     s.lastState,
+		"llm_healthy":    s.llmHealthy,
+		"memory_healthy": s.memoryHealthy,
+		"healthy":        s.isHealthy(),
 		"config": map[string]interface{}{
 			"capture_interval": s.config.Capture.IntervalSeconds,
 			"capture_enabled":  s.config.Capture.Enabled,
@@ -218,21 +234,41 @@ func (s *Service) GetStatus() map[string]interface{} {
 	}
 }
 
+// SetCaptureEnabled enables or disables screen capture
+func (s *Service) SetCaptureEnabled(enabled bool) {
+	s.config.Capture.Enabled = enabled
+	if enabled {
+		log.Println("✓ Capture enabled")
+	} else {
+		log.Println("✓ Capture disabled")
+	}
+}
+
 // checkDependencies verifies all services are available
 func (s *Service) checkDependencies(ctx context.Context) error {
+	s.llmHealthy = false
+	s.memoryHealthy = false
+
 	// Check LLM
 	if err := s.llm.CheckHealth(ctx); err != nil {
 		return fmt.Errorf("LLM not available at %s: %w", s.config.LLM.BaseURL, err)
 	}
+	s.llmHealthy = true
 	log.Println("✓ LLM connected")
 
 	// Check Mem0
 	if err := s.memory.CheckHealth(); err != nil {
 		return fmt.Errorf("Mem0 not available at %s: %w", s.config.Memory.BaseURL, err)
 	}
+	s.memoryHealthy = true
 	log.Println("✓ Mem0 connected")
 
 	return nil
+}
+
+// isHealthy returns true if all dependencies are healthy
+func (s *Service) isHealthy() bool {
+	return s.llmHealthy && s.memoryHealthy
 }
 
 // stop gracefully shuts down the service

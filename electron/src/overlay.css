@@ -1,0 +1,279 @@
+/* ========================================
+   Pacman Ghost Overlay - Seamless Text Overlay
+   ======================================== */
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+html, body {
+    width: 100%;
+    height: 100%;
+    background: transparent !important;
+    overflow: hidden;
+}
+
+/* ========================================
+   Main Overlay Container - Fully Transparent
+   ======================================== */
+
+.pacman-ghost-overlay {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    background: transparent !important;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    transition: opacity 0.1s ease;
+    overflow: hidden;
+}
+
+.pacman-ghost-overlay.active {
+    opacity: 1;
+}
+
+.pacman-ghost-container {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    padding: 2px 4px;
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    background: transparent !important;
+}
+
+/* ========================================
+   Text Container - Matches Editor Text
+   ======================================== */
+
+.pacman-text-container {
+    position: relative;
+    font-size: 14px;
+    line-height: 1.4;
+    color: #E0E0E0;
+    text-align: left;
+    font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+    width: 100%;
+    word-wrap: break-word;
+    white-space: pre-wrap;
+    transition: opacity 0.15s ease;
+    background: transparent !important;
+    padding: 0;
+    border-radius: 0;
+    box-shadow: none !important;
+    border: none !important;
+}
+
+.text-line {
+    display: block;
+    background: transparent !important;
+}
+
+.pacman-char {
+    display: inline-block;
+    transition: opacity 0.05s ease, transform 0.05s ease;
+    opacity: 1;
+    transform: scale(1);
+    color: #E0E0E0;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
+}
+
+.pacman-char.eaten {
+    opacity: 0;
+    transform: scale(0) rotate(180deg);
+}
+
+/* ========================================
+   Pacman Player
+   ======================================== */
+
+.pacman-ghost-player {
+    position: absolute;
+    top: 50%;
+    left: -30px;
+    transform: translateY(-50%);
+    width: 28px;
+    height: 28px;
+    opacity: 0;
+    z-index: 10;
+    filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.5));
+}
+
+.pacman-ghost-player.animating {
+    opacity: 1;
+}
+
+.pacman-ghost-player.moving {
+    animation: pacman-ghost-travel linear forwards;
+}
+
+.pacman-ghost-svg {
+    width: 100%;
+    height: 100%;
+    overflow: visible;
+}
+
+/* Mouth Animation - Fast chomping */
+.pacman-ghost-player .pacman-mouth-top {
+    transform-origin: 18px 18px;
+    animation: mouth-top-chomp 0.15s ease-in-out infinite;
+}
+
+.pacman-ghost-player .pacman-mouth-bottom {
+    transform-origin: 18px 18px;
+    animation: mouth-bottom-chomp 0.15s ease-in-out infinite;
+}
+
+@keyframes mouth-top-chomp {
+    0%, 100% { transform: rotate(0deg); }
+    50% { transform: rotate(-45deg); }
+}
+
+@keyframes mouth-bottom-chomp {
+    0%, 100% { transform: rotate(0deg); }
+    50% { transform: rotate(45deg); }
+}
+
+@keyframes pacman-ghost-travel {
+    0% { left: -30px; }
+    100% { left: calc(100% + 10px); }
+}
+
+/* ========================================
+   Dots Trail - Subtle
+   ======================================== */
+
+.pacman-dots-trail {
+    position: absolute;
+    top: 50%;
+    left: 0;
+    right: 0;
+    transform: translateY(-50%);
+    height: 6px;
+    pointer-events: none;
+    z-index: 5;
+}
+
+.pacman-dot-trail {
+    position: absolute;
+    width: 5px;
+    height: 5px;
+    background: #FF9999;
+    border-radius: 50%;
+    top: 50%;
+    transform: translateY(-50%);
+    transition: opacity 0.06s ease, transform 0.06s ease;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+}
+
+.pacman-dot-trail.eaten {
+    opacity: 0;
+    transform: translateY(-50%) scale(0);
+}
+
+/* ========================================
+   WAKA Text Effect - Small and subtle
+   ======================================== */
+
+.pacman-waka {
+    position: absolute;
+    font-size: 10px;
+    font-weight: 700;
+    color: #FFFF00;
+    font-family: 'Courier New', monospace;
+    opacity: 0;
+    pointer-events: none;
+    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8);
+    z-index: 20;
+    letter-spacing: 0;
+}
+
+.pacman-waka.show {
+    animation: waka-pop 0.35s ease forwards;
+}
+
+@keyframes waka-pop {
+    0% {
+        opacity: 0;
+        transform: translateY(0) scale(0.5);
+    }
+    30% {
+        opacity: 1;
+        transform: translateY(-10px) scale(1);
+    }
+    100% {
+        opacity: 0;
+        transform: translateY(-20px) scale(0.8);
+    }
+}
+
+/* ========================================
+   Result Container - Matches Editor Style
+   ======================================== */
+
+.pacman-result {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    overflow-y: auto;
+    padding: 0;
+    background: rgba(30, 30, 30, 0.95);
+    border: 1px solid rgba(245, 215, 110, 0.5);
+    border-radius: 2px;
+    font-size: 14px;
+    line-height: 1.4;
+    color: #E0E0E0;
+    text-align: left;
+    opacity: 0;
+    pointer-events: auto;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+    word-wrap: break-word;
+    white-space: pre-wrap;
+    font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+}
+
+.pacman-result.show {
+    animation: result-appear 0.4s ease forwards;
+}
+
+@keyframes result-appear {
+    0% {
+        opacity: 0;
+        transform: scale(0.95);
+    }
+    100% {
+        opacity: 1;
+        transform: scale(1);
+    }
+}
+
+/* ========================================
+   Reduced Motion
+   ======================================== */
+
+@media (prefers-reduced-motion: reduce) {
+    .pacman-ghost-player .pacman-mouth-top,
+    .pacman-ghost-player .pacman-mouth-bottom {
+        animation: none !important;
+    }
+    
+    .pacman-ghost-player.moving {
+        animation-duration: 0.01s !important;
+    }
+    
+    .pacman-result.show {
+        animation: none !important;
+        opacity: 1 !important;
+    }
+    
+    .pacman-char.eaten {
+        transition: none !important;
+    }
+}

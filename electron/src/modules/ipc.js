@@ -27,8 +27,11 @@ AuraApp.prototype.setupIPCListeners = function () {
         this.openQuickEnhance();
     });
 
-    // Ghost enhance trigger (shortcut without modal)
-    window.electronAPI?.onTriggerGhostEnhance?.(() => {
-        this.triggerGhostEnhance();
+    // Ghost enhance trigger is handled by quickEnhance module
+    // DO NOT add a listener here to avoid conflicts
+
+    // Text capture error
+    window.electronAPI?.onTextCaptureError?.(({ error }) => {
+        this.showToast('Text capture failed: ' + error, 'error');
     });
 };

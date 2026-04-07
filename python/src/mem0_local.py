@@ -20,21 +20,25 @@ def main():
     embedding_path = MODELS_DIR / "embeddinggemma-300m-f8"
     llm_path = MODELS_DIR / "lfm-2-vision-450m"
     
-    if not embedding_path.exists() or not llm_path.exists():
-        print("[ERROR] Models not found!")
+    has_models = embedding_path.exists() and llm_path.exists()
+    
+    if not has_models:
+        print("[WARN] Local models not found - starting in API passthrough mode")
+        print("       Models can be configured from the application settings.")
         print()
-        print("Please download the models first:")
-        print("  python download_models.py")
-        print()
-        sys.exit(1)
     
     print("=" * 70)
     print("Mem0 REST API Server (Local Models - No External Dependencies)")
     print("=" * 70)
     print()
 
-    model_manager = LocalModelManager()
-    memory, has_mem0 = init_mem0(model_manager, HOST, PORT)
+    if has_models:
+        model_manager = LocalModelManager()
+        memory, has_mem0 = init_mem0(model_manager, HOST, PORT)
+    else:
+        model_manager = None
+        memory = None
+        has_mem0 = False
     
     # Configure Handler
     Mem0LocalHandler.model_manager = model_manager
@@ -57,6 +61,9 @@ def main():
     print()
     
     server = HTTPServer((HOST, PORT), Mem0LocalHandler)
+    
+    print(f"* Running on http://{HOST}:{PORT}")
+    print("Startup complete")
     
     try:
         server.serve_forever()

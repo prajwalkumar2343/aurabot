@@ -86,6 +86,42 @@ AuraApp.prototype.setupQuickEnhance = function () {
     doneBtn?.addEventListener('click', () => {
         closePopup();
     });
+
+    // Setup ghost enhance with captured text from main process
+    this.setupGhostEnhanceListener();
+};
+
+/**
+ * Setup listener for ghost enhance trigger from main process
+ */
+AuraApp.prototype.setupGhostEnhanceListener = function () {
+    console.log('[GhostEnhance] Setting up ghost enhance listener...');
+    
+    // Listen for ghost enhance trigger from main process
+    window.electronAPI?.onTriggerGhostEnhance?.((data) => {
+        console.log('[GhostEnhance] Received ghost enhance trigger:', data);
+        
+        // Get captured text from the event data
+        const capturedText = data?.text || '';
+        
+        if (capturedText && capturedText.trim()) {
+            console.log('[GhostEnhance] Using captured text, length:', capturedText.length);
+            // Use the new Pacman ghost animation with the captured text
+            this.triggerPacmanGhostEnhance(capturedText);
+        } else {
+            console.log('[GhostEnhance] No captured text, falling back to clipboard');
+            // Fallback to clipboard if no captured text
+            this.triggerGhostEnhance();
+        }
+    });
+
+    // Also listen for text capture errors
+    window.electronAPI?.onTextCaptureError?.((data) => {
+        console.error('[GhostEnhance] Text capture error:', data);
+        this.showToast('Text capture failed: ' + (data?.error || 'Unknown error'), 'error');
+    });
+    
+    console.log('[GhostEnhance] Ghost enhance listener setup complete');
 };
 
 /**
@@ -137,7 +173,65 @@ AuraApp.prototype.openQuickEnhance = function (text = '') {
 };
 
 /**
- * Handle Ghost Mode (Shortcut without modal)
+ * Trigger Pacman Ghost Enhance with captured text
+ * Shows full-screen Pacman eating animation
+ */
+AuraApp.prototype.triggerPacmanGhostEnhance = async function (text) {
+    console.log('[PacmanGhost] Triggering Pacman ghost enhance, text length:', text?.length);
+    
+    if (!text || !text.trim()) {
+        console.warn('[PacmanGhost] No text provided');
+        this.showToast('No text to enhance', 'error');
+        return;
+    }
+
+    // Note: The overlay window is already shown by the main process (shortcuts.js)
+    // This function just handles the enhancement logic
+    
+    console.log('[PacmanGhost] Starting enhancement (overlay already visible)...');
+
+    // Run the enhancement (animation is in overlay window)
+    try {
+        // Wait a bit for the eating animation to progress in the overlay
+        await new Promise(resolve => setTimeout(resolve, 1500));
+        
+        console.log('[PacmanGhost] Starting enhancement...');
+        const result = await window.electronAPI?.enhancePrompt(text, '');
+        console.log('[PacmanGhost] Enhancement result:', result?.success);
+
+        if (result?.success) {
+            const enhanced = result.data?.enhancedPrompt || result.data?.enhanced_prompt || result.data?.response;
+
+            // Show result on overlay window via main process
+            await window.electronAPI?.showOverlayResult?.(enhanced);
+
+            // Wait a moment for user to see the result
+            await new Promise(resolve => setTimeout(resolve, 2000));
+
+            // Hide the overlay
+            await window.electronAPI?.hideOverlay?.();
+
+            // Update clipboard with enhanced text
+            await window.electronAPI?.writeClipboard(enhanced);
+
+            // Paste the enhanced text back into the original application
+            await window.electronAPI?.pasteClipboard();
+
+            // Success feedback
+            this.showToast('✨ Text enhanced and pasted', 'success');
+        } else {
+            throw new Error(result?.error || 'Enhancement failed');
+        }
+    } catch (err) {
+        console.error('[PacmanGhost] Enhancement error:', err);
+        await window.electronAPI?.hideOverlay?.();
+        this.showToast('Enhancement failed: ' + (err.message || 'Unknown error'), 'error');
+    }
+};
+
+/**
+ * Handle Ghost Mode (Shortcut without modal) - Legacy method
+ * Uses clipboard instead of captured text
  */
 AuraApp.prototype.triggerGhostEnhance = async function () {
     let clipboardText = '';
@@ -161,12 +255,15 @@ AuraApp.prototype.triggerGhostEnhance = async function () {
         if (result?.success) {
             const enhanced = result.data?.enhancedPrompt || result.data?.enhanced_prompt || result.data?.response;
 
-            // 4. Update clipboard
+            // 4. Update clipboard with enhanced text
             await window.electronAPI?.writeClipboard(enhanced);
 
-            // 5. Success feedback
+            // 5. Paste the enhanced text back into the original application
+            await window.electronAPI?.pasteClipboard();
+
+            // 6. Success feedback
             this.showGhostAnimation(false, true);
-            this.showToast('✨ Text rewritten to clipboard', 'success');
+            this.showToast('✨ Text enhanced and pasted', 'success');
         } else {
             throw new Error(result?.error || 'Enhancement failed');
         }
