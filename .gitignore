@@ -1,0 +1,59 @@
+# Binaries
+screen-memory-assistant
+*.exe
+build/
+
+# Frontend dist is NOT ignored - it contains the app UI
+# dist/
+
+# Test artifacts
+*.test
+*.out
+coverage.txt
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Config (contains user-specific settings)
+config.yaml
+config.local.yaml
+.env
+
+# Local data storage
+qdrant_storage/
+
+# Temp files
+*.tmp
+*.log
+
+# Personal/Development files
+kimi-workflow.md
+MEM0_SERVER_README.md
+
+# Downloaded models (large files)
+models/*
+!models/.gitignore
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+*.egg
+
+# Virtual environments
+venv/
+.venv/
+env/
+.env
