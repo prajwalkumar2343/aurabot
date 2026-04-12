@@ -19,11 +19,14 @@ type Config struct {
 
 // CaptureConfig holds screen capture settings
 type CaptureConfig struct {
-	IntervalSeconds int  `yaml:"interval_seconds"`
-	Quality         int  `yaml:"quality"`
-	MaxWidth        int  `yaml:"max_width"`
-	MaxHeight       int  `yaml:"max_height"`
-	Enabled         bool `yaml:"enabled"`
+	IntervalSeconds       int     `yaml:"interval_seconds"`
+	Quality               int     `yaml:"quality"`
+	MaxWidth              int     `yaml:"max_width"`
+	MaxHeight             int     `yaml:"max_height"`
+	Enabled               bool    `yaml:"enabled"`
+	DynamicCaptureEnabled bool    `yaml:"dynamic_capture_enabled"`
+	FastIntervalSeconds   int     `yaml:"fast_interval_seconds"`
+	DiffThreshold         float64 `yaml:"diff_threshold"`
 }
 
 // LLMConfig holds LLM API settings
@@ -33,9 +36,14 @@ type LLMConfig struct {
 	MaxTokens      int     `yaml:"max_tokens"`
 	Temperature    float32 `yaml:"temperature"`
 	TimeoutSeconds int     `yaml:"timeout_seconds"`
-	// Cerebras config for chat/LLM tasks
-	CerebrasAPIKey string  `yaml:"cerebras_api_key"`
-	CerebrasModel  string  `yaml:"cerebras_model"`
+}
+
+// OpenRouterConfig holds OpenRouter-specific settings
+type OpenRouterConfig struct {
+	APIKey         string `yaml:"api_key"`
+	VisionModel    string `yaml:"vision_model"`
+	ChatModel      string `yaml:"chat_model"`
+	EmbeddingModel string `yaml:"embedding_model"`
 }
 
 // MemoryConfig holds Mem0 settings
@@ -59,27 +67,39 @@ type ExtensionConfig struct {
 	Port    int  `yaml:"port"`
 }
 
+// OpenRouter holds the OpenRouter configuration (stored separately)
+var OpenRouter OpenRouterConfig
+
 // Load reads config from file or creates default
 func Load() (*Config, error) {
 	// Load .env file if it exists
 	_ = godotenv.Load()
 
+	// Load OpenRouter config from environment
+	OpenRouter = OpenRouterConfig{
+		APIKey:         os.Getenv("OPENROUTER_API_KEY"),
+		VisionModel:    getEnvOrDefault("OPENROUTER_VISION_MODEL", "google/gemini-flash-1.5"),
+		ChatModel:      getEnvOrDefault("OPENROUTER_CHAT_MODEL", "anthropic/claude-3.5-sonnet"),
+		EmbeddingModel: getEnvOrDefault("OPENROUTER_EMBEDDING_MODEL", "openai/text-embedding-3-small"),
+	}
+
 	cfg := &Config{
 		Capture: CaptureConfig{
-			IntervalSeconds: 30,
-			Quality:         60,
-			MaxWidth:        1280,  // 720p width - LFM-2 works best with this
-			MaxHeight:       720,   // 720p height
-			Enabled:         true,
+			IntervalSeconds:       30,
+			Quality:               60,
+			MaxWidth:              1280,
+			MaxHeight:             720,
+			Enabled:               true,
+			DynamicCaptureEnabled: false,
+			FastIntervalSeconds:   5,
+			DiffThreshold:         0.1,
 		},
 		LLM: LLMConfig{
-			BaseURL:        "http://localhost:1234/v1",
-			Model:          "local-model",
+			BaseURL:        "https://openrouter.ai/api/v1",
+			Model:          OpenRouter.VisionModel,
 			MaxTokens:      512,
 			Temperature:    0.7,
 			TimeoutSeconds: 30,
-			CerebrasAPIKey: os.Getenv("CEREBRAS_API_KEY"),
-			CerebrasModel:  "gpt-oss-120b",
 		},
 		Memory: MemoryConfig{
 			APIKey:         "",
@@ -110,17 +130,14 @@ func Load() (*Config, error) {
 	}
 
 	// Override with environment variables
-	if val := os.Getenv("LM_STUDIO_URL"); val != "" {
-		cfg.LLM.BaseURL = val
-	}
 	if val := os.Getenv("MEM0_URL"); val != "" {
 		cfg.Memory.BaseURL = val
 	}
 	if val := os.Getenv("MEM0_API_KEY"); val != "" {
 		cfg.Memory.APIKey = val
 	}
-	if val := os.Getenv("CEREBRAS_API_KEY"); val != "" {
-		cfg.LLM.CerebrasAPIKey = val
+	if val := os.Getenv("OPENROUTER_API_KEY"); val != "" {
+		OpenRouter.APIKey = val
 	}
 
 	return cfg, nil
@@ -133,4 +150,11 @@ func (c *Config) Save(path string) error {
 		return err
 	}
 	return os.WriteFile(path, data, 0644)
+}
+
+func getEnvOrDefault(key, defaultVal string) string {
+	if val := os.Getenv(key); val != "" {
+		return val
+	}
+	return defaultVal
 }

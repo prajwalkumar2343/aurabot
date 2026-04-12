@@ -25,13 +25,13 @@ struct CaptureConfig: Codable {
 }
 
 struct LLMConfig: Codable {
-    var baseURL: String = "http://localhost:1234/v1"
-    var model: String = "local-model"
+    var baseURL: String = "https://openrouter.ai/api/v1"
+    var model: String = "google/gemini-flash-1.5"
     var maxTokens: Int = 512
     var temperature: Double = 0.7
     var timeoutSeconds: Int = 30
-    var cerebrasAPIKey: String = ""
-    var cerebrasModel: String = "gpt-oss-120b"
+    var openRouterAPIKey: String = ""
+    var openRouterChatModel: String = "anthropic/claude-3.5-sonnet"
 }
 
 struct MemoryConfig: Codable {

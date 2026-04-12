@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"os"
 	"strings"
 	"time"
 
@@ -12,10 +13,11 @@ import (
 	"screen-memory-assistant/internal/config"
 )
 
-// Client wraps the OpenAI-compatible LLM API
+// Client wraps the OpenAI-compatible OpenRouter API
 type Client struct {
-	visionClient *openai.Client  // LM Studio for vision
-	chatClient   *openai.Client  // Cerebras for chat/text
+	client       *openai.Client
+	visionModel  string
+	chatModel    string
 	config       *config.LLMConfig
 }
 
@@ -35,26 +37,20 @@ type AnalysisResult struct {
 	UserIntent  string   `json:"user_intent"`
 }
 
-// NewClient creates a new LLM client
+// NewClient creates a new LLM client using OpenRouter
 func NewClient(cfg *config.LLMConfig) *Client {
-	// Vision client (LM Studio) - for image analysis
-	visionConfig := openai.DefaultConfig("")
-	visionConfig.BaseURL = cfg.BaseURL
-
-	// Chat client (Cerebras) - for text/chat
-	var chatClient *openai.Client
-	if cfg.CerebrasAPIKey != "" {
-		chatConfig := openai.DefaultConfig(cfg.CerebrasAPIKey)
-		chatConfig.BaseURL = "https://api.cerebras.ai/v1"
-		chatClient = openai.NewClientWithConfig(chatConfig)
-	} else {
-		// Fallback to LM Studio if no Cerebras key
-		chatClient = openai.NewClientWithConfig(visionConfig)
+	apiKey := config.OpenRouter.APIKey
+	if apiKey == "" {
+		apiKey = os.Getenv("OPENROUTER_API_KEY")
 	}
 
+	clientConfig := openai.DefaultConfig(apiKey)
+	clientConfig.BaseURL = cfg.BaseURL
+
 	return &Client{
-		visionClient: openai.NewClientWithConfig(visionConfig),
-		chatClient:   chatClient,
+		client:       openai.NewClientWithConfig(clientConfig),
+		visionModel:  config.OpenRouter.VisionModel,
+		chatModel:    config.OpenRouter.ChatModel,
 		config:       cfg,
 	}
 }
@@ -91,7 +87,7 @@ Respond in this exact JSON format:
 	}
 
 	req := openai.ChatCompletionRequest{
-		Model: c.config.Model,
+		Model: c.visionModel,
 		Messages: []openai.ChatCompletionMessage{
 			{
 				Role:    openai.ChatMessageRoleSystem,
@@ -118,7 +114,7 @@ Respond in this exact JSON format:
 		Temperature: c.config.Temperature,
 	}
 
-	resp, err := c.visionClient.CreateChatCompletion(ctx, req)
+	resp, err := c.client.CreateChatCompletion(ctx, req)
 	if err != nil {
 		return nil, fmt.Errorf("LLM API error: %w", err)
 	}
@@ -156,14 +152,8 @@ func (c *Client) GenerateResponse(ctx context.Context, prompt string, memories [
 	fmt.Printf("User:\n%s\n", userPrompt)
 	fmt.Println(strings.Repeat("=", 70))
 
-	// Use Cerebras model for chat
-	model := c.config.CerebrasModel
-	if model == "" {
-		model = c.config.Model
-	}
-
 	req := openai.ChatCompletionRequest{
-		Model: model,
+		Model: c.chatModel,
 		Messages: []openai.ChatCompletionMessage{
 			{
 				Role:    openai.ChatMessageRoleSystem,
@@ -178,7 +168,7 @@ func (c *Client) GenerateResponse(ctx context.Context, prompt string, memories [
 		Temperature: c.config.Temperature,
 	}
 
-	resp, err := c.chatClient.CreateChatCompletion(ctx, req)
+	resp, err := c.client.CreateChatCompletion(ctx, req)
 	if err != nil {
 		return "", fmt.Errorf("LLM API error: %w", err)
 	}
@@ -202,7 +192,7 @@ func (c *Client) parseResponse(content string) *AnalysisResult {
 	}
 
 	// Try to parse JSON response if structured
-	// This allows LFM-2 to return proper JSON that we can extract fields from
+	// This allows the model to return proper JSON that we can extract fields from
 	var jsonResult map[string]interface{}
 	if err := json.Unmarshal([]byte(content), &jsonResult); err == nil {
 		if summary, ok := jsonResult["summary"].(string); ok {
@@ -234,14 +224,13 @@ func (c *Client) parseResponse(content string) *AnalysisResult {
 	return result
 }
 
-// CheckHealth verifies the LLM endpoints are available
+// CheckHealth verifies the OpenRouter endpoint is available
 func (c *Client) CheckHealth(ctx context.Context) error {
-	// Check vision client (LM Studio)
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 
 	req := openai.ChatCompletionRequest{
-		Model: c.config.Model,
+		Model: c.chatModel,
 		Messages: []openai.ChatCompletionMessage{
 			{
 				Role:    openai.ChatMessageRoleUser,
@@ -251,18 +240,9 @@ func (c *Client) CheckHealth(ctx context.Context) error {
 		MaxTokens: 5,
 	}
 
-	_, err := c.visionClient.CreateChatCompletion(ctx, req)
+	_, err := c.client.CreateChatCompletion(ctx, req)
 	if err != nil {
-		return fmt.Errorf("vision client: %w", err)
-	}
-
-	// Check chat client (Cerebras) if configured
-	if c.config.CerebrasAPIKey != "" {
-		req.Model = c.config.CerebrasModel
-		_, err = c.chatClient.CreateChatCompletion(ctx, req)
-		if err != nil {
-			return fmt.Errorf("chat client: %w", err)
-		}
+		return fmt.Errorf("openrouter client: %w", err)
 	}
 
 	return nil

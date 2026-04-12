@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"fmt"
+	"image"
 	"log"
 	"strings"
 	"sync"
@@ -25,6 +26,10 @@ type Service struct {
 	stopChan  chan struct{}
 	wg        sync.WaitGroup
 	lastState string
+	
+	// Fast-polling diffing state
+	lastProcessedImage image.Image
+	lastCaptureTime    time.Time
 	
 	// Rate limiting for LLM vision requests
 	visionSem chan struct{}
@@ -62,7 +67,15 @@ func (s *Service) Run(ctx context.Context) error {
 	// Start capture loop if enabled
 	if s.config.Capture.Enabled {
 		s.wg.Add(1)
-		go s.captureLoop(ctx)
+		
+		// Decide polling interval based on dynamic capture settings
+		interval := s.config.Capture.IntervalSeconds
+		if s.config.Capture.DynamicCaptureEnabled {
+			interval = s.config.Capture.FastIntervalSeconds
+			log.Printf("Dynamic fast-polling enabled: checking screen every %ds", interval)
+		}
+		
+		go s.captureLoop(ctx, interval)
 	}
 
 	// Wait for shutdown
@@ -73,10 +86,10 @@ func (s *Service) Run(ctx context.Context) error {
 }
 
 // captureLoop handles periodic screen capture
-func (s *Service) captureLoop(ctx context.Context) {
+func (s *Service) captureLoop(ctx context.Context, interval int) {
 	defer s.wg.Done()
 
-	ticker := time.NewTicker(time.Duration(s.config.Capture.IntervalSeconds) * time.Second)
+	ticker := time.NewTicker(time.Duration(interval) * time.Second)
 	defer ticker.Stop()
 
 	// Do first capture immediately
@@ -111,6 +124,25 @@ func (s *Service) processCapture(ctx context.Context) {
 	if !s.config.App.ProcessOnCapture {
 		return
 	}
+
+	// Dynamic capture logic
+	if s.config.Capture.DynamicCaptureEnabled {
+		timeSinceLastRealCapture := time.Since(s.lastCaptureTime)
+		forceCapture := timeSinceLastRealCapture >= time.Duration(s.config.Capture.IntervalSeconds)*time.Second
+
+		changed := capture.CompareImages(cap.Image, s.lastProcessedImage, s.config.Capture.DiffThreshold)
+		
+		if !changed && !forceCapture {
+			if s.config.App.Verbose {
+				log.Printf("Skipping capture: Screen unchanged")
+			}
+			return
+		}
+	}
+
+	// Update tracking state
+	s.lastProcessedImage = cap.Image
+	s.lastCaptureTime = time.Now()
 
 	// Process with LLM in background
 	s.wg.Add(1)
@@ -213,7 +245,9 @@ func (s *Service) GetStatus() map[string]interface{} {
 		"last_state": s.lastState,
 		"config": map[string]interface{}{
 			"capture_interval": s.config.Capture.IntervalSeconds,
+			"fast_interval":    s.config.Capture.FastIntervalSeconds,
 			"capture_enabled":  s.config.Capture.Enabled,
+			"dynamic_enabled":  s.config.Capture.DynamicCaptureEnabled,
 		},
 	}
 }

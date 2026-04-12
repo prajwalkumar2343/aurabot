@@ -1,20 +1,19 @@
 # Screen capture configuration
 capture:
   interval_seconds: 30          # How often to capture screen
-  quality: 60                   # JPEG quality (1-100) - lower = smaller images, less VRAM
-  max_width: 1280               # Resize screenshot max width (720p for LFM-2 compatibility)
-  max_height: 720               # Resize screenshot max height (720p for LFM-2 compatibility)
+  quality: 60                   # JPEG quality (1-100) - lower = smaller images
+  max_width: 1280               # Resize screenshot max width
+  max_height: 720               # Resize screenshot max height
   enabled: true                 # Start capturing immediately
 
-# LM Studio and Cerebras configuration
+# OpenRouter configuration (for LLM tasks)
+# API key is loaded from OPENROUTER_API_KEY environment variable
 llm:
-  base_url: "http://localhost:1234/v1"   # LM Studio (for vision/embeddings)
-  model: "local-model"                    # Vision model in LM Studio
+  base_url: "https://openrouter.ai/api/v1"
+  model: "google/gemini-flash-1.5"    # Vision model for screenshot analysis
   max_tokens: 512
   temperature: 0.7
   timeout_seconds: 30
-  cerebras_api_key: ""                    # Get from https://cloud.cerebras.ai
-  cerebras_model: "gpt-oss-120b"          # For chat/text tasks
 
 # Mem0 configuration (pip installed: pip install mem0ai)
 memory:
