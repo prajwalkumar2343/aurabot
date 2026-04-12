@@ -64,26 +64,34 @@ python start.py --skip-setup
 
 ## Installation
 
-### Download Pre-built App
+### Download Pre-built App (Recommended)
 
-Download the latest release from GitHub Releases:
+Download `AuraBot-1.0.0.zip` from [GitHub Releases](https://github.com/prajwalkumar2343/aurabot/releases), then:
+
 ```bash
-# Download AuraBot-1.0.0.zip from releases
-# Unzip and drag to Applications
+# Unzip
+unzip AuraBot-1.0.0.zip
+
+# Move to Applications
+mv AuraBot.app /Applications/
+
+# First launch: Right-click → Open → Open
+open /Applications/AuraBot.app
 ```
 
 ### Build from Source
 
 ```bash
 # Clone the repository
-git clone <repo-url>
+git clone https://github.com/prajwalkumar2343/aurabot.git
 cd aurabot
 
-# Build with Swift Package Manager
+# Build with Makefile
+make build-app
+
+# Or build manually
 cd aurabot-swift
 swift build -c release
-
-# Or use the build script
 ./scripts/build-app.sh
 ```
 
@@ -180,7 +188,7 @@ aurabot/
 ├── scripts/                     # Setup & utility scripts
 │   ├── auto_setup.py
 │   └── download_models.py
-├── python/                      # Python source code
+├── python/                      # Python backend server
 │   ├── requirements.txt
 │   └── src/
 │       ├── mem0_local.py        # Mem0 with local models
@@ -190,23 +198,16 @@ aurabot/
 │       ├── api/                 # API handlers
 │       ├── providers/           # LLM providers
 │       └── embedders/           # Embedding services
-├── go/                          # Go source code
-│   ├── go.mod
-│   ├── main.go                  # Entry point (CLI service)
-│   └── internal/
-│       ├── config/              # Configuration management
-│       ├── capture/             # Screen capture
-│       ├── llm/                 # LLM client
-│       ├── memory/              # Mem0 integration
-│       ├── service/             # Orchestrator
-│       ├── enhancer/            # Prompt enhancement
-│       ├── overlay/             # Overlay window
-│       └── server/              # HTTP API server
-└── aurabot-swift/              # Native macOS app (Swift)
+├── swift-mem0/                  # Swift Mem0 client package
+│   ├── Package.swift
+│   └── Sources/Mem0/
+│       └── Mem0.swift
+└── aurabot-swift/               # Native macOS app (Swift)
     ├── Package.swift
     ├── scripts/
     │   └── build-app.sh         # Build script
     ├── DISTRIBUTION.md          # Distribution guide
+    ├── INSTALL.txt              # Installation instructions
     └── Sources/AuraBot/
         ├── Core/               # App lifecycle
         ├── Models/             # Data models
