@@ -60,3 +60,15 @@ env/
 
 # Node.js
 node_modules/
+
+# Swift build artifacts
+aurabot-swift/.build/
+aurabot-swift/Package.resolved
+*.app/
+
+# Swift app bundle
+AuraBot.app/
+AuraBot-*.zip
+
+# Local experiment directories
+swift-mem0/
