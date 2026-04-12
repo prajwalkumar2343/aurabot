@@ -8,6 +8,7 @@ class AppService: ObservableObject {
     @Published var lastActivity: String = "--"
     @Published var memories: [Memory] = []
     @Published var captureEnabled: Bool = true
+    @Published var permissionError: String?
     
     let config: AppConfig
     private let llmService: LLMService
@@ -35,7 +36,17 @@ class AppService: ObservableObject {
         
         if captureEnabled {
             Task {
-                await captureService?.start()
+                // Check permission before starting
+                if let hasPerm = await captureService?.checkPermission() {
+                    if !hasPerm {
+                        await MainActor.run {
+                            self.permissionError = "Screen recording permission required. Please grant permission in System Settings > Privacy & Security > Screen Recording"
+                            self.captureEnabled = false
+                        }
+                        return
+                    }
+                    await captureService?.start()
+                }
             }
         }
         
@@ -54,7 +65,19 @@ class AppService: ObservableObject {
     func toggleCapture() {
         captureEnabled.toggle()
         if captureEnabled {
-            Task { await captureService?.start() }
+            Task { 
+                // Check permission before enabling
+                if let hasPerm = await captureService?.checkPermission() {
+                    if hasPerm {
+                        await captureService?.start()
+                    } else {
+                        await MainActor.run {
+                            self.permissionError = "Screen recording permission required"
+                            self.captureEnabled = false
+                        }
+                    }
+                }
+            }
         } else {
             Task { await captureService?.stop() }
         }
