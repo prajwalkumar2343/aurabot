@@ -1,6 +1,6 @@
 import SwiftUI
 
-@available(macOS 12.3, *)
+@available(macOS 14.0, *)
 struct MemoriesView: View {
     @ObservedObject var service: AppService
     @State private var searchText: String = ""

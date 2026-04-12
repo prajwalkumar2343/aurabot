@@ -1,7 +1,7 @@
 import Foundation
 import Combine
 
-@available(macOS 12.3, *)
+@available(macOS 14.0, *)
 @MainActor
 class AppService: ObservableObject {
     @Published var status: ServiceStatus = .stopped
@@ -21,7 +21,7 @@ class AppService: ObservableObject {
         self.llmService = LLMService(config: config.llm)
         self.memoryService = MemoryService(config: config.memory)
         
-        if #available(macOS 12.3, *) {
+        if #available(macOS 14.0, *) {
             self.captureService = ScreenCaptureService(config: config.capture)
             self.captureService?.onCapture = { [weak self] capture in
                 await self?.processCapture(capture)
@@ -62,6 +62,23 @@ class AppService: ObservableObject {
     
     func chat(message: String) async throws -> String {
         return try await llmService.generateResponse(message: message, memories: [])
+    }
+    
+    func enhance(text: String) async throws -> EnhancementResult {
+        // Get relevant memories
+        let relevantMemories = try await memoryService.search(query: text, limit: 5)
+        let memoryContents = relevantMemories.map { $0.memory.content }
+        
+        // Enhance with memories
+        let enhanced = try await llmService.enhancePrompt(text, with: memoryContents)
+        
+        return EnhancementResult(
+            originalPrompt: text,
+            enhancedPrompt: enhanced,
+            memoriesUsed: memoryContents,
+            memoryCount: memoryContents.count,
+            enhancementType: "context"
+        )
     }
     
     func refreshMemories() async {

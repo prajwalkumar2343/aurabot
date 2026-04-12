@@ -1,6 +1,6 @@
 import SwiftUI
 
-@available(macOS 12.3, *)
+@available(macOS 14.0, *)
 struct SettingsView: View {
     @State private var captureEnabled = true
     @State private var captureInterval: Double = 30

@@ -1,12 +1,12 @@
 import Cocoa
 import SwiftUI
 
-@available(macOS 12.3, *)
+@available(macOS 14.0, *)
 class QuickEnhancePanel: NSPanel {
-    private let service: AppService?
+    private let service: AppService
     private var hostingView: NSHostingView<QuickEnhanceView>?
     
-    init(service: AppService?) {
+    init(service: AppService) {
         self.service = service
         
         let view = QuickEnhanceView(service: service, onClose: {})
@@ -50,9 +50,9 @@ class QuickEnhancePanel: NSPanel {
     }
 }
 
-@available(macOS 12.3, *)
+@available(macOS 14.0, *)
 struct QuickEnhanceView: View {
-    @StateObject var service: AppService?
+    @StateObject var service: AppService
     let onClose: () -> Void
     
     @State private var originalText: String = ""
@@ -170,8 +170,6 @@ struct QuickEnhanceView: View {
     }
     
     private func enhance() {
-        guard let service = service else { return }
-        
         isEnhancing = true
         showResult = false
         

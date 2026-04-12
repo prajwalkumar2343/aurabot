@@ -5,14 +5,14 @@ struct AppConfig: Codable {
     var llm: LLMConfig
     var memory: MemoryConfig
     var app: AppSettings
-    var extension: ExtensionConfig
+    var browserExtension: ExtensionConfig
     
     static let `default` = AppConfig(
         capture: CaptureConfig(),
         llm: LLMConfig(),
         memory: MemoryConfig(),
         app: AppSettings(),
-        extension: ExtensionConfig()
+        browserExtension: ExtensionConfig()
     )
 }
 

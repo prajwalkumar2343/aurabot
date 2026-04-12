@@ -1,6 +1,6 @@
 import SwiftUI
 
-@available(macOS 12.3, *)
+@available(macOS 14.0, *)
 struct MainView: View {
     @StateObject private var service = AppService()
     @State private var selectedTab: Tab = .dashboard
@@ -31,7 +31,7 @@ struct MainView: View {
     }
 }
 
-@available(macOS 12.3, *)
+@available(macOS 14.0, *)
 struct Sidebar: View {
     @Binding var selectedTab: MainView.Tab
     @ObservedObject var service: AppService
@@ -119,7 +119,7 @@ struct Sidebar: View {
     }
 }
 
-@available(macOS 12.3, *)
+@available(macOS 14.0, *)
 struct NavButton: View {
     let title: String
     let icon: String
