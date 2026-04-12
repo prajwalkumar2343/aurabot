@@ -24,6 +24,7 @@ type CaptureConfig struct {
 	MaxWidth              int     `yaml:"max_width"`
 	MaxHeight             int     `yaml:"max_height"`
 	Enabled               bool    `yaml:"enabled"`
+	Format                string  `yaml:"format"`
 	DynamicCaptureEnabled bool    `yaml:"dynamic_capture_enabled"`
 	FastIntervalSeconds   int     `yaml:"fast_interval_seconds"`
 	DiffThreshold         float64 `yaml:"diff_threshold"`
@@ -90,6 +91,7 @@ func Load() (*Config, error) {
 			MaxWidth:              1280,
 			MaxHeight:             720,
 			Enabled:               true,
+			Format:                "webp",
 			DynamicCaptureEnabled: false,
 			FastIntervalSeconds:   5,
 			DiffThreshold:         0.1,
