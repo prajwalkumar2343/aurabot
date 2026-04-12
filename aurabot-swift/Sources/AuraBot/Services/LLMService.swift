@@ -6,9 +6,9 @@ actor LLMService {
     
     init(config: LLMConfig) {
         self.config = config
-        let config = URLSessionConfiguration.default
-        config.timeoutIntervalForRequest = TimeInterval(config.timeoutSeconds)
-        self.session = URLSession(configuration: config)
+        let sessionConfig = URLSessionConfiguration.default
+        sessionConfig.timeoutIntervalForRequest = TimeInterval(config.timeoutSeconds)
+        self.session = URLSession(configuration: sessionConfig)
     }
     
     func analyzeScreen(imageData: Data, context: String) async throws -> AnalysisResult {
@@ -109,6 +109,37 @@ actor LLMService {
             memoryCount: memories.count,
             enhancementType: memories.count > 2 ? "contextual" : memories.count > 0 ? "detailed" : "minimal"
         )
+    }
+    
+    func enhancePrompt(_ prompt: String, with memories: [String]) async throws -> String {
+        let memoriesText = memories.joined(separator: "\n")
+        
+        let messages: [[String: Any]] = [
+            [
+                "role": "system",
+                "content": "Enhance the user's prompt with relevant context from their memory. Keep the original intent but add helpful context."
+            ],
+            [
+                "role": "user",
+                "content": """
+                Original prompt: \(prompt)
+                
+                Relevant memories:
+                \(memoriesText)
+                
+                Enhance the prompt with relevant context. Return ONLY the enhanced prompt.
+                """
+            ]
+        ]
+        
+        let requestBody: [String: Any] = [
+            "model": config.model,
+            "messages": messages,
+            "max_tokens": config.maxTokens,
+            "temperature": 0.5
+        ]
+        
+        return try await makeRequest(body: requestBody)
     }
     
     func checkHealth() async -> Bool {

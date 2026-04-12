@@ -12,17 +12,16 @@ let package = Package(
     ],
     dependencies: [
         .package(url: "https://github.com/vapor/vapor.git", from: "4.89.0"),
-        .package(url: "https://github.com/swhitty/swift-mem0.git", branch: "main"),
+        .package(path: "../swift-mem0"),
         .package(url: "https://github.com/Alamofire/Alamofire.git", from: "5.8.0"),
-        .package(url: "https://github.com/sindresorhus/KeyboardShortcuts.git", from: "1.15.0"),
     ],
     targets: [
         .executableTarget(
             name: "AuraBot",
             dependencies: [
                 .product(name: "Vapor", package: "vapor"),
+                .product(name: "Mem0", package: "swift-mem0"),
                 .product(name: "Alamofire", package: "Alamofire"),
-                .product(name: "KeyboardShortcuts", package: "KeyboardShortcuts"),
             ],
             swiftSettings: [
                 .enableExperimentalFeature("StrictConcurrency")

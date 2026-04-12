@@ -1,10 +1,11 @@
 import Foundation
 import CoreGraphics
-import ScreenCaptureKit
+@preconcurrency import ScreenCaptureKit
 import AppKit
 
-@available(macOS 12.3, *)
-actor ScreenCaptureService {
+@available(macOS 14.0, *)
+@MainActor
+class ScreenCaptureService {
     private let config: CaptureConfig
     private var isRunning = false
     private var timer: Timer?
@@ -20,11 +21,11 @@ actor ScreenCaptureService {
         isRunning = true
         
         Task {
-            await capturePrimary()
+            _ = await capturePrimary()
             
-            timer = Timer.scheduledTimer(withTimeInterval: TimeInterval(config.intervalSeconds), repeats: true) { _ in
-                Task {
-                    await self.capturePrimary()
+            self.timer = Timer.scheduledTimer(withTimeInterval: TimeInterval(config.intervalSeconds), repeats: true) { [weak self] _ in
+                Task { [weak self] in
+                    _ = await self?.capturePrimary()
                 }
             }
         }
@@ -37,10 +38,11 @@ actor ScreenCaptureService {
     }
     
     func capturePrimary() async -> ScreenCapture? {
-        guard let displayID = CGMainDisplayID() else { return nil }
+        let displayID = CGMainDisplayID()
         return await captureDisplay(displayID: displayID)
     }
     
+    nonisolated
     func captureDisplay(displayID: CGDirectDisplayID) async -> ScreenCapture? {
         do {
             let content = try await SCShareableContent.current
@@ -51,12 +53,12 @@ actor ScreenCaptureService {
             
             let filter = SCContentFilter(display: display, excludingApplications: [], exceptingWindows: [])
             let configuration = SCStreamConfiguration()
-            configuration.width = min(config.maxWidth, display.width)
-            configuration.height = min(config.maxHeight, display.height)
+            configuration.width = min(self.config.maxWidth, display.width)
+            configuration.height = min(self.config.maxHeight, display.height)
             
             let image = try await SCScreenshotManager.captureImage(contentFilter: filter, configuration: configuration)
             
-            guard let data = image.jpegData(compressionQuality: Double(config.quality) / 100.0) else {
+            guard let data = image.jpegData(compressionQuality: Double(self.config.quality) / 100.0) else {
                 return nil
             }
             
@@ -67,7 +69,6 @@ actor ScreenCaptureService {
                 displayNum: 1
             )
             
-            await onCapture?(capture)
             return capture
             
         } catch {

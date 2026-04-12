@@ -1,6 +1,6 @@
 import SwiftUI
 
-@available(macOS 12.3, *)
+@available(macOS 14.0, *)
 struct DashboardView: View {
     @ObservedObject var service: AppService
     @State private var showingNewMemory = false
@@ -222,4 +222,3 @@ struct NewMemoryView: View {
     }
 }
 
-extension Memory: Identifiable {}

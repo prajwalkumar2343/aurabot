@@ -1,8 +1,7 @@
 import SwiftUI
-import KeyboardShortcuts
 
 @main
-@available(macOS 12.3, *)
+@available(macOS 14.0, *)
 struct AuraBotApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
     

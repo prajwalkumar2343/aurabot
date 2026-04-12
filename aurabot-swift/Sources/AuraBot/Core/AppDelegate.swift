@@ -1,8 +1,8 @@
 import Cocoa
-import KeyboardShortcuts
 import SwiftUI
 
-@available(macOS 12.3, *)
+@available(macOS 14.0, *)
+@MainActor
 class AppDelegate: NSObject, NSApplicationDelegate {
     var statusItem: NSStatusItem?
     var overlayWindow: OverlayWindow?
@@ -10,29 +10,29 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     var service: AppService?
     
     func applicationDidFinishLaunching(_ notification: Notification) {
-        // Hide dock icon
-        NSApp.setActivationPolicy(.accessory)
-        
         // Setup menu bar
         setupStatusItem()
         
         // Setup services
         let config = AppConfig.load(from: configPath)
         service = AppService(config: config)
-        service?.start()
-        
-        // Setup global hotkey
-        setupGlobalHotkey()
+        Task {
+            await service?.start()
+        }
         
         // Create overlay window
         overlayWindow = OverlayWindow()
         overlayWindow?.onClick = { [weak self] in
-            self?.showQuickEnhance()
+            Task { @MainActor in
+                self?.showQuickEnhance()
+            }
         }
     }
     
     func applicationWillTerminate(_ notification: Notification) {
-        service?.stop()
+        Task {
+            await service?.stop()
+        }
     }
     
     private func setupStatusItem() {
@@ -49,14 +49,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         statusItem?.menu = menu
     }
     
-    private func setupGlobalHotkey() {
-        KeyboardShortcuts.onKeyUp(for: .quickEnhance) { [weak self] in
-            self?.triggerQuickEnhance()
-        }
-    }
-    
     @objc private func showMainWindow() {
-        NSApp.setActivationPolicy(.regular)
         NSApp.activate(ignoringOtherApps: true)
         
         for window in NSApp.windows {
@@ -73,19 +66,21 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         simulateCopy()
         
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
-            let selectedText = pasteboard.string(forType: .string) ?? ""
-            
-            // Restore original
-            if let original = originalContent {
-                pasteboard.clearContents()
-                pasteboard.setString(original, forType: .string)
+            Task { @MainActor in
+                let selectedText = pasteboard.string(forType: .string) ?? ""
+                
+                // Restore original
+                if let original = originalContent {
+                    pasteboard.clearContents()
+                    pasteboard.setString(original, forType: .string)
+                }
+                
+                // Show overlay at cursor
+                self?.showOverlay()
+                
+                // Show quick enhance panel
+                self?.showQuickEnhance(text: selectedText)
             }
-            
-            // Show overlay at cursor
-            self?.showOverlay()
-            
-            // Show quick enhance panel
-            self?.showQuickEnhance(text: selectedText)
         }
     }
     
@@ -97,12 +92,14 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         
         // Auto hide after 3 seconds
         DispatchQueue.main.asyncAfter(deadline: .now() + 3) { [weak self] in
-            self?.overlayWindow?.hide()
+            Task { @MainActor in
+                self?.overlayWindow?.hide()
+            }
         }
     }
     
     private func showQuickEnhance(text: String = "") {
-        if quickEnhancePanel == nil {
+        if quickEnhancePanel == nil, let service = service {
             quickEnhancePanel = QuickEnhancePanel(service: service)
         }
         
@@ -131,8 +128,4 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         let home = FileManager.default.homeDirectoryForCurrentUser
         return home.appendingPathComponent(".aurabot/config.json").path
     }
-}
-
-extension KeyboardShortcuts.Name {
-    static let quickEnhance = Self("quickEnhance", default: .init(.e, modifiers: [.command, .option]))
 }
