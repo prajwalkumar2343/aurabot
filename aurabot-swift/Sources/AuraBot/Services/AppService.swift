@@ -12,7 +12,6 @@ class AppService: ObservableObject {
     let config: AppConfig
     private let llmService: LLMService
     private let memoryService: MemoryService
-    private let enhancerService: EnhancerService
     private var captureService: ScreenCaptureService?
     
     private var processingTask: Task<Void, Never>?
@@ -21,10 +20,6 @@ class AppService: ObservableObject {
         self.config = config
         self.llmService = LLMService(config: config.llm)
         self.memoryService = MemoryService(config: config.memory)
-        self.enhancerService = EnhancerService(
-            memoryService: memoryService,
-            llmService: llmService
-        )
         
         if #available(macOS 12.3, *) {
             self.captureService = ScreenCaptureService(config: config.capture)
@@ -67,10 +62,6 @@ class AppService: ObservableObject {
     
     func chat(message: String) async throws -> String {
         return try await llmService.generateResponse(message: message, memories: [])
-    }
-    
-    func enhance(text: String) async throws -> EnhancementResult {
-        return try await enhancerService.enhance(prompt: text)
     }
     
     func refreshMemories() async {

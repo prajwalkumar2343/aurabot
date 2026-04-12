@@ -11,6 +11,7 @@ require (
 )
 
 require (
+	github.com/chai2010/webp v1.4.0 // indirect
 	github.com/gen2brain/shm v0.1.1 // indirect
 	github.com/godbus/dbus/v5 v5.2.0 // indirect
 	github.com/jezek/xgb v1.2.0 // indirect
