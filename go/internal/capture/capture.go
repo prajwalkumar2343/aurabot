@@ -1,10 +1,8 @@
 package capture
 
 import (
-	"bytes"
 	"fmt"
 	"image"
-	"image/jpeg"
 	"runtime"
 	"time"
 
@@ -105,10 +103,11 @@ func CompareImages(img1, img2 image.Image, threshold float64) bool {
 
 // Capture represents a screen capture with metadata
 type Capture struct {
-	Timestamp  time.Time
-	Image      image.Image
-	Compressed []byte
-	DisplayNum int
+	Timestamp   time.Time
+	Image       image.Image
+	Compressed  []byte
+	ContentType string
+	DisplayNum  int
 }
 
 // Capturer handles screen capture operations
@@ -147,10 +146,11 @@ func (c *Capturer) CaptureScreen() ([]*Capture, error) {
 		}
 
 		captures = append(captures, &Capture{
-			Timestamp:  now,
-			Image:      img,
-			Compressed: compressed,
-			DisplayNum: i,
+			Timestamp:   now,
+			Image:       img,
+			Compressed:  compressed,
+			ContentType: GetContentType(c.getFormat()),
+			DisplayNum:  i,
 		})
 	}
 
@@ -177,17 +177,25 @@ func (c *Capturer) CapturePrimary() (*Capture, error) {
 	}
 
 	return &Capture{
-		Timestamp:  time.Now(),
-		Image:      img,
-		Compressed: compressed,
-		DisplayNum: 0,
+		Timestamp:   time.Now(),
+		Image:       img,
+		Compressed:  compressed,
+		ContentType: GetContentType(c.getFormat()),
+		DisplayNum:  0,
 	}, nil
 }
 
-// compress converts image to JPEG (with optional resize)
-func (c *Capturer) compress(img image.Image) ([]byte, error) {
-	var buf bytes.Buffer
+// getFormat returns the compression format from config
+func (c *Capturer) getFormat() CompressionFormat {
+	format := CompressionFormat(c.config.Format)
+	if format == "" {
+		return FormatWebP // Default to WebP for better compression
+	}
+	return format
+}
 
+// compress converts image to the configured format (WebP or JPEG)
+func (c *Capturer) compress(img image.Image) ([]byte, error) {
 	// Resize if configured
 	if c.config.MaxWidth > 0 || c.config.MaxHeight > 0 {
 		img = resizeImage(img, c.config.MaxWidth, c.config.MaxHeight)
@@ -198,12 +206,12 @@ func (c *Capturer) compress(img image.Image) ([]byte, error) {
 		quality = 60
 	}
 
-	opts := &jpeg.Options{Quality: quality}
-	if err := jpeg.Encode(&buf, img, opts); err != nil {
-		return nil, err
+	opts := CompressOptions{
+		Format:  c.getFormat(),
+		Quality: quality,
 	}
 
-	return buf.Bytes(), nil
+	return compress(img, opts)
 }
 
 // GetPlatform returns the current platform name

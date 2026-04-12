@@ -333,22 +333,11 @@ func (s *Server) handleConfig(w http.ResponseWriter, r *http.Request) {
 				"max_height":       cfg.Capture.MaxHeight,
 			},
 			"llm": map[string]interface{}{
-				"provider":    "lm-studio",
+				"provider":    "openrouter",
 				"base_url":    cfg.LLM.BaseURL,
-				"api_key":     cfg.LLM.CerebrasAPIKey,
 				"model":       cfg.LLM.Model,
 				"max_tokens":  cfg.LLM.MaxTokens,
 				"temperature": cfg.LLM.Temperature,
-			},
-			"vision": map[string]interface{}{
-				"provider": "lm-studio",
-				"base_url": cfg.LLM.BaseURL,
-				"model":    cfg.LLM.Model,
-			},
-			"embeddings": map[string]interface{}{
-				"provider": "lm-studio",
-				"base_url": cfg.LLM.BaseURL,
-				"model":    cfg.LLM.Model,
 			},
 			"memory": map[string]interface{}{
 				"api_key":         cfg.Memory.APIKey,
