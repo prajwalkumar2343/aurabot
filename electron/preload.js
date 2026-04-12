@@ -11,38 +11,49 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getStatus: () => ipcRenderer.invoke('get-status'),
   getConfig: () => ipcRenderer.invoke('get-config'),
   updateConfig: (config) => ipcRenderer.invoke('update-config', config),
-  
+
   // Memories
   getMemories: (limit) => ipcRenderer.invoke('get-memories', limit),
   searchMemories: (query, limit) => ipcRenderer.invoke('search-memories', query, limit),
   addMemory: (content, metadata) => ipcRenderer.invoke('add-memory', content, metadata),
-  
+
   // Chat
   chat: (message) => ipcRenderer.invoke('chat', message),
-  
+
   // Capture
   toggleCapture: (enabled) => ipcRenderer.invoke('toggle-capture', enabled),
-  
+
   // Enhance
   enhancePrompt: (prompt, context) => ipcRenderer.invoke('enhance-prompt', prompt, context),
-  
+
   // Window Controls
   minimizeWindow: () => ipcRenderer.invoke('minimize-window'),
   maximizeWindow: () => ipcRenderer.invoke('maximize-window'),
   closeWindow: () => ipcRenderer.invoke('close-window'),
-  
+
+  // Clipboard
+  readClipboard: () => ipcRenderer.invoke('read-clipboard'),
+  writeClipboard: (text) => ipcRenderer.invoke('write-clipboard', text),
+  pasteClipboard: () => ipcRenderer.invoke('paste-clipboard'),
+
   // External Links
   openExternal: (url) => ipcRenderer.invoke('open-external', url),
-  
+
   // Version
   getVersion: () => ipcRenderer.invoke('get-version'),
-  
+
+  // Overlay Window Control
+  hideOverlay: () => ipcRenderer.invoke('hide-overlay'),
+  showOverlayResult: (text) => ipcRenderer.invoke('show-overlay-result', text),
+
   // Event Listeners
   onNavigate: (callback) => ipcRenderer.on('navigate', (_, view) => callback(view)),
   onCaptureStatus: (callback) => ipcRenderer.on('capture-status', (_, status) => callback(status)),
   onBackendStatus: (callback) => ipcRenderer.on('backend-status', (_, status) => callback(status)),
   onTriggerQuickEnhance: (callback) => ipcRenderer.on('trigger-quick-enhance', () => callback()),
-  
+  onTriggerGhostEnhance: (callback) => ipcRenderer.on('trigger-ghost-enhance', (_, data) => callback(data)),
+  onTextCaptureError: (callback) => ipcRenderer.on('text-capture-error', (_, data) => callback(data)),
+
   // Remove listeners
   removeAllListeners: (channel) => ipcRenderer.removeAllListeners(channel)
 });

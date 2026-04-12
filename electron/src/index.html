@@ -3,11 +3,13 @@
 
 <head>
     <meta charset="UTF-8">
-    <meta http-equiv="Content-Security-Policy"
-        content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:;">
+    <!-- <meta http-equiv="Content-Security-Policy"
+        content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:;"> -->
     <title>Aura — AI Memory Assistant</title>
     <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="animations.css">
     <link rel="stylesheet" href="components/EnhancedInput.css">
+    <link rel="stylesheet" href="components/PacmanGhost.css">
 </head>
 
 <body>
@@ -42,7 +44,7 @@
         </div>
 
         <div class="app-content">
-            <!-- Sidebar -->
+            <!-- Sidebar — Frosted Glass -->
             <aside class="sidebar">
                 <div class="sidebar-header">
                     <div class="app-brand">
@@ -58,16 +60,17 @@
                 <nav class="nav-menu">
                     <button class="nav-item active" data-view="dashboard">
                         <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <rect x="3" y="3" width="7" height="7" rx="1" />
-                            <rect x="14" y="3" width="7" height="7" rx="1" />
-                            <rect x="14" y="14" width="7" height="7" rx="1" />
-                            <rect x="3" y="14" width="7" height="7" rx="1" />
+                            <rect x="3" y="3" width="7" height="7" rx="2" />
+                            <rect x="14" y="3" width="7" height="7" rx="2" />
+                            <rect x="14" y="14" width="7" height="7" rx="2" />
+                            <rect x="3" y="14" width="7" height="7" rx="2" />
                         </svg>
                         <span>Dashboard</span>
                     </button>
                     <button class="nav-item" data-view="memories">
                         <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+                            <circle cx="12" cy="12" r="10" />
+                            <path d="M12 6v6l4 2" />
                         </svg>
                         <span>Memories</span>
                     </button>
@@ -131,6 +134,20 @@
                         <div class="status-dot offline" id="backend-dot"></div>
                         <span id="backend-text">Connecting...</span>
                     </div>
+
+                    <!-- Dark Mode Toggle -->
+                    <div class="theme-toggle-row">
+                        <span class="theme-toggle-label">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
+                            </svg>
+                            Dark Mode
+                        </span>
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="theme-toggle">
+                            <span class="toggle-slider"></span>
+                        </label>
+                    </div>
                 </div>
             </aside>
 
@@ -138,19 +155,38 @@
             <main class="main-content">
                 <!-- Dashboard View -->
                 <section id="view-dashboard" class="view active">
-                    <header class="view-header">
-                        <div>
-                            <h1 class="view-title">Dashboard</h1>
-                            <p class="view-subtitle">Overview of your memory system</p>
-                        </div>
-                        <button class="btn-primary" id="btn-new-memory">
+                    <!-- Welcome -->
+                    <div class="dashboard-welcome">
+                        <h1 class="welcome-greeting" id="welcome-greeting">Good Morning</h1>
+                        <p class="welcome-subtitle">What would you like to recall today?</p>
+                        <p class="welcome-time" id="welcome-time"></p>
+                    </div>
+
+                    <!-- Quick Actions -->
+                    <div class="quick-actions">
+                        <button class="quick-action-btn" id="btn-new-memory">
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16"
                                 height="16">
-                                <path d="M12 4.5v15m7.5-7.5h-15" />
+                                <path d="M12 5v14M5 12h14" />
                             </svg>
                             New Memory
                         </button>
-                    </header>
+                        <button class="quick-action-btn" data-view="chat">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16"
+                                height="16">
+                                <path
+                                    d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" />
+                            </svg>
+                            Ask Aura
+                        </button>
+                        <button class="quick-action-btn" id="btn-quick-enhance-trigger">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16"
+                                height="16">
+                                <path d="M13 10V3L4 14h7v7l9-11h-7z" />
+                            </svg>
+                            Quick Enhance
+                        </button>
+                    </div>
 
                     <!-- Stats Grid -->
                     <div class="stats-grid">
@@ -207,7 +243,7 @@
                     </div>
                 </section>
 
-                <!-- Memories View -->
+                <!-- Memories View — Timeline -->
                 <section id="view-memories" class="view">
                     <header class="view-header">
                         <div>
@@ -230,7 +266,7 @@
                     </div>
                 </section>
 
-                <!-- Chat View -->
+                <!-- Chat View — Floating Bubbles -->
                 <section id="view-chat" class="view">
                     <header class="view-header">
                         <div>
@@ -246,12 +282,12 @@
                                     <svg viewBox="0 0 24 24" fill="none">
                                         <defs>
                                             <linearGradient id="avatar-grad" x1="2" y1="2" x2="22" y2="22">
-                                                <stop offset="0%" stop-color="#F5D76E" />
-                                                <stop offset="100%" stop-color="#E8C84A" />
+                                                <stop offset="0%" stop-color="#007AFF" />
+                                                <stop offset="100%" stop-color="#5AC8FA" />
                                             </linearGradient>
                                         </defs>
                                         <circle cx="12" cy="12" r="10" fill="url(#avatar-grad)" />
-                                        <path d="M8 14s1.5 2 4 2 4-2 4-2M9 9h.01M15 9h.01" stroke="#1A1A1A"
+                                        <path d="M8 14s1.5 2 4 2 4-2 4-2M9 9h.01M15 9h.01" stroke="#FFFFFF"
                                             stroke-width="2" stroke-linecap="round" />
                                     </svg>
                                 </div>
@@ -320,7 +356,7 @@
                             <div class="setting-row">
                                 <div class="setting-info">
                                     <h3>JPEG Quality</h3>
-                                    <p>Image quality for screen captures (lower = smaller files)</p>
+                                    <p>Image quality for screen captures</p>
                                 </div>
                                 <div class="setting-control">
                                     <input type="range" id="setting-capture-quality" min="30" max="100" value="60">
@@ -331,7 +367,7 @@
                             <div class="setting-row">
                                 <div class="setting-info">
                                     <h3>Process on Capture</h3>
-                                    <p>Analyze screenshots immediately with AI (uses more resources)</p>
+                                    <p>Analyze screenshots immediately with AI</p>
                                 </div>
                                 <label class="toggle-switch">
                                     <input type="checkbox" id="setting-process-on-capture" checked>
@@ -341,26 +377,159 @@
                         </div>
                     </div>
 
-                    <!-- AI & Memory Settings -->
+                    <!-- AI & Models Settings -->
                     <div class="settings-panel" id="panel-ai">
+                        <div class="provider-grid">
+                            <!-- LLM Provider Card -->
+                            <div class="provider-card">
+                                <div class="provider-card-header">
+                                    <div class="provider-card-icon">
+                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                                            width="18" height="18">
+                                            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+                                        </svg>
+                                    </div>
+                                    <span class="provider-card-title">LLM (Chat & Text)</span>
+                                </div>
+                                <div class="provider-field-group">
+                                    <label class="provider-field-label">Provider</label>
+                                    <select class="provider-select" id="setting-llm-provider">
+                                        <option value="openai">OpenAI</option>
+                                        <option value="anthropic">Anthropic</option>
+                                        <option value="gemini">Google Gemini</option>
+                                        <option value="groq">Groq</option>
+                                        <option value="cerebras">Cerebras</option>
+                                        <option value="ollama">Ollama</option>
+                                        <option value="lm-studio">LM Studio</option>
+                                        <option value="custom">Custom (OpenAI-compatible)</option>
+                                    </select>
+                                </div>
+                                <div class="provider-field-group">
+                                    <label class="provider-field-label">Base URL</label>
+                                    <input type="text" class="setting-input" id="setting-llm-url-new"
+                                        placeholder="https://api.openai.com/v1">
+                                </div>
+                                <div class="provider-field-group">
+                                    <label class="provider-field-label">API Key</label>
+                                    <div class="api-key-wrapper">
+                                        <input type="password" class="setting-input" id="setting-llm-key"
+                                            placeholder="Enter API Key">
+                                        <button class="api-key-toggle" data-target="setting-llm-key">
+                                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                                                width="14" height="14">
+                                                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                                                <circle cx="12" cy="12" r="3" />
+                                            </svg>
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="provider-field-group">
+                                    <label class="provider-field-label">Model Name</label>
+                                    <input type="text" class="setting-input" id="setting-llm-model-new" value="gpt-4o">
+                                </div>
+                            </div>
+
+                            <!-- Vision Provider Card -->
+                            <div class="provider-card">
+                                <div class="provider-card-header">
+                                    <div class="provider-card-icon">
+                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                                            width="18" height="18">
+                                            <path
+                                                d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h18a2 2 0 0 1 2 2z" />
+                                            <circle cx="8.5" cy="8.5" r="1.5" />
+                                            <path d="M21 15l-5-5L5 21" />
+                                        </svg>
+                                    </div>
+                                    <span class="provider-card-title">Vision (Image Analysis)</span>
+                                </div>
+                                <div class="provider-field-group">
+                                    <label class="provider-field-label">Provider</label>
+                                    <select class="provider-select" id="setting-vision-provider">
+                                        <option value="openai">OpenAI</option>
+                                        <option value="anthropic">Anthropic</option>
+                                        <option value="gemini">Google Gemini</option>
+                                        <option value="groq">Groq</option>
+                                        <option value="ollama">Ollama</option>
+                                        <option value="lm-studio">LM Studio</option>
+                                        <option value="custom">Custom (OpenAI-compatible)</option>
+                                    </select>
+                                </div>
+                                <div class="provider-field-group">
+                                    <label class="provider-field-label">Base URL</label>
+                                    <input type="text" class="setting-input" id="setting-vision-url"
+                                        placeholder="https://api.openai.com/v1">
+                                </div>
+                                <div class="provider-field-group">
+                                    <label class="provider-field-label">API Key</label>
+                                    <div class="api-key-wrapper">
+                                        <input type="password" class="setting-input" id="setting-vision-key"
+                                            placeholder="Enter API Key">
+                                        <button class="api-key-toggle" data-target="setting-vision-key">
+                                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                                                width="14" height="14">
+                                                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                                                <circle cx="12" cy="12" r="3" />
+                                            </svg>
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="provider-field-group">
+                                    <label class="provider-field-label">Model Name</label>
+                                    <input type="text" class="setting-input" id="setting-vision-model" value="gpt-4o">
+                                </div>
+                            </div>
+
+                            <!-- Embeddings Provider Card -->
+                            <div class="provider-card">
+                                <div class="provider-card-header">
+                                    <div class="provider-card-icon">
+                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                                            width="18" height="18">
+                                            <path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                                        </svg>
+                                    </div>
+                                    <span class="provider-card-title">Embeddings (Memory)</span>
+                                </div>
+                                <div class="provider-field-group">
+                                    <label class="provider-field-label">Provider</label>
+                                    <select class="provider-select" id="setting-embeddings-provider">
+                                        <option value="openai">OpenAI</option>
+                                        <option value="gemini">Google Gemini</option>
+                                        <option value="ollama">Ollama</option>
+                                        <option value="lm-studio">LM Studio</option>
+                                        <option value="custom">Custom (OpenAI-compatible)</option>
+                                    </select>
+                                </div>
+                                <div class="provider-field-group">
+                                    <label class="provider-field-label">Base URL</label>
+                                    <input type="text" class="setting-input" id="setting-embeddings-url"
+                                        placeholder="https://api.openai.com/v1">
+                                </div>
+                                <div class="provider-field-group">
+                                    <label class="provider-field-label">API Key</label>
+                                    <div class="api-key-wrapper">
+                                        <input type="password" class="setting-input" id="setting-embeddings-key"
+                                            placeholder="Enter API Key">
+                                        <button class="api-key-toggle" data-target="setting-embeddings-key">
+                                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                                                width="14" height="14">
+                                                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                                                <circle cx="12" cy="12" r="3" />
+                                            </svg>
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="provider-field-group">
+                                    <label class="provider-field-label">Model Name</label>
+                                    <input type="text" class="setting-input" id="setting-embeddings-model"
+                                        value="text-embedding-3-small">
+                                </div>
+                            </div>
+                        </div>
+
                         <div class="settings-group">
-                            <div class="setting-row">
-                                <div class="setting-info">
-                                    <h3>LLM Base URL</h3>
-                                    <p>Endpoint for the language model</p>
-                                </div>
-                                <input type="text" class="setting-input" id="setting-llm-url"
-                                    value="http://localhost:1234/v1">
-                            </div>
-
-                            <div class="setting-row">
-                                <div class="setting-info">
-                                    <h3>Model Name</h3>
-                                    <p>Model identifier for the LLM</p>
-                                </div>
-                                <input type="text" class="setting-input" id="setting-llm-model" value="local-model">
-                            </div>
-
+                            <h3 class="group-title">Memory Support</h3>
                             <div class="setting-row">
                                 <div class="setting-info">
                                     <h3>Memory Window</h3>
@@ -410,6 +579,17 @@
 
                             <div class="setting-row">
                                 <div class="setting-info">
+                                    <h3>Dark Mode</h3>
+                                    <p>Switch between light and dark appearance</p>
+                                </div>
+                                <label class="toggle-switch">
+                                    <input type="checkbox" id="setting-dark-mode">
+                                    <span class="toggle-slider"></span>
+                                </label>
+                            </div>
+
+                            <div class="setting-row">
+                                <div class="setting-info">
                                     <h3>Global Hotkey</h3>
                                     <p>Hotkey to trigger Quick Enhance</p>
                                 </div>
@@ -436,6 +616,45 @@
         </div>
     </div>
 
+    <!-- Floating Overlay Assistant -->
+    <div class="overlay-assistant" id="overlay-assistant">
+        <div class="overlay-panel" id="overlay-panel">
+            <div class="overlay-panel-header">
+                <span class="overlay-panel-title">
+                    <span class="accent-dot"></span>
+                    Aura Assistant
+                </span>
+                <button class="btn-close" id="btn-close-overlay">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                        <path d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+            </div>
+            <div class="overlay-panel-body">
+                <div class="overlay-messages" id="overlay-messages">
+                    <div class="overlay-message assistant">
+                        How can I help you?
+                    </div>
+                </div>
+            </div>
+            <div class="overlay-input-wrapper">
+                <input type="text" class="overlay-input" id="overlay-input" placeholder="Ask something quick...">
+                <button class="overlay-send-btn" id="overlay-send-btn">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="m22 2-7 20-4-9-9-4 20-7z" />
+                    </svg>
+                </button>
+            </div>
+        </div>
+        <button class="overlay-orb" id="overlay-orb" title="Quick Assistant">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" />
+            </svg>
+            <!-- Ghost Animation Container -->
+            <div id="ghost-pacman-container" class="ghost-pacman-container"></div>
+        </button>
+    </div>
+
     <!-- New Memory Modal -->
     <div class="modal-overlay" id="modal-overlay"></div>
     <div class="modal" id="modal-new-memory">
@@ -460,7 +679,7 @@
         </div>
     </div>
 
-    <!-- Quick Enhance Modal with Pac-Man Animation -->
+    <!-- Quick Enhance Modal -->
     <div class="modal-overlay" id="quick-enhance-overlay"></div>
     <div class="modal quick-enhance-modal" id="quick-enhance-modal">
         <div class="modal-header">
@@ -479,7 +698,6 @@
         <div class="modal-body">
             <div class="quick-enhance-section">
                 <label class="quick-enhance-label">Enter text to enhance</label>
-                <!-- Enhanced Input Component Container -->
                 <div id="enhanced-input-container" style="position: relative;"></div>
             </div>
             <div class="quick-enhance-memories" id="quick-enhance-memories" style="margin-top: 16px;"></div>
@@ -505,9 +723,16 @@
         <span class="toast-message" id="toast-message">Success</span>
     </div>
 
+    <div id="ui-debug-status"
+        style="position:fixed; top:2px; right:2px; font-size:9px; color:rgba(0,0,0,0.1); z-index:9999; pointer-events:none;">
+        UI_L1</div>
+
+    <script src="app.js"></script>
     <script src="components/EnhancedInput.js"></script>
     <script src="components/PacmanAnimation.js"></script>
-    <script src="app.js"></script>
+    <script src="components/PacmanGhost.js"></script>
+    <script src="modules/theme.js"></script>
+    <script src="modules/overlay.js"></script>
     <script src="modules/navigation.js"></script>
     <script src="modules/dashboard.js"></script>
     <script src="modules/modal.js"></script>
@@ -520,16 +745,8 @@
     <script src="modules/settings.js"></script>
     <script src="modules/memories.js"></script>
     <script src="modules/shortcuts.js"></script>
-    <script>
-        // Initialize
-        if (document.readyState === 'loading') {
-            document.addEventListener('DOMContentLoaded', () => {
-                window.app = new AuraApp();
-            });
-        } else {
-            window.app = new AuraApp();
-        }
-    </script>
+    <script src="init.js"></script>
+
 </body>
 
 </html>

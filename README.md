@@ -7,7 +7,6 @@ An AI-powered screen capture and memory system that learns who you are and under
 - **Periodic Screen Capture**: Configurable interval screenshots with compression
 - **Vision AI**: Analyzes screen content using local LLM
 - **Memory System**: Stores context and activities using Mem0 embeddings
-- **Browser Extension**: Enhance AI prompts on ChatGPT, Claude, Gemini with your memories
 - **Cross-Platform**: Optimized for macOS, works on Windows
 - **Resource Efficient**: JPEG compression, async processing
 
@@ -24,15 +23,6 @@ An AI-powered screen capture and memory system that learns who you are and under
 │   Search    │◀────│    Mem0      │◀────│   Context   │
 │   Memory    │     │   Vector DB  │     │   Store     │
 └─────────────┘     └──────────────┘     └─────────────┘
-      │
-      │ HTTP API
-      ▼
-┌──────────────────────────────────────────────────────┐
-│                 Browser Extension                     │
-│  ┌─────────┐  ┌─────────┐  ┌─────────┐  ┌─────────┐ │
-│  │ ChatGPT │  │ Claude  │  │ Gemini  │  │Perplexity│ │
-│  └─────────┘  └─────────┘  └─────────┘  └─────────┘ │
-└──────────────────────────────────────────────────────┘
 ```
 
 ## Prerequisites
@@ -150,58 +140,31 @@ memory:
 
 ## Usage
 
-### Desktop App (Recommended)
+### Desktop App (Recommended) - Windows
 
-Build and run the native desktop application:
+Build and run the Electron desktop application:
 
 ```bash
-# Install Wails CLI (one-time)
-go install github.com/wailsapp/wails/v2/cmd/wails@latest
+cd electron
+
+# Install dependencies
+npm install
+
+# Compile Go backend
+npm run compile-go
 
 # Run in development mode
-make dev-app
+npm run dev:win
 
-# Build for Windows (.exe)
-make build-app-windows
-
-# Build for macOS (.app)
-make build-app-macos
+# Build for production
+npm run build:win
 ```
 
 The desktop app provides:
 - 📊 **Dashboard** - Visual overview of your memories and system status
 - 💾 **Memories Browser** - Search and browse captured memories
 - 💬 **Chat Interface** - Talk to your memory assistant
-- 🔌 **Extension API** - HTTP server for browser extension (port 7345)
 - ⚙️ **Settings UI** - Configure without editing config files
-
-### Browser Extension
-
-Enhance your AI prompts on ChatGPT, Claude, Gemini, and Perplexity with your saved memories.
-
-**1. Install the Extension:**
-```bash
-# Chrome/Edge
-1. Open chrome://extensions/
-2. Enable "Developer mode"
-3. Click "Load unpacked"
-4. Select the `extension/chrome` folder
-```
-
-**2. How to Use:**
-1. Start the AuraBot desktop app (extension API runs automatically on port 7345)
-2. Visit ChatGPT, Claude, Gemini, or Perplexity
-3. Type your prompt
-4. Click the "Enhance" button next to the input field
-5. Your prompt will be enriched with relevant memories from your history
-
-**Supported Platforms:**
-- ✅ ChatGPT (chat.openai.com, chatgpt.com)
-- ✅ Claude (claude.ai)
-- ✅ Gemini (gemini.google.com)
-- ✅ Perplexity (perplexity.ai)
-
-See [extension/README.md](extension/README.md) for detailed setup and troubleshooting.
 
 ### Start the Service (CLI Mode)
 
@@ -262,15 +225,6 @@ aurabot/
 │   └── config.yaml.example      # Configuration template
 ├── docs/
 │   └── LOCAL_MODELS.md          # Local models documentation
-├── extension/                   # Browser extension
-│   ├── README.md                # Extension documentation
-│   └── chrome/                  # Chrome/Edge extension
-│       ├── manifest.json
-│       ├── content.js           # Injects enhance button
-│       ├── styles.css
-│       ├── popup.html
-│       ├── popup.js
-│       └── icons/
 ├── scripts/                     # Setup & utility scripts
 │   ├── download_models.py
 │   ├── setup_local_models.sh
@@ -283,22 +237,15 @@ aurabot/
 │   │   ├── mem0_server.py       # Mem0 server
 │   │   └── local_model_server.py # Local model server
 │   └── tests/                   # Python tests
+├── electron/                    # Electron desktop app (Windows)
+│   ├── package.json
+│   ├── main.js
+│   ├── src/
+│   └── build/
 └── go/                          # Go source code
     ├── go.mod
     ├── go.sum
     ├── main.go                  # Entry point (CLI service)
-    ├── cmd/
-    │   ├── chat/                # Chat CLI tool
-    │   │   └── main.go
-    │   └── app/                 # Desktop app (Wails)
-    │       ├── main.go
-    │       ├── app.go
-    │       ├── app_test.go
-    │       └── frontend/
-    │           └── dist/
-    │               ├── index.html
-    │               ├── style.css
-    │               └── app.js
     └── internal/
         ├── config/              # Configuration management
         ├── capture/             # Screen capture
@@ -306,7 +253,7 @@ aurabot/
         ├── memory/              # Mem0 integration
         ├── service/             # Orchestrator
         ├── enhancer/            # Prompt enhancement
-        └── server/              # Extension HTTP API server
+        └── server/              # HTTP API server
 ```
 
 ## Platform Notes

@@ -68,39 +68,6 @@ run-server-py:
 run-local-py:
 	cd $(PYTHON_DIR)/src && python local_model_server.py
 
-# ========== Desktop App Commands ==========
-
-APP_DIR=go/cmd/app
-APP_BINARY=mem0
-
-# Build desktop app (requires Wails)
-build-app:
-	cd $(APP_DIR) && wails build -platform $(shell go env GOOS)/$(shell go env GOARCH)
-
-# Build desktop app for Windows
-build-app-windows:
-	cd $(APP_DIR) && wails build -platform windows/amd64
-
-# Build desktop app for macOS
-build-app-macos:
-	cd $(APP_DIR) && wails build -platform darwin/universal
-
-# Build desktop app for Linux
-build-app-linux:
-	cd $(APP_DIR) && wails build -platform linux/amd64
-
-# Run desktop app in dev mode
-dev-app:
-	cd $(APP_DIR) && wails dev
-
-# Test desktop app
-test-app:
-	cd $(APP_DIR) && go test -v .
-
-# Install Wails CLI
-install-wails:
-	go install github.com/wailsapp/wails/v2/cmd/wails@latest
-
 # ========== General Commands ==========
 
 # Clean build artifacts

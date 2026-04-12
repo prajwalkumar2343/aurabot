@@ -33,9 +33,7 @@ def init_mem0(model_manager, host: str, port: int):
 
     print()
     print("Configuring Mem0 with local models...")
-    
-    model_manager.load_embedding_model()
-    model_manager.load_llm_model()
+    # Models are loaded lazily when first used
     
     config = {
         "vector_store": {
