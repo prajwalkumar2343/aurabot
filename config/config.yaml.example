@@ -1,21 +1,39 @@
 # Screen capture configuration
 capture:
   interval_seconds: 30          # How often to capture screen
-  quality: 60                   # JPEG quality (1-100) - lower = smaller images
+  quality: 60                   # JPEG quality (1-100) - lower = smaller images, less VRAM
   max_width: 1280               # Resize screenshot max width
   max_height: 720               # Resize screenshot max height
   enabled: true                 # Start capturing immediately
 
-# OpenRouter configuration (for LLM tasks)
-# API key is loaded from OPENROUTER_API_KEY environment variable
+# LLM Configuration (Chat & Text)
+# Using OpenRouter - set OPENROUTER_API_KEY in your .env file
 llm:
+  provider: "openrouter"        # openai, anthropic, gemini, groq, cerebras, ollama, lm-studio, openrouter, custom
   base_url: "https://openrouter.ai/api/v1"
-  model: "google/gemini-flash-1.5"    # Vision model for screenshot analysis
+  api_key: ""                   # Loaded from OPENROUTER_API_KEY env var
+  model: "anthropic/claude-3.5-sonnet"
   max_tokens: 512
   temperature: 0.7
-  timeout_seconds: 30
 
-# Mem0 configuration (pip installed: pip install mem0ai)
+# Vision Configuration (Image Analysis - Screenshot understanding)
+# Using OpenRouter - set OPENROUTER_API_KEY in your .env file
+vision:
+  provider: "openrouter"
+  base_url: "https://openrouter.ai/api/v1"
+  api_key: ""                   # Loaded from OPENROUTER_API_KEY env var
+  model: "google/gemini-flash-1.5"
+
+# Embeddings Configuration (Memory)
+# Using OpenRouter - set OPENROUTER_API_KEY in your .env file
+embeddings:
+  provider: "openrouter"
+  base_url: "https://openrouter.ai/api/v1"
+  api_key: ""                   # Loaded from OPENROUTER_API_KEY env var
+  model: "openai/text-embedding-3-small"
+  dimensions: 1536
+
+# Mem0 Configuration
 memory:
   api_key: ""                   # Leave empty for local Mem0
   base_url: "http://localhost:8000"  # Mem0 server URL

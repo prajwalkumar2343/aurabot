@@ -143,6 +143,9 @@ class Mem0LocalHandler(BaseHTTPRequestHandler):
         data = json.loads(body) if body else {}
         
         if path == "/v1/embeddings":
+            if not self.model_manager:
+                self.send_json_response({"error": "Local models not available. Configure external provider in settings."}, 503)
+                return
             try:
                 input_texts = data.get("input", [])
                 if isinstance(input_texts, str):
@@ -167,6 +170,9 @@ class Mem0LocalHandler(BaseHTTPRequestHandler):
             return
             
         if path == "/v1/chat/completions":
+            if not self.model_manager:
+                self.send_json_response({"error": "Local models not available. Configure external provider in settings."}, 503)
+                return
             try:
                 messages = data.get("messages", [])
                 max_tokens = data.get("max_tokens", 512)

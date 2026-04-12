@@ -7,21 +7,22 @@ import (
 	"time"
 	"unsafe"
 
-	"golang.org/x/sys/windows"
 	"screen-memory-assistant/internal/enhancer"
 	"screen-memory-assistant/internal/overlay"
+
+	"golang.org/x/sys/windows"
 )
 
 // QuickEnhance provides global hotkey functionality for text enhancement
 type QuickEnhance struct {
-	enhancer    *enhancer.Enhancer
-	overlay     *overlay.Overlay
-	ctx         context.Context
-	cancel      context.CancelFunc
-	running     bool
-	mu          sync.RWMutex
-	callback    func(text string)
-	hotkeyID    int
+	enhancer *enhancer.Enhancer
+	overlay  *overlay.Overlay
+	ctx      context.Context
+	cancel   context.CancelFunc
+	running  bool
+	mu       sync.RWMutex
+	callback func(text string)
+	hotkeyID int
 }
 
 // EnhancementResult is an alias to the enhancer package type
@@ -32,13 +33,13 @@ type MemoryInfo = enhancer.MemoryInfo
 
 // Windows API constants
 const (
-	modAlt         = 0x0001
-	modControl     = 0x0002
-	modShift       = 0x0004
-	modWin         = 0x0008
-	vkE            = 0x45
-	wmHotkey       = 0x0312
-	cfUnicodeText  = 13
+	modAlt        = 0x0001
+	modControl    = 0x0002
+	modShift      = 0x0004
+	modWin        = 0x0008
+	vkE           = 0x45
+	wmHotkey      = 0x0312
+	cfUnicodeText = 13
 )
 
 var (
@@ -96,7 +97,7 @@ func (q *QuickEnhance) Start() error {
 		return err
 	}
 	q.overlay = ov
-	
+
 	if err := ov.Start(); err != nil {
 		return err
 	}
@@ -125,7 +126,7 @@ func (q *QuickEnhance) handleOverlayClick() {
 	q.mu.RLock()
 	callback := q.callback
 	q.mu.RUnlock()
-	
+
 	if callback != nil {
 		callback("")
 	}
@@ -136,7 +137,7 @@ func (q *QuickEnhance) ShowOverlay() {
 	if q.overlay == nil {
 		return
 	}
-	
+
 	var pt struct {
 		X int32
 		Y int32
@@ -173,7 +174,7 @@ func (q *QuickEnhance) hotkeyListener() {
 		PtX     int32
 		PtY     int32
 	}
-	
+
 	for {
 		select {
 		case <-q.ctx.Done():
@@ -204,7 +205,7 @@ func (q *QuickEnhance) registerHotkey() bool {
 	// Try Ctrl+Alt+E
 	mods := uint32(modControl | modAlt)
 	ret, _, _ := procRegisterHotKey.Call(0, uintptr(q.hotkeyID), uintptr(mods), uintptr(vkE))
-	
+
 	if ret == 0 {
 		// Try Win+Shift+E as fallback
 		mods = uint32(modWin | modShift)
@@ -213,7 +214,7 @@ func (q *QuickEnhance) registerHotkey() bool {
 			return false
 		}
 	}
-	
+
 	return true
 }
 
@@ -226,7 +227,7 @@ func (q *QuickEnhance) unregisterHotkey() {
 func (q *QuickEnhance) handleHotkey() {
 	// Get selected text by copying it
 	text := q.getSelectedText()
-	
+
 	// Show overlay at cursor position
 	var pt struct {
 		X int32
@@ -234,12 +235,12 @@ func (q *QuickEnhance) handleHotkey() {
 	}
 	procGetCursorPos.Call(uintptr(unsafe.Pointer(&pt)))
 	q.overlay.Show(int(pt.X), int(pt.Y))
-	
+
 	// Call the callback with the captured text
 	q.mu.RLock()
 	callback := q.callback
 	q.mu.RUnlock()
-	
+
 	if callback != nil {
 		callback(text)
 	}
@@ -249,30 +250,48 @@ func (q *QuickEnhance) handleHotkey() {
 func (q *QuickEnhance) getSelectedText() string {
 	// Save current clipboard
 	savedClipboard := q.getClipboardText()
-	
+
 	// Small delay
 	time.Sleep(50 * time.Millisecond)
-	
+
 	// Clear clipboard
 	q.setClipboardText("")
 	time.Sleep(20 * time.Millisecond)
-	
+
+	// Send Ctrl+A to select all text first
+	q.sendCtrlA()
+	time.Sleep(50 * time.Millisecond)
+
 	// Send Ctrl+C using keybd_event
 	q.sendCtrlC()
-	
+
 	// Wait for clipboard
 	time.Sleep(100 * time.Millisecond)
-	
+
 	// Read clipboard
 	text := q.getClipboardText()
-	
+
 	// Restore original clipboard after delay
 	go func() {
 		time.Sleep(200 * time.Millisecond)
 		q.setClipboardText(savedClipboard)
 	}()
-	
+
 	return text
+}
+
+// sendCtrlA simulates Ctrl+A
+func (q *QuickEnhance) sendCtrlA() {
+	keybdEvent := user32DLL.NewProc("keybd_event")
+
+	// Press Ctrl
+	keybdEvent.Call(0x11, 0, 0, 0)
+	// Press A (VK_A = 0x41)
+	keybdEvent.Call(0x41, 0, 0, 0)
+	// Release A
+	keybdEvent.Call(0x41, 0, 2, 0)
+	// Release Ctrl
+	keybdEvent.Call(0x11, 0, 2, 0)
 }
 
 // sendCtrlC simulates Ctrl+C
@@ -280,7 +299,7 @@ func (q *QuickEnhance) sendCtrlC() {
 	// Use keybd_event to send Ctrl+C
 	// VK_CONTROL = 0x11, VK_C = 0x43
 	keybdEvent := user32DLL.NewProc("keybd_event")
-	
+
 	// Press Ctrl
 	keybdEvent.Call(0x11, 0, 0, 0)
 	// Press C
@@ -368,7 +387,7 @@ func (q *QuickEnhance) setClipboardText(text string) bool {
 func (q *QuickEnhance) EnhancePrompt(prompt string) (*EnhancementResult, error) {
 	ctx, cancel := context.WithTimeout(q.ctx, 10*time.Second)
 	defer cancel()
-	
+
 	return q.enhancer.Enhance(ctx, prompt, "", 5)
 }
 
@@ -376,14 +395,14 @@ func (q *QuickEnhance) EnhancePrompt(prompt string) (*EnhancementResult, error) 
 func (q *QuickEnhance) PasteEnhanced(text string) {
 	// Save current clipboard
 	savedClipboard := q.getClipboardText()
-	
+
 	// Set enhanced text
 	q.setClipboardText(text)
 	time.Sleep(50 * time.Millisecond)
-	
+
 	// Send Ctrl+V
 	q.sendCtrlV()
-	
+
 	// Restore original clipboard
 	go func() {
 		time.Sleep(500 * time.Millisecond)
@@ -394,7 +413,7 @@ func (q *QuickEnhance) PasteEnhanced(text string) {
 // sendCtrlV simulates Ctrl+V
 func (q *QuickEnhance) sendCtrlV() {
 	keybdEvent := user32DLL.NewProc("keybd_event")
-	
+
 	// Press Ctrl
 	keybdEvent.Call(0x11, 0, 0, 0)
 	// Press V
