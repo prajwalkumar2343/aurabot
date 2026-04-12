@@ -50,6 +50,59 @@ func resizeImage(img image.Image, maxWidth, maxHeight int) image.Image {
 	return resized
 }
 
+// CompareImages computes the visual difference between two images and returns true if the change exceeds the threshold
+func CompareImages(img1, img2 image.Image, threshold float64) bool {
+	if img1 == nil || img2 == nil {
+		return true // Always consider a transition from/to nil as a change
+	}
+
+	// Downscale aggressively for diffing (e.g., 64x64)
+	const diffSize = 64
+	scaled1 := resizeImage(img1, diffSize, diffSize)
+	scaled2 := resizeImage(img2, diffSize, diffSize)
+
+	bounds := scaled1.Bounds()
+	bounds2 := scaled2.Bounds()
+
+	if bounds.Dx() != bounds2.Dx() || bounds.Dy() != bounds2.Dy() {
+		return true // Size mismatch
+	}
+
+	width := bounds.Dx()
+	height := bounds.Dy()
+	totalPixels := float64(width * height)
+	if totalPixels == 0 {
+		return false
+	}
+
+	changedPixels := 0.0
+	// We use a simple 8-bit luminance threshold difference
+	const intensityThreshold = 25 // Out of 255 (~10% intensity difference required per pixel)
+
+	for y := 0; y < height; y++ {
+		for x := 0; x < width; x++ {
+			r1, g1, b1, _ := scaled1.At(x, y).RGBA()
+			r2, g2, b2, _ := scaled2.At(x, y).RGBA()
+
+			// Fast pseudo-luminance calculation (ignoring alpha and precise weighting for performance)
+			gray1 := (int(r1>>8)*299 + int(g1>>8)*587 + int(b1>>8)*114) / 1000
+			gray2 := (int(r2>>8)*299 + int(g2>>8)*587 + int(b2>>8)*114) / 1000
+
+			diff := gray1 - gray2
+			if diff < 0 {
+				diff = -diff
+			}
+
+			if diff > intensityThreshold {
+				changedPixels++
+			}
+		}
+	}
+
+	diffRatio := changedPixels / totalPixels
+	return diffRatio > threshold
+}
+
 // Capture represents a screen capture with metadata
 type Capture struct {
 	Timestamp  time.Time
