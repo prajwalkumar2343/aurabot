@@ -1,192 +1,145 @@
-# Screen Memory Assistant
+# AuraBot - AI Memory Assistant for macOS
 
-An AI-powered screen capture and memory system that learns who you are and understands your context using local LLM (Liquid 450M via LM Studio) and Mem0 for memory embeddings.
+An AI-powered screen capture and memory system that learns who you are and understands your context using OpenRouter API and Mem0 for memory embeddings.
 
 ## Features
 
 - **Periodic Screen Capture**: Configurable interval screenshots with compression
-- **Vision AI**: Analyzes screen content using local LLM
+- **Vision AI**: Analyzes screen content using vision-capable LLMs
 - **Memory System**: Stores context and activities using Mem0 embeddings
-- **Cross-Platform**: Optimized for macOS, works on Windows
+- **Quick Enhance**: Enhance any text with your memory context (⌘⌥E)
+- **Native macOS App**: Built with Swift and SwiftUI
 - **Resource Efficient**: JPEG compression, async processing
 
 ## Architecture
 
 ```
 ┌─────────────┐     ┌──────────────┐     ┌─────────────┐
-│   Screen    │────▶│  Compressed  │────▶│    LLM      │
-│   Capture   │     │    (JPEG)    │     │   Vision    │
+│   Screen    │────▶│  Compressed  │────▶│   Vision    │
+│   Capture   │     │    (JPEG)    │     │     LLM     │
 └─────────────┘     └──────────────┘     └──────┬──────┘
-                                                │
-                                                ▼
+                                                 │
+                                                 ▼
 ┌─────────────┐     ┌──────────────┐     ┌─────────────┐
 │   Search    │◀────│    Mem0      │◀────│   Context   │
 │   Memory    │     │   Vector DB  │     │   Store     │
 └─────────────┘     └──────────────┘     └─────────────┘
 ```
 
+## Requirements
+
+- macOS 14.0+
+- Xcode 15.0+ (for building)
+- Swift 5.9+
+- OpenRouter API Key
+
 ## Prerequisites
 
-### 1. Go 1.21+
-Install from https://go.dev/dl/
+### 1. OpenRouter API Key
+Get your API key from https://openrouter.ai/settings/keys
 
-### 2. LLM Backend (Choose one)
+### 2. Mem0 Server
 
-#### Option A: Local Models (No External Dependencies) ⭐ Recommended
-Run models completely locally without LM Studio or external APIs.
-
-**One-Command Setup (Recommended):**
+**One-Command Setup:**
 ```bash
-# Just run this - it handles everything automatically
 python start.py
 ```
 
 This will:
 1. Check Hugging Face authentication (prompts if needed)
 2. Download required models automatically
-3. Verify GPU requirements
-4. Start the server
+3. Start the Mem0 server
 
-**Manual Setup (if you prefer):**
+**Manual Setup:**
 ```bash
 # Install dependencies
 pip install -r python/requirements.txt
 
-# Run automatic setup (auth + download)
+# Run automatic setup
 python scripts/auto_setup.py
 
 # Start the server
 python start.py --skip-setup
 ```
 
-**Models included:**
-- `LFM-2-Vision-450M` - Vision-language model for chat and image understanding
-- `google/embeddinggemma-300m-f8` - Text embeddings for memory/search (GPU required)
-
-See [docs/LOCAL_MODELS.md](docs/LOCAL_MODELS.md) for detailed documentation.
-
-#### Option B: LM Studio
-- Download: https://lmstudio.ai/
-- Load your Liquid 450M model (or any vision-capable model)
-- Start the local server (default: http://localhost:1234)
-
-### 3. Mem0 Server
-
-Mem0 requires a REST API server. Choose one:
-
-**With Local Models:**
-```bash
-python start.py
-```
-
-**With LM Studio (if using Option B above):**
-```bash
-pip install mem0ai requests
-cd python/src && python mem0_server.py
-```
-
-Mem0 server will start on http://localhost:8000
-
 ## Installation
+
+### Download Pre-built App
+
+Download the latest release from GitHub Releases:
+```bash
+# Download AuraBot-1.0.0.zip from releases
+# Unzip and drag to Applications
+```
+
+### Build from Source
 
 ```bash
 # Clone the repository
 git clone <repo-url>
-cd screen-memory-assistant
+cd aurabot
 
-# Install Mem0 (Python required)
-pip install mem0ai
+# Build with Swift Package Manager
+cd aurabot-swift
+swift build -c release
 
-# Download Go dependencies
-cd go && go mod download
-
-# Build
-make build-go
-
-# Or build for specific platform
-make build-macos
-make build-windows
+# Or use the build script
+./scripts/build-app.sh
 ```
 
 ## Configuration
 
-Copy `config/config.yaml.example` to `config/config.yaml` and edit, or set environment variables:
+Copy `.env.example` to `.env` and add your OpenRouter API key:
 
-```yaml
-# Screen capture
-capture:
-  interval_seconds: 30    # How often to capture
-  quality: 85             # JPEG quality (1-100)
-  enabled: true
+```bash
+# Required: OpenRouter API Key
+OPENROUTER_API_KEY=your_api_key_here
 
-# LM Studio
-llm:
-  base_url: "http://localhost:1234/v1"
-  model: "local-model"
-  max_tokens: 512
-  temperature: 0.7
+# Optional: Model configuration
+OPENROUTER_VISION_MODEL=google/gemini-flash-1.5
+OPENROUTER_CHAT_MODEL=anthropic/claude-3.5-sonnet
+OPENROUTER_EMBEDDING_MODEL=openai/text-embedding-3-small
 
-# Mem0
-memory:
-  base_url: "http://localhost:8000"
-  user_id: "default_user"
-  collection_name: "screen_memories"
+# Mem0 Server
+MEM0_HOST=localhost
+MEM0_PORT=8000
 ```
 
+Or use `config/config.yaml.example` as a reference for YAML configuration.
+
 ### Environment Variables
-- `LM_STUDIO_URL`: Override LM Studio endpoint
-- `MEM0_URL`: Override Mem0 endpoint
-- `MEM0_API_KEY`: API key for Mem0 (if using cloud)
+- `OPENROUTER_API_KEY`: Your OpenRouter API key (required)
+- `OPENROUTER_BASE_URL`: Override OpenRouter endpoint
+- `MEM0_HOST`: Mem0 server host (default: localhost)
+- `MEM0_PORT`: Mem0 server port (default: 8000)
 
 ## Usage
 
-### Desktop App (Recommended) - Windows
+### macOS App (Recommended)
 
-Build and run the Electron desktop application:
-
-```bash
-cd electron
-
-# Install dependencies
-npm install
-
-# Compile Go backend
-npm run compile-go
-
-# Run in development mode
-npm run dev:win
-
-# Build for production
-npm run build:win
-```
-
-The desktop app provides:
-- 📊 **Dashboard** - Visual overview of your memories and system status
-- 💾 **Memories Browser** - Search and browse captured memories
-- 💬 **Chat Interface** - Talk to your memory assistant
-- ⚙️ **Settings UI** - Configure without editing config files
-
-### Start the Service (CLI Mode)
+Native Swift application with ScreenCaptureKit:
 
 ```bash
-# Run Mem0 server with local models (auto-setup included)
-python start.py
+cd aurabot-swift
 
-# Run Go service (requires mem0 server running)
-cd go && go run .
+# Build with Swift Package Manager
+swift build
 
-# Or use make
-make run-go
-
-# With verbose logging
-make dev-go
+# Run the app
+swift run AuraBot
 ```
+
+Features:
+- **Screen Capture** - Periodic screenshots using ScreenCaptureKit
+- **Quick Enhance** - Global hotkey (⌘⌥E) to enhance any text
+- **Floating Overlay** - System-wide floating button
+- **Native UI** - SwiftUI interface
 
 ### How It Works
 
 1. **Captures screen** every N seconds (configurable)
-2. **Compresses** to JPEG (85% quality by default)
-3. **Sends to LLM** for vision analysis
+2. **Compresses** to JPEG (configurable quality)
+3. **Sends to Vision LLM** for analysis
 4. **Stores in Mem0** with metadata (context, activities, intent)
 5. **Builds context** over time to understand you better
 
@@ -194,8 +147,8 @@ make dev-go
 
 The service maintains a memory of your activities. You can query it:
 
-```go
-response, err := svc.Chat(ctx, "What was I working on earlier?")
+```swift
+response = try await service.chat(message: "What was I working on earlier?")
 ```
 
 ## Testing
@@ -223,63 +176,65 @@ aurabot/
 ├── .env.example                 # Environment template
 ├── config/
 │   └── config.yaml.example      # Configuration template
-├── docs/
-│   └── LOCAL_MODELS.md          # Local models documentation
+├── docs/                        # Setup guides
 ├── scripts/                     # Setup & utility scripts
-│   ├── download_models.py
-│   ├── setup_local_models.sh
-│   └── setup_local_models.bat
+│   ├── auto_setup.py
+│   └── download_models.py
 ├── python/                      # Python source code
 │   ├── requirements.txt
-│   ├── src/                     # Python modules
-│   │   ├── __init__.py
-│   │   ├── mem0_local.py        # Mem0 with local models
-│   │   ├── mem0_server.py       # Mem0 server
-│   │   └── local_model_server.py # Local model server
-│   └── tests/                   # Python tests
-├── electron/                    # Electron desktop app (Windows)
-│   ├── package.json
-│   ├── main.js
-│   ├── src/
-│   └── build/
-└── go/                          # Go source code
-    ├── go.mod
-    ├── go.sum
-    ├── main.go                  # Entry point (CLI service)
-    └── internal/
-        ├── config/              # Configuration management
-        ├── capture/             # Screen capture
-        ├── llm/                 # LLM client
-        ├── memory/              # Mem0 integration
-        ├── service/             # Orchestrator
-        ├── enhancer/            # Prompt enhancement
-        └── server/              # HTTP API server
+│   └── src/
+│       ├── mem0_local.py        # Mem0 with local models
+│       ├── mem0_server.py       # Mem0 server
+│       ├── local_server.py      # Local model server
+│       ├── core/                # Core services
+│       ├── api/                 # API handlers
+│       ├── providers/           # LLM providers
+│       └── embedders/           # Embedding services
+├── go/                          # Go source code
+│   ├── go.mod
+│   ├── main.go                  # Entry point (CLI service)
+│   └── internal/
+│       ├── config/              # Configuration management
+│       ├── capture/             # Screen capture
+│       ├── llm/                 # LLM client
+│       ├── memory/              # Mem0 integration
+│       ├── service/             # Orchestrator
+│       ├── enhancer/            # Prompt enhancement
+│       ├── overlay/             # Overlay window
+│       └── server/              # HTTP API server
+└── aurabot-swift/              # Native macOS app (Swift)
+    ├── Package.swift
+    ├── scripts/
+    │   └── build-app.sh         # Build script
+    ├── DISTRIBUTION.md          # Distribution guide
+    └── Sources/AuraBot/
+        ├── Core/               # App lifecycle
+        ├── Models/             # Data models
+        ├── Services/           # Business logic
+        ├── UI/                # SwiftUI views
+        └── Utils/             # Utilities
 ```
 
 ## Platform Notes
 
 ### macOS
-- Optimized for macOS
+- **Required**: macOS 14.0+
 - Requires screen recording permission
-- Go to System Preferences > Security & Privacy > Screen Recording
-
-### Windows
-- Requires Windows 10/11
-- May need graphics drivers for screenshot library
+- Go to System Settings > Privacy & Security > Screen Recording
 
 ## Troubleshooting
 
 ### "No active displays found"
-- Check display permissions
+- Check display/screen recording permissions
 - Restart the application
 
-### "LLM not available"
-- Verify LM Studio is running
-- Check the URL in config
-- Ensure a model is loaded
+### "OpenRouter API error"
+- Verify OPENROUTER_API_KEY is set correctly
+- Check your OpenRouter account has available credits
+- Ensure the API key is valid at https://openrouter.ai/settings/keys
 
 ### "Mem0 not available"
-- Start Mem0 server: `mem0 server`
+- Start Mem0 server: `python start.py`
 - Check the URL in config
 - Verify port 8000 is free
 
