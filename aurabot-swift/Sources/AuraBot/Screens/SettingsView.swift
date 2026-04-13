@@ -2,13 +2,21 @@ import SwiftUI
 
 @available(macOS 14.0, *)
 struct SettingsView: View {
+    @ObservedObject var service: AppService
     @State private var captureEnabled = true
     @State private var captureInterval: Double = 30
     @State private var captureQuality: Double = 60
-    @State private var llmURL = "http://localhost:1234/v1"
+    @State private var llmURL = "https://openrouter.ai/api/v1"
+    @State private var openRouterAPIKey = ""
+    @State private var visionModel = ""
+    @State private var chatModel = ""
     @State private var mem0URL = "http://localhost:8000"
+    @State private var mem0APIKey = ""
+    @State private var memoryUserID = "default_user"
+    @State private var memoryCollection = "screen_memories_v3"
     @State private var showSavedToast = false
     @State private var appearAnimation = false
+    @State private var isSaving = false
     
     var body: some View {
         ScrollView(showsIndicators: false) {
@@ -30,7 +38,13 @@ struct SettingsView: View {
                 // AI Settings
                 AISettingsSection(
                     llmURL: $llmURL,
-                    mem0URL: $mem0URL
+                    openRouterAPIKey: $openRouterAPIKey,
+                    visionModel: $visionModel,
+                    chatModel: $chatModel,
+                    mem0URL: $mem0URL,
+                    mem0APIKey: $mem0APIKey,
+                    memoryUserID: $memoryUserID,
+                    memoryCollection: $memoryCollection
                 )
                 .opacity(appearAnimation ? 1 : 0)
                 .offset(y: appearAnimation ? 0 : 20)
@@ -41,9 +55,12 @@ struct SettingsView: View {
                     .offset(y: appearAnimation ? 0 : 20)
                 
                 // Save button
-                SaveSection(showSavedToast: $showSavedToast)
-                    .opacity(appearAnimation ? 1 : 0)
-                    .offset(y: appearAnimation ? 0 : 20)
+                SaveSection(
+                    isSaving: $isSaving,
+                    onSave: saveSettings
+                )
+                .opacity(appearAnimation ? 1 : 0)
+                .offset(y: appearAnimation ? 0 : 20)
             }
             .padding(Spacing.xxxl)
         }
@@ -57,8 +74,59 @@ struct SettingsView: View {
             }
         )
         .onAppear {
+            loadFromService()
             withAnimation(.spring(response: 0.6, dampingFraction: 0.8).delay(0.1)) {
                 appearAnimation = true
+            }
+        }
+    }
+
+    private func loadFromService() {
+        let config = service.config
+
+        captureEnabled = config.capture.enabled
+        captureInterval = Double(config.capture.intervalSeconds)
+        captureQuality = Double(config.capture.quality)
+        llmURL = config.llm.baseURL
+        openRouterAPIKey = config.llm.openRouterAPIKey
+        visionModel = config.llm.model
+        chatModel = config.llm.openRouterChatModel
+        mem0URL = config.memory.baseURL
+        mem0APIKey = config.memory.apiKey
+        memoryUserID = config.memory.userID
+        memoryCollection = config.memory.collectionName
+    }
+
+    private func saveSettings() {
+        isSaving = true
+
+        Task {
+            var updatedConfig = service.config
+            updatedConfig.capture.enabled = captureEnabled
+            updatedConfig.capture.intervalSeconds = Int(captureInterval)
+            updatedConfig.capture.quality = Int(captureQuality)
+            updatedConfig.llm.baseURL = llmURL.trimmingCharacters(in: .whitespacesAndNewlines)
+            updatedConfig.llm.openRouterAPIKey = openRouterAPIKey.trimmingCharacters(in: .whitespacesAndNewlines)
+            updatedConfig.llm.model = visionModel.trimmingCharacters(in: .whitespacesAndNewlines)
+            updatedConfig.llm.openRouterChatModel = chatModel.trimmingCharacters(in: .whitespacesAndNewlines)
+            updatedConfig.memory.baseURL = mem0URL.trimmingCharacters(in: .whitespacesAndNewlines)
+            updatedConfig.memory.apiKey = mem0APIKey.trimmingCharacters(in: .whitespacesAndNewlines)
+            updatedConfig.memory.userID = memoryUserID.trimmingCharacters(in: .whitespacesAndNewlines)
+            updatedConfig.memory.collectionName = memoryCollection.trimmingCharacters(in: .whitespacesAndNewlines)
+
+            await service.saveConfiguration(updatedConfig)
+
+            await MainActor.run {
+                isSaving = false
+                withAnimation {
+                    showSavedToast = true
+                }
+
+                DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+                    withAnimation {
+                        showSavedToast = false
+                    }
+                }
             }
         }
     }
@@ -174,18 +242,52 @@ struct CaptureSettingsSection: View {
 @available(macOS 14.0, *)
 struct AISettingsSection: View {
     @Binding var llmURL: String
+    @Binding var openRouterAPIKey: String
+    @Binding var visionModel: String
+    @Binding var chatModel: String
     @Binding var mem0URL: String
+    @Binding var mem0APIKey: String
+    @Binding var memoryUserID: String
+    @Binding var memoryCollection: String
     
     var body: some View {
         SettingsSection(title: "AI & Memory", icon: "brain.head.profile") {
             VStack(spacing: Spacing.xl) {
                 CustomTextField(
                     title: "LLM Base URL",
-                    placeholder: "http://localhost:1234/v1",
+                    placeholder: "https://openrouter.ai/api/v1",
                     text: $llmURL,
                     icon: "network"
                 )
                 
+                Divider()
+
+                CustomTextField(
+                    title: "OpenRouter API Key",
+                    placeholder: "sk-or-v1-...",
+                    text: $openRouterAPIKey,
+                    icon: "key.horizontal",
+                    isSecure: true
+                )
+
+                Divider()
+
+                CustomTextField(
+                    title: "Vision Model",
+                    placeholder: "google/gemini-2.5-flash-preview",
+                    text: $visionModel,
+                    icon: "photo.on.rectangle"
+                )
+
+                Divider()
+
+                CustomTextField(
+                    title: "Chat Model",
+                    placeholder: "anthropic/claude-3.5-sonnet",
+                    text: $chatModel,
+                    icon: "text.bubble"
+                )
+
                 Divider()
                 
                 CustomTextField(
@@ -193,6 +295,34 @@ struct AISettingsSection: View {
                     placeholder: "http://localhost:8000",
                     text: $mem0URL,
                     icon: "server.rack"
+                )
+
+                Divider()
+
+                CustomTextField(
+                    title: "Memory API Key",
+                    placeholder: "Optional bearer token",
+                    text: $mem0APIKey,
+                    icon: "lock.shield",
+                    isSecure: true
+                )
+
+                Divider()
+
+                CustomTextField(
+                    title: "Memory User ID",
+                    placeholder: "default_user",
+                    text: $memoryUserID,
+                    icon: "person"
+                )
+
+                Divider()
+
+                CustomTextField(
+                    title: "Collection Name",
+                    placeholder: "screen_memories_v3",
+                    text: $memoryCollection,
+                    icon: "shippingbox"
                 )
             }
         }
@@ -234,33 +364,16 @@ struct PermissionsSection: View {
 
 @available(macOS 14.0, *)
 struct SaveSection: View {
-    @Binding var showSavedToast: Bool
-    @State private var isSaving = false
+    @Binding var isSaving: Bool
+    let onSave: () -> Void
     
     var body: some View {
         HStack {
             Spacer()
             
-            GradientButton("Save Changes", icon: "checkmark") {
-                saveSettings()
-            }
-        }
-    }
-    
-    private func saveSettings() {
-        isSaving = true
-        
-        // Simulate save
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-            isSaving = false
-            withAnimation {
-                showSavedToast = true
-            }
-            
-            DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
-                withAnimation {
-                    showSavedToast = false
-                }
+            GradientButton(isSaving ? "Saving..." : "Save Changes", icon: isSaving ? "hourglass" : "checkmark") {
+                guard !isSaving else { return }
+                onSave()
             }
         }
     }
@@ -377,6 +490,7 @@ struct CustomTextField: View {
     let placeholder: String
     @Binding var text: String
     let icon: String
+    var isSecure: Bool = false
     
     @FocusState private var isFocused: Bool
     
@@ -390,11 +504,17 @@ struct CustomTextField: View {
                 Image(systemName: icon)
                     .font(.system(size: 16))
                     .foregroundColor(isFocused ? Colors.primary : Colors.textMuted)
-                
-                TextField(placeholder, text: $text)
-                    .font(Typography.body)
-                    .foregroundColor(Colors.textPrimary)
-                    .focused($isFocused)
+
+                Group {
+                    if isSecure {
+                        SecureField(placeholder, text: $text)
+                    } else {
+                        TextField(placeholder, text: $text)
+                    }
+                }
+                .font(Typography.body)
+                .foregroundColor(Colors.textPrimary)
+                .focused($isFocused)
             }
             .padding(Spacing.md)
             .background(
@@ -512,6 +632,6 @@ struct SavedToast: View {
 @available(macOS 14.0, *)
 struct SettingsView_Previews: PreviewProvider {
     static var previews: some View {
-        SettingsView()
+        SettingsView(service: AppService())
     }
 }
