@@ -87,7 +87,27 @@ class MemoryMixin:
 
     def delete_memory(self, memory_id: str):
         """Handle DELETE /v1/memories/{id}"""
-        self.send_json_response({"deleted": True})
+        if not self.HAS_MEM0 or not self.memory:
+            self.send_json_response({"error": "Memory not available"}, 503)
+            return
+
+        try:
+            deleted = False
+            try:
+                result = self.memory.delete(memory_id=memory_id)
+            except TypeError:
+                result = self.memory.delete(id=memory_id)
+
+            if isinstance(result, dict):
+                deleted = bool(result.get("deleted", True))
+            elif isinstance(result, bool):
+                deleted = result
+            else:
+                deleted = True
+
+            self.send_json_response({"deleted": deleted})
+        except Exception as e:
+            self.send_json_response({"error": str(e)}, 500)
 
     def _format_memories_list(self, results, user_id: str) -> list:
         """Format memory results into API response format."""
@@ -150,14 +170,16 @@ class MemoryMixin:
         search_results = []
         for r in results:
             if isinstance(r, dict):
-                m_content = r.get("memory", "")
+                memory_payload = {
+                    "id": r.get("id", str(uuid.uuid4())),
+                    "content": r.get("memory", r.get("content", "")),
+                    "user_id": user_id,
+                    "metadata": r.get("metadata", {}),
+                    "created_at": r.get("created_at", datetime.now().isoformat()),
+                }
                 search_results.append(
                     {
-                        "id": r.get("id", str(uuid.uuid4())),
-                        "memory": m_content,
-                        "user_id": user_id,
-                        "metadata": r.get("metadata", {}),
-                        "created_at": r.get("created_at", datetime.now().isoformat()),
+                        "memory": memory_payload,
                         "score": r.get("score", 0.0),
                         "distance": r.get("distance", 0.0),
                     }
@@ -165,11 +187,13 @@ class MemoryMixin:
             elif isinstance(r, str):
                 search_results.append(
                     {
-                        "id": str(uuid.uuid4()),
-                        "memory": r,
-                        "user_id": user_id,
-                        "metadata": {},
-                        "created_at": datetime.now().isoformat(),
+                        "memory": {
+                            "id": str(uuid.uuid4()),
+                            "content": r,
+                            "user_id": user_id,
+                            "metadata": {},
+                            "created_at": datetime.now().isoformat(),
+                        },
                         "score": 1.0,
                         "distance": 0.0,
                     }
