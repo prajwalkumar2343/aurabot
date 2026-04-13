@@ -12,9 +12,8 @@ let package = Package(
     ],
     dependencies: [
         .package(url: "https://github.com/vapor/vapor.git", from: "4.89.0"),
-        .package(url: "https://github.com/swhitty/swift-mem0.git", branch: "main"),
         .package(url: "https://github.com/Alamofire/Alamofire.git", from: "5.8.0"),
-        .package(url: "https://github.com/sindresorhus/KeyboardShortcuts.git", from: "1.15.0"),
+        .package(url: "https://github.com/sindresorhus/KeyboardShortcuts.git", exact: "1.10.0"),
     ],
     targets: [
         .executableTarget(
