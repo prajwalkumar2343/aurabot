@@ -7,7 +7,7 @@ struct AuraBotApp: App {
     
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            ContentView(service: appDelegate.service)
                 .frame(minWidth: 1100, minHeight: 750)
                 .background(Colors.background)
         }
@@ -42,7 +42,7 @@ struct AuraBotApp: App {
         }
         
         Settings {
-            SettingsView()
+            SettingsView(service: appDelegate.service)
                 .frame(width: 600, height: 600)
         }
     }
