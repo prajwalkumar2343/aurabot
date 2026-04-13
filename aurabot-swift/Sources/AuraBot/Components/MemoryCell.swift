@@ -266,10 +266,14 @@ struct MemoryCell_Previews: PreviewProvider {
             MemoryCell(memory: Memory(
                 id: "1",
                 content: "Working on the new dashboard design with glassmorphism effects and modern animations",
-                metadata: Memory.Metadata(
+                userID: "user1",
+                metadata: Metadata(
+                    timestamp: "2024-01-01T10:00:00Z",
                     context: "Work",
-                    category: "design",
-                    confidence: 0.95
+                    activities: ["designing", "coding"],
+                    keyElements: ["dashboard", "glassmorphism"],
+                    userIntent: "create modern UI",
+                    displayNum: 1
                 ),
                 createdAt: Date().addingTimeInterval(-3600)
             ))
@@ -277,10 +281,14 @@ struct MemoryCell_Previews: PreviewProvider {
             CompactMemoryCell(memory: Memory(
                 id: "2",
                 content: "Reviewing pull request #42",
-                metadata: Memory.Metadata(
+                userID: "user1",
+                metadata: Metadata(
+                    timestamp: "2024-01-01T09:00:00Z",
                     context: "Code",
-                    category: "development",
-                    confidence: 0.88
+                    activities: ["reviewing"],
+                    keyElements: ["PR", "code review"],
+                    userIntent: "ensure code quality",
+                    displayNum: 2
                 ),
                 createdAt: Date().addingTimeInterval(-7200)
             ))
@@ -288,10 +296,14 @@ struct MemoryCell_Previews: PreviewProvider {
             MemoryGridCell(memory: Memory(
                 id: "3",
                 content: "Team standup meeting about Q4 roadmap",
-                metadata: Memory.Metadata(
+                userID: "user1",
+                metadata: Metadata(
+                    timestamp: "2024-01-01T08:00:00Z",
                     context: "Meeting",
-                    category: "planning",
-                    confidence: 0.92
+                    activities: ["planning"],
+                    keyElements: ["standup", "roadmap"],
+                    userIntent: "align team",
+                    displayNum: 3
                 ),
                 createdAt: Date().addingTimeInterval(-14400)
             ))
