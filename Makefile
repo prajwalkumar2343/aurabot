@@ -1,54 +1,36 @@
-# Screen Memory Assistant Makefile
+# AuraBot Makefile - macOS Native App
 
-.PHONY: build test clean run deps install build-go test-go
+.PHONY: build test clean run deps install
 
-BINARY_NAME=screen-memory-assistant
+BINARY_NAME=AuraBot
 BUILD_DIR=build
-GO_DIR=go
+SWIFT_DIR=aurabot-swift
 PYTHON_DIR=python
 
-# ========== Go Commands ==========
+# ========== Swift/macOS Commands ==========
 
-# Build the Go application
-build-go:
-	mkdir -p $(BUILD_DIR)
-	cd $(GO_DIR) && go build -o ../$(BUILD_DIR)/$(BINARY_NAME) .
+# Build the Swift macOS app
+build:
+	cd $(SWIFT_DIR) && swift build -c release
 
-# Build for macOS
-build-macos:
-	mkdir -p $(BUILD_DIR)
-	cd $(GO_DIR) && GOOS=darwin GOARCH=amd64 go build -o ../$(BUILD_DIR)/$(BINARY_NAME)-macos-amd64 .
-	cd $(GO_DIR) && GOOS=darwin GOARCH=arm64 go build -o ../$(BUILD_DIR)/$(BINARY_NAME)-macos-arm64 .
+# Build app bundle
+build-app:
+	cd $(SWIFT_DIR) && ./scripts/build-app.sh
 
-# Build for Windows
-build-windows:
-	mkdir -p $(BUILD_DIR)
-	cd $(GO_DIR) && GOOS=windows GOARCH=amd64 go build -o ../$(BUILD_DIR)/$(BINARY_NAME)-windows.exe .
+# Run Swift app in development mode
+run:
+	cd $(SWIFT_DIR) && swift run AuraBot
 
-# Run Go tests
-test-go:
-	cd $(GO_DIR) && go test -v ./...
+# Install dependencies
+deps:
+	cd $(SWIFT_DIR) && swift package resolve
 
-# Run Go tests with coverage
-test-coverage-go:
-	cd $(GO_DIR) && go test -cover ./...
-
-# Download Go dependencies
-deps-go:
-	cd $(GO_DIR) && go mod download
-	cd $(GO_DIR) && go mod tidy
-
-# Run the Go application
-run-go:
-	cd $(GO_DIR) && go run .
-
-# Install Go binary locally
-install-go:
-	cd $(GO_DIR) && go install .
-
-# Development mode with verbose logging
-dev-go:
-	cd $(GO_DIR) && go run . -verbose
+# Clean Swift build artifacts
+clean-swift:
+	cd $(SWIFT_DIR) && swift package clean
+	rm -rf $(SWIFT_DIR)/.build/release/AuraBot
+	rm -rf $(SWIFT_DIR)/AuraBot.app
+	rm -f $(SWIFT_DIR)/AuraBot-*.zip
 
 # ========== Python Commands ==========
 
@@ -60,26 +42,22 @@ deps-py:
 test-py:
 	cd $(PYTHON_DIR) && python -m pytest tests/ -v
 
-# Run Python server
-run-server-py:
-	cd $(PYTHON_DIR)/src && python mem0_server.py
+# Run Python server (Mem0)
+run-server:
+	python start.py
 
 # Run local model server
-run-local-py:
+run-local:
 	cd $(PYTHON_DIR)/src && python local_model_server.py
 
 # ========== General Commands ==========
 
-# Clean build artifacts
-clean:
+# Clean all build artifacts
+clean: clean-swift
 	rm -rf $(BUILD_DIR)
 
 # Run all tests
-test: test-go test-py
+test: test-py
 
 # Install all dependencies
-deps: deps-go deps-py
-
-# Legacy aliases (backward compatibility)
-build: build-go
-run: run-go
+deps-all: deps deps-py

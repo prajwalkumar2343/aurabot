@@ -12,15 +12,20 @@ except ImportError:
     HAS_MEM0 = False
     Memory = None
 
-from config import CEREBRAS_API_KEY, LM_STUDIO_URL
+from config import (
+    OPENROUTER_API_KEY,
+    OPENROUTER_BASE_URL,
+    OPENROUTER_CHAT_MODEL,
+    OPENROUTER_EMBEDDING_DIMENSIONS,
+    OPENROUTER_EMBEDDING_MODEL,
+)
 
 
 def create_memory_config(
     collection_name: str = "screen_memories_v3",
-    embedder_model: str = "text-embedding-embeddinggemma-300m",
-    llm_model: str = "llama3.1-70b",
-    embedder_dims: int = 768,
-    llm_provider: str = "openai",
+    embedder_model: str = OPENROUTER_EMBEDDING_MODEL,
+    llm_model: str = OPENROUTER_CHAT_MODEL,
+    embedder_dims: int = OPENROUTER_EMBEDDING_DIMENSIONS,
 ) -> dict:
     """
     Create memory configuration dict.
@@ -30,18 +35,9 @@ def create_memory_config(
         embedder_model: Embedding model name
         llm_model: LLM model name
         embedder_dims: Embedding dimensions
-        llm_provider: LLM provider type
-
     Returns:
         Memory configuration dict
     """
-    if llm_provider == "cerebras":
-        llm_base_url = "https://api.cerebras.ai/v1"
-        llm_api_key = CEREBRAS_API_KEY
-    else:
-        llm_base_url = LM_STUDIO_URL
-        llm_api_key = "not-needed" if not CEREBRAS_API_KEY else CEREBRAS_API_KEY
-
     return {
         "vector_store": {
             "provider": "qdrant",
@@ -55,16 +51,16 @@ def create_memory_config(
             "provider": "openai",
             "config": {
                 "model": embedder_model,
-                "api_key": "not-needed",
-                "openai_base_url": LM_STUDIO_URL,
+                "api_key": OPENROUTER_API_KEY,
+                "openai_base_url": OPENROUTER_BASE_URL,
             },
         },
         "llm": {
             "provider": "openai",
             "config": {
                 "model": llm_model,
-                "api_key": llm_api_key,
-                "openai_base_url": llm_base_url,
+                "api_key": OPENROUTER_API_KEY,
+                "openai_base_url": OPENROUTER_BASE_URL,
                 "temperature": 0.7,
                 "max_tokens": 4096,
             },
@@ -83,22 +79,20 @@ def init_server_memory():
     apply_patches()
 
     print()
-    print("Configuring Mem0...")
+    print("Configuring Mem0 with OpenRouter...")
 
-    if not CEREBRAS_API_KEY:
-        print("[WARN] CEREBRAS_API_KEY not set. Falling back to LM Studio for LLM.")
-        print("       Get your API key from: https://cloud.cerebras.ai")
-        print()
+    if not OPENROUTER_API_KEY:
+        print("[FAIL] OPENROUTER_API_KEY is not configured.")
+        print("       Set it in the environment or save it in ~/.aurabot/config.json")
+        sys.exit(1)
 
     config = create_memory_config()
 
     try:
         memory = Memory.from_config(config_dict=config)
         print("[OK] Mem0 initialized successfully")
-        print(
-            f"     LLM: {'Cerebras (llama3.1-70b)' if CEREBRAS_API_KEY else 'LM Studio (local)'}"
-        )
-        print(f"     Embeddings: LM Studio (text-embedding-embeddinggemma-300m)")
+        print(f"     LLM: OpenRouter ({OPENROUTER_CHAT_MODEL})")
+        print(f"     Embeddings: OpenRouter ({OPENROUTER_EMBEDDING_MODEL})")
         print(f"     Vector Store: Qdrant (./qdrant_storage)")
         return memory
     except Exception as e:
@@ -108,29 +102,6 @@ def init_server_memory():
 
 def init_local_memory(model_manager, host: str, port: int):
     """Initialize Mem0 with local models."""
-    if not HAS_MEM0:
-        return None, False
-
-    print()
-    print("Configuring Mem0 with local models...")
-
-    model_manager.load_embedding_model()
-    model_manager.load_llm_model()
-
-    config = create_memory_config(
-        collection_name="screen_memories",
-        embedder_model="nomic-embed-text-v1.5",
-        llm_model="lfm-2-vision-450m",
-        llm_provider="local",
-    )
-    config["embedder"]["config"]["openai_base_url"] = f"http://{host}:{port}/v1"
-    config["llm"]["config"]["openai_base_url"] = f"http://{host}:{port}/v1"
-
-    try:
-        memory = Memory.from_config(config_dict=config)
-        print("[OK] Mem0 initialized successfully")
-        return memory, True
-    except Exception as e:
-        print(f"[WARN] Failed to initialize Mem0: {e}")
-        print("       Running in API-only mode")
-        return None, False
+    del model_manager, host, port
+    memory = init_server_memory()
+    return memory, True

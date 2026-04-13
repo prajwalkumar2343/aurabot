@@ -7,7 +7,8 @@ from datetime import datetime
 from http.server import BaseHTTPRequestHandler
 from urllib.parse import parse_qs, urlparse
 
-from api.cors import is_allowed_origin, get_cors_headers
+from api.auth import is_authorized, requires_auth
+from api.cors import get_cors_headers
 
 
 class BaseHandler(BaseHTTPRequestHandler):
@@ -26,14 +27,17 @@ class BaseHandler(BaseHTTPRequestHandler):
         origin = self._get_origin()
         cors_headers = get_cors_headers(origin)
 
-        self.send_response(status)
-        self.send_header("Content-Type", "application/json")
+        try:
+            self.send_response(status)
+            self.send_header("Content-Type", "application/json")
 
-        for key, value in cors_headers.items():
-            self.send_header(key, value)
+            for key, value in cors_headers.items():
+                self.send_header(key, value)
 
-        self.end_headers()
-        self.wfile.write(json.dumps(data).encode())
+            self.end_headers()
+            self.wfile.write(json.dumps(data).encode())
+        except (BrokenPipeError, ConnectionAbortedError):
+            print("[WARN] Client disconnected before response could be sent")
 
     def do_OPTIONS(self):
         """Handle CORS preflight requests."""
@@ -54,9 +58,13 @@ class BaseHandler(BaseHTTPRequestHandler):
 
     def parse_json_body(self):
         """Parse JSON body from request."""
+        if hasattr(self, "_cached_json_body"):
+            return self._cached_json_body
+
         content_length = int(self.headers.get("Content-Length", 0))
         body = self.rfile.read(content_length).decode() if content_length > 0 else ""
-        return json.loads(body) if body else {}
+        self._cached_json_body = json.loads(body) if body else {}
+        return self._cached_json_body
 
     def get_client_ip(self):
         """Get client IP address."""
@@ -64,3 +72,15 @@ class BaseHandler(BaseHTTPRequestHandler):
         if forwarded:
             return forwarded.split(",")[0].strip()
         return self.client_address[0]
+
+    def require_authorization(self, path: str = None) -> bool:
+        """Require Authorization for protected routes when configured."""
+        request_path = path or urlparse(self.path).path
+        if not requires_auth(request_path):
+            return True
+
+        if is_authorized(self.headers):
+            return True
+
+        self.send_json_response({"error": "Unauthorized"}, 401)
+        return False
