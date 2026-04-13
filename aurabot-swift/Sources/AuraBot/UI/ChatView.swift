@@ -24,7 +24,7 @@ struct ChatView: View {
             ScrollView {
                 LazyVStack(spacing: 16) {
                     ForEach(messages) { message in
-                        MessageBubble(message: message)
+                        SimpleMessageBubble(message: message)
                     }
                 }
                 .padding()
@@ -47,7 +47,7 @@ struct ChatView: View {
     }
     
     private func sendMessage() {
-        let userMessage = ChatMessage(content: inputText, isUser: true)
+        let userMessage = ChatMessage(content: inputText, isUser: true, timestamp: Date())
         messages.append(userMessage)
         
         let text = inputText
@@ -58,12 +58,12 @@ struct ChatView: View {
             do {
                 let response = try await service.chat(message: text)
                 await MainActor.run {
-                    messages.append(ChatMessage(content: response, isUser: false))
+                    messages.append(ChatMessage(content: response, isUser: false, timestamp: Date()))
                     isLoading = false
                 }
             } catch {
                 await MainActor.run {
-                    messages.append(ChatMessage(content: "Sorry, I couldn't process that request.", isUser: false))
+                    messages.append(ChatMessage(content: "Sorry, I couldn't process that request.", isUser: false, timestamp: Date()))
                     isLoading = false
                 }
             }
@@ -71,14 +71,7 @@ struct ChatView: View {
     }
 }
 
-struct ChatMessage: Identifiable {
-    let id = UUID()
-    let content: String
-    let isUser: Bool
-    let timestamp = Date()
-}
-
-struct MessageBubble: View {
+struct SimpleMessageBubble: View {
     let message: ChatMessage
     
     var body: some View {
@@ -117,3 +110,5 @@ struct MessageBubble: View {
         }
     }
 }
+
+
