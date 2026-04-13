@@ -32,7 +32,7 @@ struct MemoriesView: View {
         ScrollView(showsIndicators: false) {
             VStack(alignment: .leading, spacing: Spacing.xxxl) {
                 // Header
-                HeaderSection(
+                MemoriesHeaderSection(
                     searchText: $searchText,
                     selectedFilter: $selectedFilter,
                     filters: filters,
@@ -76,7 +76,7 @@ struct MemoriesView: View {
 }
 
 @available(macOS 14.0, *)
-struct HeaderSection: View {
+struct MemoriesHeaderSection: View {
     @Binding var searchText: String
     @Binding var selectedFilter: String?
     let filters: [String]

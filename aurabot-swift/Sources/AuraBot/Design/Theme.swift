@@ -4,6 +4,7 @@ import SwiftUI
 @available(macOS 14.0, *)
 enum Colors {
     // Background
+    static let white = Color.white
     static let background = Color.white
     static let surface = Color.white.opacity(0.8)
     static let surfaceHover = Color.white.opacity(0.95)

@@ -10,7 +10,7 @@ struct DashboardView: View {
         ScrollView(showsIndicators: false) {
             VStack(alignment: .leading, spacing: Spacing.xxxl) {
                 // Header with greeting
-                HeaderSection(service: service)
+                DashboardHeaderSection(service: service)
                     .opacity(appearAnimation ? 1 : 0)
                     .offset(y: appearAnimation ? 0 : 20)
                 
@@ -40,7 +40,7 @@ struct DashboardView: View {
 }
 
 @available(macOS 14.0, *)
-struct HeaderSection: View {
+struct DashboardHeaderSection: View {
     @ObservedObject var service: AppService
     @State private var greeting = ""
     
