@@ -23,6 +23,9 @@ struct Metadata: Codable {
     let keyElements: [String]
     let userIntent: String
     let displayNum: Int
+    let browser: String?
+    let url: String?
+    let captureReason: String?
     
     enum CodingKeys: String, CodingKey {
         case timestamp
@@ -31,6 +34,9 @@ struct Metadata: Codable {
         case keyElements = "key_elements"
         case userIntent = "user_intent"
         case displayNum = "display_num"
+        case browser
+        case url
+        case captureReason = "capture_reason"
     }
 }
 

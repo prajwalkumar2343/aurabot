@@ -5,15 +5,23 @@ struct AppConfig: Codable {
     var llm: LLMConfig
     var memory: MemoryConfig
     var app: AppSettings
-    var extension: ExtensionConfig
+    var browserExtension: ExtensionConfig
     
     static let `default` = AppConfig(
         capture: CaptureConfig(),
         llm: LLMConfig(),
         memory: MemoryConfig(),
         app: AppSettings(),
-        extension: ExtensionConfig()
+        browserExtension: ExtensionConfig()
     )
+
+    enum CodingKeys: String, CodingKey {
+        case capture
+        case llm
+        case memory
+        case app
+        case browserExtension = "extension"
+    }
 }
 
 struct CaptureConfig: Codable {
@@ -22,6 +30,13 @@ struct CaptureConfig: Codable {
     var maxWidth: Int = 1280
     var maxHeight: Int = 720
     var enabled: Bool = true
+    var probeIntervalSeconds: Int = 5
+    var minCaptureGapSeconds: Int = 20
+    var idleCaptureSeconds: Int = 300
+    var previewWidth: Int = 160
+    var previewHeight: Int = 90
+    var meaningfulChangeThreshold: Int = 10
+    var scrollCaptureCooldownSeconds: Int = 20
 }
 
 struct LLMConfig: Codable {
@@ -50,6 +65,7 @@ struct AppSettings: Codable {
 struct ExtensionConfig: Codable {
     var enabled: Bool = true
     var port: Int = 7345
+    var freshnessSeconds: Int = 15
 }
 
 extension AppConfig {
