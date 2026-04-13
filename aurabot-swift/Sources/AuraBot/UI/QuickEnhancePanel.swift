@@ -13,7 +13,7 @@ class QuickEnhancePanel: NSPanel {
         let hostingView = NSHostingView(rootView: view)
         
         super.init(
-            contentRect: NSRect(x: 0, y: 0, width: 520, height: 400),
+            contentRect: NSRect(x: 0, y: 0, width: 560, height: 480),
             styleMask: [.borderless, .nonactivatingPanel, .fullSizeContentView],
             backing: .buffered,
             defer: false
@@ -29,13 +29,14 @@ class QuickEnhancePanel: NSPanel {
         backgroundColor = .clear
         isOpaque = false
         hasShadow = true
+        shadow?.shadowColor = NSColor.black.withAlphaComponent(0.2)
         collectionBehavior = [.canJoinAllSpaces, .transient]
         
         // Center on screen
         if let screen = NSScreen.main {
             let screenFrame = screen.frame
-            let x = (screenFrame.width - 520) / 2
-            let y = (screenFrame.height - 400) / 2
+            let x = (screenFrame.width - 560) / 2
+            let y = (screenFrame.height - 480) / 2
             setFrameOrigin(NSPoint(x: x, y: y))
         }
     }
@@ -60,113 +61,81 @@ struct QuickEnhanceView: View {
     @State private var isEnhancing: Bool = false
     @State private var memories: [String] = []
     @State private var showResult: Bool = false
+    @State private var appearAnimation = false
     
     var body: some View {
         VStack(spacing: 0) {
-            // Header
-            HStack {
-                Label("Quick Enhance", systemImage: "bolt.fill")
-                    .font(.headline)
-                    .foregroundColor(.white)
-                
-                Spacer()
-                
-                Button(action: onClose) {
-                    Image(systemName: "xmark")
-                        .foregroundColor(.white)
-                }
-                .buttonStyle(.plain)
-            }
-            .padding()
-            .background(Color.purple)
+            // Glass header
+            HeaderView(onClose: onClose)
             
             // Content
-            VStack(spacing: 16) {
-                // Original text
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Original")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
+            ScrollView(showsIndicators: false) {
+                VStack(spacing: Spacing.xl) {
+                    // Original text
+                    InputSection(
+                        title: "Original Text",
+                        text: $originalText,
+                        placeholder: "Paste or type text to enhance with your memories...",
+                        isEditable: !isEnhancing
+                    )
                     
-                    TextEditor(text: $originalText)
-                        .frame(height: 80)
-                        .padding(8)
-                        .background(Color.gray.opacity(0.1))
-                        .cornerRadius(8)
-                }
-                
-                // Enhance button
-                Button(action: enhance) {
-                    HStack {
-                        if isEnhancing {
-                            ProgressView()
-                                .scaleEffect(0.8)
-                        } else {
-                            Image(systemName: "bolt.fill")
-                        }
-                        Text(isEnhancing ? "Enhancing..." : "Enhance with Memories")
-                    }
-                    .frame(maxWidth: .infinity)
-                    .padding()
-                    .background(Color.purple)
-                    .foregroundColor(.white)
-                    .cornerRadius(8)
-                }
-                .buttonStyle(.plain)
-                .disabled(isEnhancing || originalText.isEmpty)
-                
-                // Enhanced text
-                if showResult {
-                    VStack(alignment: .leading, spacing: 4) {
-                        HStack {
-                            Text("Enhanced")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                            
-                            Spacer()
-                            
-                            Text("\(memories.count) memories")
-                                .font(.caption2)
-                                .padding(.horizontal, 8)
-                                .padding(.vertical, 2)
-                                .background(Color.yellow.opacity(0.2))
-                                .cornerRadius(4)
-                        }
-                        
-                        TextEditor(text: $enhancedText)
-                            .frame(height: 80)
-                            .padding(8)
-                            .background(Color.purple.opacity(0.05))
-                            .cornerRadius(8)
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 8)
-                                    .stroke(Color.purple.opacity(0.2), lineWidth: 1)
-                            )
-                    }
+                    // Enhance button
+                    EnhanceButton(
+                        isEnhancing: isEnhancing,
+                        isEnabled: !originalText.isEmpty,
+                        action: enhance
+                    )
                     
-                    // Action buttons
-                    HStack {
-                        Button("Copy") {
-                            NSPasteboard.general.clearContents()
-                            NSPasteboard.general.setString(enhancedText, forType: .string)
-                        }
-                        .buttonStyle(.bordered)
-                        
-                        Button("Paste & Replace") {
-                            pasteEnhanced()
-                        }
-                        .buttonStyle(.borderedProminent)
+                    // Enhanced result
+                    if showResult {
+                        ResultSection(
+                            text: $enhancedText,
+                            memoryCount: memories.count,
+                            onCopy: copyEnhanced,
+                            onPasteReplace: pasteEnhanced
+                        )
+                        .transition(.asymmetric(
+                            insertion: .move(edge: .bottom).combined(with: .opacity),
+                            removal: .opacity
+                        ))
                     }
                 }
+                .padding(Spacing.xl)
             }
-            .padding()
-            
-            Spacer()
         }
-        .frame(width: 520, height: 400)
-        .background(Color(NSColor.windowBackgroundColor))
-        .cornerRadius(12)
-        .shadow(radius: 20)
+        .frame(width: 560, height: 480)
+        .background(
+            ZStack {
+                // Glass background
+                RoundedRectangle(cornerRadius: Radius.xxl)
+                    .fill(.ultraThinMaterial)
+                
+                // Subtle gradient overlay
+                RoundedRectangle(cornerRadius: Radius.xxl)
+                    .fill(
+                        LinearGradient(
+                            colors: [
+                                Colors.primary.opacity(0.05),
+                                Colors.secondary.opacity(0.02)
+                            ],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+                
+                // Border
+                RoundedRectangle(cornerRadius: Radius.xxl)
+                    .stroke(Colors.border, lineWidth: 1)
+            }
+        )
+        .shadow(color: Shadows.xl.color, radius: Shadows.xl.radius, x: Shadows.xl.x, y: Shadows.xl.y)
+        .opacity(appearAnimation ? 1 : 0)
+        .scaleEffect(appearAnimation ? 1 : 0.9)
+        .onAppear {
+            withAnimation(AnimationPresets.spring) {
+                appearAnimation = true
+            }
+        }
     }
     
     private func enhance() {
@@ -177,10 +146,12 @@ struct QuickEnhanceView: View {
             do {
                 let result = try await service.enhance(text: originalText)
                 await MainActor.run {
-                    enhancedText = result.enhancedPrompt
-                    memories = result.memoriesUsed
-                    showResult = true
-                    isEnhancing = false
+                    withAnimation(AnimationPresets.spring) {
+                        enhancedText = result.enhancedPrompt
+                        memories = result.memoriesUsed
+                        showResult = true
+                        isEnhancing = false
+                    }
                 }
             } catch {
                 await MainActor.run {
@@ -188,6 +159,11 @@ struct QuickEnhanceView: View {
                 }
             }
         }
+    }
+    
+    private func copyEnhanced() {
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(enhancedText, forType: .string)
     }
     
     private func pasteEnhanced() {
@@ -210,5 +186,249 @@ struct QuickEnhanceView: View {
         cmdUp?.post(tap: .cghidEventTap)
         
         onClose()
+    }
+}
+
+@available(macOS 14.0, *)
+struct HeaderView: View {
+    let onClose: () -> Void
+    @State private var isHovered = false
+    
+    var body: some View {
+        HStack {
+            HStack(spacing: Spacing.sm) {
+                Image(systemName: "bolt.fill")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundColor(Colors.primary)
+                
+                Text("Quick Enhance")
+                    .font(Typography.headline)
+                    .foregroundColor(Colors.textPrimary)
+            }
+            
+            Spacer()
+            
+            Button(action: onClose) {
+                Image(systemName: "xmark")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundColor(Colors.textMuted)
+                    .frame(width: 28, height: 28)
+                    .background(
+                        Circle()
+                            .fill(isHovered ? Colors.surfaceHover : Color.clear)
+                    )
+            }
+            .buttonStyle(.plain)
+            .scaleEffect(isHovered ? 1.1 : 1.0)
+            .animation(AnimationPresets.hover, value: isHovered)
+            .onHover { hovering in
+                isHovered = hovering
+            }
+        }
+        .padding(.horizontal, Spacing.xl)
+        .padding(.vertical, Spacing.lg)
+        .background(
+            RoundedRectangle(cornerRadius: Radius.xxl)
+                .fill(.ultraThinMaterial)
+        )
+    }
+}
+
+@available(macOS 14.0, *)
+struct InputSection: View {
+    let title: String
+    @Binding var text: String
+    let placeholder: String
+    let isEditable: Bool
+    
+    @FocusState private var isFocused: Bool
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: Spacing.sm) {
+            Text(title)
+                .font(Typography.caption)
+                .fontWeight(.medium)
+                .foregroundColor(Colors.textMuted)
+                .textCase(.uppercase)
+            
+            TextEditor(text: $text)
+                .font(Typography.body)
+                .foregroundColor(Colors.textPrimary)
+                .focused($isFocused)
+                .disabled(!isEditable)
+                .scrollContentBackground(.hidden)
+                .padding(Spacing.md)
+                .frame(minHeight: 100)
+                .background(
+                    RoundedRectangle(cornerRadius: Radius.lg)
+                        .fill(Colors.surface)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: Radius.lg)
+                                .stroke(isFocused ? Colors.borderFocus : Colors.border, lineWidth: isFocused ? 2 : 1)
+                        )
+                )
+                .overlay(
+                    Group {
+                        if text.isEmpty {
+                            Text(placeholder)
+                                .font(Typography.body)
+                                .foregroundColor(Colors.textMuted)
+                                .padding(Spacing.md)
+                                .allowsHitTesting(false)
+                        }
+                    },
+                    alignment: .topLeading
+                )
+        }
+    }
+}
+
+@available(macOS 14.0, *)
+struct EnhanceButton: View {
+    let isEnhancing: Bool
+    let isEnabled: Bool
+    let action: () -> Void
+    
+    @State private var isHovered = false
+    @State private var pulseScale: CGFloat = 1
+    
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: Spacing.md) {
+                if isEnhancing {
+                    ProgressView()
+                        .scaleEffect(0.8)
+                        .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                } else {
+                    Image(systemName: "bolt.fill")
+                        .font(.system(size: 18, weight: .semibold))
+                }
+                
+                Text(isEnhancing ? "Enhancing..." : "Enhance with Memories")
+                    .font(.system(size: 15, weight: .semibold))
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, Spacing.lg)
+            .background(
+                ZStack {
+                    // Gradient background
+                    RoundedRectangle(cornerRadius: Radius.lg)
+                        .fill(
+                            LinearGradient(
+                                colors: isEnabled
+                                    ? [Colors.primary, Colors.secondary]
+                                    : [Colors.textMuted, Colors.textMuted.opacity(0.8)],
+                                startPoint: .leading,
+                                endPoint: .trailing
+                            )
+                        )
+                    
+                    // Pulse effect when idle and enabled
+                    if isEnabled && !isEnhancing && !isHovered {
+                        RoundedRectangle(cornerRadius: Radius.lg)
+                            .stroke(Colors.primary.opacity(0.5), lineWidth: 2)
+                            .scaleEffect(pulseScale)
+                            .opacity(2 - pulseScale)
+                    }
+                }
+            )
+            .foregroundColor(.white)
+            .shadow(
+                color: isEnabled ? Colors.primary.opacity(0.4) : Color.clear,
+                radius: isHovered ? 20 : 12,
+                x: 0,
+                y: isHovered ? 8 : 4
+            )
+        }
+        .buttonStyle(.plain)
+        .disabled(!isEnabled || isEnhancing)
+        .scaleEffect(isHovered ? 1.02 : 1.0)
+        .animation(AnimationPresets.hover, value: isHovered)
+        .onHover { hovering in
+            isHovered = hovering
+        }
+        .onAppear {
+            if isEnabled && !isEnhancing {
+                withAnimation(.easeInOut(duration: 1.5).repeatForever(autoreverses: false)) {
+                    pulseScale = 1.5
+                }
+            }
+        }
+    }
+}
+
+@available(macOS 14.0, *)
+struct ResultSection: View {
+    @Binding var text: String
+    let memoryCount: Int
+    let onCopy: () -> Void
+    let onPasteReplace: () -> Void
+    
+    @FocusState private var isFocused: Bool
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: Spacing.md) {
+            // Header with memory chips
+            HStack {
+                HStack(spacing: Spacing.xs) {
+                    Text("Enhanced")
+                        .font(Typography.caption)
+                        .fontWeight(.medium)
+                        .foregroundColor(Colors.textMuted)
+                        .textCase(.uppercase)
+                    
+                    Text("\(memoryCount)")
+                        .font(Typography.caption)
+                        .fontWeight(.bold)
+                        .foregroundColor(Colors.primary)
+                        .padding(.horizontal, Spacing.sm)
+                        .padding(.vertical, 2)
+                        .background(Colors.primary.opacity(0.1))
+                        .cornerRadius(Radius.sm)
+                    
+                    Text("memories used")
+                        .font(Typography.caption)
+                        .foregroundColor(Colors.textMuted)
+                }
+                
+                Spacer()
+            }
+            
+            // Enhanced text
+            TextEditor(text: $text)
+                .font(Typography.body)
+                .foregroundColor(Colors.textPrimary)
+                .focused($isFocused)
+                .scrollContentBackground(.hidden)
+                .padding(Spacing.md)
+                .frame(minHeight: 100)
+                .background(
+                    RoundedRectangle(cornerRadius: Radius.lg)
+                        .fill(Colors.primary.opacity(0.05))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: Radius.lg)
+                                .stroke(Colors.primary.opacity(0.2), lineWidth: 1)
+                        )
+                )
+            
+            // Action buttons
+            HStack(spacing: Spacing.md) {
+                SecondaryButton("Copy", icon: "doc.on.doc") {
+                    onCopy()
+                }
+                
+                GradientButton("Paste & Replace", icon: "arrow.down.doc") {
+                    onPasteReplace()
+                }
+            }
+        }
+    }
+}
+
+@available(macOS 14.0, *)
+struct QuickEnhanceView_Previews: PreviewProvider {
+    static var previews: some View {
+        QuickEnhanceView(service: AppService(), onClose: {})
+            .frame(width: 560, height: 480)
     }
 }
