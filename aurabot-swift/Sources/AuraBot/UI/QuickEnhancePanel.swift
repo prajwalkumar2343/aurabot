@@ -9,7 +9,11 @@ class QuickEnhancePanel: NSPanel {
     init(service: AppService) {
         self.service = service
         
-        let view = QuickEnhanceView(service: service, onClose: {})
+        let view = QuickEnhanceView(
+            service: service,
+            initialText: "",
+            onClose: {}
+        )
         let hostingView = NSHostingView(rootView: view)
         
         super.init(
@@ -42,7 +46,11 @@ class QuickEnhancePanel: NSPanel {
     }
     
     func setText(_ text: String) {
-        // Update the view with text
+        hostingView?.rootView = QuickEnhanceView(
+            service: service,
+            initialText: text,
+            onClose: { [weak self] in self?.close() }
+        )
     }
     
     func show() {
@@ -53,7 +61,8 @@ class QuickEnhancePanel: NSPanel {
 
 @available(macOS 14.0, *)
 struct QuickEnhanceView: View {
-    @StateObject var service: AppService
+    @ObservedObject var service: AppService
+    let initialText: String
     let onClose: () -> Void
     
     @State private var originalText: String = ""
@@ -132,6 +141,9 @@ struct QuickEnhanceView: View {
         .opacity(appearAnimation ? 1 : 0)
         .scaleEffect(appearAnimation ? 1 : 0.9)
         .onAppear {
+            if originalText.isEmpty {
+                originalText = initialText
+            }
             withAnimation(AnimationPresets.spring) {
                 appearAnimation = true
             }
@@ -428,7 +440,7 @@ struct ResultSection: View {
 @available(macOS 14.0, *)
 struct QuickEnhanceView_Previews: PreviewProvider {
     static var previews: some View {
-        QuickEnhanceView(service: AppService(), onClose: {})
+        QuickEnhanceView(service: AppService(), initialText: "", onClose: {})
             .frame(width: 560, height: 480)
     }
 }
