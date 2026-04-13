@@ -151,6 +151,7 @@ class Handler(BaseHTTPRequestHandler):
                 results = memory.get_all(
                     user_id=q.get("user_id", ["default"])[0],
                     limit=int(q.get("limit", ["10"])[0])
+                )
                 self.json(results if isinstance(results, list) else [])
             except Exception as e:
                 self.json({"error": str(e)}, 500)
