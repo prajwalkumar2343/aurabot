@@ -97,22 +97,29 @@ class AppService: ObservableObject {
     }
     
     func toggleCapture() {
-        captureEnabled.toggle()
-        if captureEnabled {
-            Task { 
-                // Check permission before enabling
+        let newState = !captureEnabled
+        
+        if newState {
+            // Trying to enable - check permission first
+            Task {
                 if let hasPerm = await captureService?.checkPermission() {
                     if hasPerm {
+                        await MainActor.run {
+                            self.captureEnabled = true
+                            self.permissionError = nil
+                        }
                         await captureService?.start()
                     } else {
                         await MainActor.run {
-                            self.permissionError = "Screen recording permission required"
+                            self.permissionError = "Screen recording permission required. Go to System Settings > Privacy & Security > Screen Recording"
                             self.captureEnabled = false
                         }
                     }
                 }
             }
         } else {
+            // Disabling
+            captureEnabled = false
             Task { await captureService?.stop() }
         }
     }
