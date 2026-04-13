@@ -5,15 +5,13 @@ struct ContentView: View {
     @StateObject private var service = AppService()
     @State private var selectedTab: SidebarTab = .dashboard
     @State private var showLaunchAnimation = true
-    @State private var contentReady = false
     
     var body: some View {
         ZStack {
-            // Main content
-            if contentReady {
-                MainContentView(service: service, selectedTab: $selectedTab)
-                    .transition(.opacity.combined(with: .scale(scale: 0.98)))
-            }
+            // Main content - always rendered but opacity changes
+            MainContentView(service: service, selectedTab: $selectedTab)
+                .opacity(showLaunchAnimation ? 0 : 1)
+                .scaleEffect(showLaunchAnimation ? 0.98 : 1)
             
             // Launch animation overlay
             if showLaunchAnimation {
@@ -22,13 +20,7 @@ struct ContentView: View {
                     .zIndex(100)
             }
         }
-        .onChange(of: showLaunchAnimation) { showing in
-            if !showing {
-                withAnimation(.spring(response: 0.6, dampingFraction: 0.8).delay(0.1)) {
-                    contentReady = true
-                }
-            }
-        }
+        .animation(.spring(response: 0.6, dampingFraction: 0.8), value: showLaunchAnimation)
     }
 }
 
@@ -44,7 +36,11 @@ struct MainContentView: View {
             
             // Content area with page transitions
             ZStack {
-                // Background mesh gradient
+                // Background
+                Colors.background
+                    .ignoresSafeArea()
+                
+                // Mesh gradient overlay
                 MeshGradient()
                     .opacity(0.5)
                     .ignoresSafeArea()
