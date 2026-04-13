@@ -10,7 +10,11 @@ from api.base_handler import BaseHandler
 from api.memoryMixin import MemoryMixin
 from api.embeddingsMixin import EmbeddingsMixin
 from api.chatMixin import ChatMixin
-from config import CEREBRAS_API_KEY, LM_STUDIO_URL
+from config import (
+    OPENROUTER_BASE_URL,
+    OPENROUTER_CHAT_MODEL,
+    OPENROUTER_EMBEDDING_MODEL,
+)
 
 
 class Mem0Handler(BaseHandler, MemoryMixin, EmbeddingsMixin, ChatMixin):
@@ -24,6 +28,9 @@ class Mem0Handler(BaseHandler, MemoryMixin, EmbeddingsMixin, ChatMixin):
         parsed = urlparse(self.path)
         path = parsed.path
         query = self.parse_query()
+
+        if not self.require_authorization(path):
+            return
 
         if path == "/health":
             self.handle_health()
@@ -46,6 +53,9 @@ class Mem0Handler(BaseHandler, MemoryMixin, EmbeddingsMixin, ChatMixin):
         parsed = urlparse(self.path)
         path = parsed.path
 
+        if not self.require_authorization(path):
+            return
+
         if path == "/v1/embeddings":
             self.create_embeddings()
             return
@@ -59,7 +69,8 @@ class Mem0Handler(BaseHandler, MemoryMixin, EmbeddingsMixin, ChatMixin):
             user_id = data.get("user_id", "default_user")
             agent_id = data.get("agent_id")
             metadata = data.get("metadata", {})
-            infer = bool(CEREBRAS_API_KEY)
+            # Screen captures are already summarized by the app before storage.
+            infer = False
             self.add_memory(user_id, agent_id, metadata, infer)
             return
 
@@ -77,6 +88,9 @@ class Mem0Handler(BaseHandler, MemoryMixin, EmbeddingsMixin, ChatMixin):
         parsed = urlparse(self.path)
         path = parsed.path
 
+        if not self.require_authorization(path):
+            return
+
         if path.startswith("/v1/memories/"):
             self.delete_memory(path.split("/")[-1])
             return
@@ -85,19 +99,16 @@ class Mem0Handler(BaseHandler, MemoryMixin, EmbeddingsMixin, ChatMixin):
 
     def handle_health(self):
         """Handle GET /health"""
-        llm_provider = "cerebras" if CEREBRAS_API_KEY else "lm_studio"
-        llm_model = "llama3.1-70b" if CEREBRAS_API_KEY else "local"
-
         self.send_json_response(
             {
                 "status": "ok",
                 "timestamp": time.time(),
-                "llm_provider": llm_provider,
-                "llm_model": llm_model,
-                "embedder_provider": "lm_studio",
-                "embedder_model": "text-embedding-embeddinggemma-300m",
+                "llm_provider": "openrouter",
+                "llm_model": OPENROUTER_CHAT_MODEL,
+                "embedder_provider": "openrouter",
+                "embedder_model": OPENROUTER_EMBEDDING_MODEL,
                 "vector_store": "qdrant",
-                "lm_studio_url": LM_STUDIO_URL,
+                "openrouter_url": OPENROUTER_BASE_URL,
             }
         )
 
@@ -108,23 +119,16 @@ class Mem0Handler(BaseHandler, MemoryMixin, EmbeddingsMixin, ChatMixin):
                 "object": "list",
                 "data": [
                     {
-                        "id": "text-embedding-embeddinggemma-300m",
+                        "id": OPENROUTER_EMBEDDING_MODEL,
                         "object": "model",
                         "created": int(time.time()),
-                        "owned_by": "google",
+                        "owned_by": "openrouter",
                     },
                     {
-                        "id": "llama3.1-70b",
+                        "id": OPENROUTER_CHAT_MODEL,
                         "object": "model",
                         "created": int(time.time()),
-                        "owned_by": "meta",
-                    }
-                    if CEREBRAS_API_KEY
-                    else {
-                        "id": "local-model",
-                        "object": "model",
-                        "created": int(time.time()),
-                        "owned_by": "local",
+                        "owned_by": "openrouter",
                     },
                 ],
             }

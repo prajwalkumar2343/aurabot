@@ -2,10 +2,7 @@
 """
 Main entry point for the Mem0 REST API Server.
 
-Supports dual LLM setup:
-- Cerebras API: For chat/LLM responses (fast, high-quality)
-- LM Studio (LFM2): For memory classification (local, privacy)
-- LM Studio: For embeddings (local)
+Uses OpenRouter-backed models for chat and embeddings.
 """
 
 from http.server import HTTPServer
@@ -13,16 +10,19 @@ from http.server import HTTPServer
 from config import HOST, PORT
 from core.memory_factory import init_server_memory
 from api.handlers import Mem0Handler
+from models.remote_manager import RemoteModelManager
 
 
 def main():
     print("=" * 70)
-    print("Mem0 Server: Cerebras (Chat) + LM Studio (Classification + Embeddings)")
+    print("Mem0 Server: OpenRouter (Chat + Embeddings)")
     print("=" * 70)
 
     memory = init_server_memory()
+    model_manager = RemoteModelManager()
 
     Mem0Handler.memory = memory
+    Mem0Handler.model_manager = model_manager
     Mem0Handler.HAS_MEM0 = True
 
     print(f"[OK] Server starting on http://{HOST}:{PORT}")

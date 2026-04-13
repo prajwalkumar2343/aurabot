@@ -4,70 +4,51 @@ from datetime import datetime
 from http.server import BaseHTTPRequestHandler
 from urllib.parse import parse_qs, urlparse
 
+from api.auth import is_authorized, requires_auth
+from api.cors import get_cors_headers
 from config import CEREBRAS_API_KEY, LM_STUDIO_URL
 
 class Mem0Handler(BaseHTTPRequestHandler):
     memory = None
-    
-    ALLOWED_ORIGINS = [
-        "http://localhost:3000",
-        "http://localhost:8080",
-        "http://localhost:7345",
-        "chrome-extension://*",
-        "https://chat.openai.com",
-        "https://chatgpt.com",
-        "https://claude.ai",
-        "https://gemini.google.com",
-        "https://perplexity.ai",
-    ]
 
     def log_message(self, format, *args):
         print(f"[{datetime.now().strftime('%H:%M:%S')}] {format % args}")
     
     def _get_origin(self):
         return self.headers.get('Origin', '')
-    
-    def _is_allowed_origin(self, origin):
-        if not origin:
+
+    def _authorize(self, path: str) -> bool:
+        if not requires_auth(path) or is_authorized(self.headers):
             return True
-        for allowed in self.ALLOWED_ORIGINS:
-            if allowed.endswith('/*'):
-                prefix = allowed[:-1]
-                if origin.startswith(prefix):
-                    return True
-            elif origin == allowed:
-                return True
+        self.send_json_response({"error": "Unauthorized"}, 401)
         return False
     
     def send_json_response(self, data, status=200):
+        cors_headers = get_cors_headers(self._get_origin())
         try:
-            origin = self._get_origin()
             self.send_response(status)
             self.send_header("Content-Type", "application/json")
-            if self._is_allowed_origin(origin):
-                self.send_header("Access-Control-Allow-Origin", origin if origin else "http://localhost:3000")
-                self.send_header("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS")
-                self.send_header("Access-Control-Allow-Headers", "Content-Type, Authorization")
-                self.send_header("Access-Control-Allow-Credentials", "true")
+            for key, value in cors_headers.items():
+                self.send_header(key, value)
             self.end_headers()
             self.wfile.write(json.dumps(data).encode())
         except (ConnectionAbortedError, BrokenPipeError):
             print(f"[WARN] Client disconnected before response could be sent")
 
     def do_OPTIONS(self):
-        origin = self._get_origin()
+        cors_headers = get_cors_headers(self._get_origin())
         self.send_response(200)
-        if self._is_allowed_origin(origin):
-            self.send_header("Access-Control-Allow-Origin", origin if origin else "http://localhost:3000")
-            self.send_header("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS")
-            self.send_header("Access-Control-Allow-Headers", "Content-Type, Authorization")
-            self.send_header("Access-Control-Allow-Credentials", "true")
+        for key, value in cors_headers.items():
+            self.send_header(key, value)
         self.end_headers()
 
     def do_GET(self):
         parsed = urlparse(self.path)
         path = parsed.path
         query = parse_qs(parsed.query)
+
+        if not self._authorize(path):
+            return
 
         if path == "/health":
             self.send_json_response({
@@ -139,6 +120,9 @@ class Mem0Handler(BaseHTTPRequestHandler):
         parsed = urlparse(self.path)
         path = parsed.path
 
+        if not self._authorize(path):
+            return
+
         content_length = int(self.headers.get("Content-Length", 0))
         body = self.rfile.read(content_length).decode()
         data = json.loads(body) if body else {}
@@ -192,23 +176,26 @@ class Mem0Handler(BaseHTTPRequestHandler):
                 search_results = []
                 for r in results:
                     if isinstance(r, dict):
-                        m_content = r.get("memory", "")
                         search_results.append({
-                            "id": r.get("id", str(uuid.uuid4())),
-                            "memory": m_content,
-                            "user_id": user_id,
-                            "metadata": r.get("metadata", {}),
-                            "created_at": r.get("created_at", datetime.now().isoformat()),
+                            "memory": {
+                                "id": r.get("id", str(uuid.uuid4())),
+                                "content": r.get("memory", r.get("content", "")),
+                                "user_id": user_id,
+                                "metadata": r.get("metadata", {}),
+                                "created_at": r.get("created_at", datetime.now().isoformat()),
+                            },
                             "score": r.get("score", 0.0),
                             "distance": r.get("distance", 0.0)
                         })
                     elif isinstance(r, str):
                         search_results.append({
-                            "id": str(uuid.uuid4()),
-                            "memory": r,
-                            "user_id": user_id,
-                            "metadata": {},
-                            "created_at": datetime.now().isoformat(),
+                            "memory": {
+                                "id": str(uuid.uuid4()),
+                                "content": r,
+                                "user_id": user_id,
+                                "metadata": {},
+                                "created_at": datetime.now().isoformat(),
+                            },
                             "score": 1.0,
                             "distance": 0.0
                         })
@@ -225,9 +212,22 @@ class Mem0Handler(BaseHTTPRequestHandler):
         parsed = urlparse(self.path)
         path = parsed.path
 
+        if not self._authorize(path):
+            return
+
         if path.startswith("/v1/memories/"):
             try:
-                self.send_json_response({"deleted": True})
+                memory_id = path.rstrip("/").split("/")[-1]
+                try:
+                    result = self.memory.delete(memory_id=memory_id)
+                except TypeError:
+                    result = self.memory.delete(id=memory_id)
+
+                deleted = result if isinstance(result, bool) else True
+                if isinstance(result, dict):
+                    deleted = bool(result.get("deleted", True))
+
+                self.send_json_response({"deleted": deleted})
             except Exception as e:
                 print(f"Error deleting memory: {e}")
                 self.send_json_response({"error": str(e)}, 500)
