@@ -29,7 +29,7 @@ class QuickEnhancePanel: NSPanel {
         backgroundColor = .clear
         isOpaque = false
         hasShadow = true
-        shadow?.shadowColor = NSColor.black.withAlphaComponent(0.2)
+        // Shadow is handled by the system
         collectionBehavior = [.canJoinAllSpaces, .transient]
         
         // Center on screen
