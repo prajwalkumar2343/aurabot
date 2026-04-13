@@ -105,3 +105,18 @@ docs/_build/
 .python-version
 *.mo
 *.pot
+
+# Swift build artifacts
+swift-mem0/.build/
+swift-mem0/.git/
+swift-mem0/Packages/
+
+# Swift app bundle
+AuraBot.app/
+
+# Local Python cache
+aurabot/__pycache__/
+aurabot/tests/__pycache__/
+aurabot/tests/.pytest_cache/
+aurabot/python/src/__pycache__/
+aurabot/.env
