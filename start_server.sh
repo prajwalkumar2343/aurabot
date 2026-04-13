@@ -1,5 +1,5 @@
 #!/bin/bash
-# Start Mem0 Server with proper setup
+# Start Mem0 Server with OpenRouter-backed models
 
 cd "$(dirname "$0")/python/src"
 
@@ -12,7 +12,7 @@ echo
 if [ ! -f .env ]; then
     echo "Creating .env file..."
     cat > .env << 'ENVFILE'
-# OpenRouter API Key (required for LLM image analysis and chat)
+# OpenRouter API Key (required for memory embeddings and chat)
 # Get your key from: https://openrouter.ai/settings/keys
 OPENROUTER_API_KEY=
 
@@ -20,6 +20,7 @@ OPENROUTER_API_KEY=
 OPENROUTER_BASE_URL=https://openrouter.ai/api/v1
 OPENROUTER_VISION_MODEL=google/gemini-flash-1.5
 OPENROUTER_CHAT_MODEL=anthropic/claude-3.5-sonnet
+OPENROUTER_EMBEDDING_MODEL=openai/text-embedding-3-small
 
 # Mem0 Server Configuration
 MEM0_HOST=localhost
@@ -34,4 +35,4 @@ echo
 
 # Start the main Mem0 server
 echo "Starting Mem0 server..."
-python3 mem0_server.py
+python3 main.py
