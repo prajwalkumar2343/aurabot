@@ -6,9 +6,9 @@ actor LLMService {
     
     init(config: LLMConfig) {
         self.config = config
-        let config = URLSessionConfiguration.default
-        config.timeoutIntervalForRequest = TimeInterval(config.timeoutSeconds)
-        self.session = URLSession(configuration: config)
+        let sessionConfiguration = URLSessionConfiguration.default
+        sessionConfiguration.timeoutIntervalForRequest = TimeInterval(config.timeoutSeconds)
+        self.session = URLSession(configuration: sessionConfiguration)
     }
     
     func analyzeScreen(imageData: Data, context: String) async throws -> AnalysisResult {

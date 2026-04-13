@@ -5,13 +5,19 @@ import Combine
 @MainActor
 class AppService: ObservableObject {
     @Published var status: ServiceStatus = .stopped
-    @Published var lastActivity: String = "--"
+    @Published var lastActivity: String = ""
     @Published var memories: [Memory] = []
     @Published var captureEnabled: Bool = true
+    @Published var isLLMConnected: Bool = false
+    @Published var isMemoryConnected: Bool = false
+    @Published var isBackendConnected: Bool = false
+    @Published var captureInterval: Int = 30
     
     let config: AppConfig
     private let llmService: LLMService
     private let memoryService: MemoryService
+    private let browserContextService: BrowserContextService
+    private let browserExtensionServer: BrowserExtensionServer?
     private var captureService: ScreenCaptureService?
     
     private var processingTask: Task<Void, Never>?
@@ -20,9 +26,16 @@ class AppService: ObservableObject {
         self.config = config
         self.llmService = LLMService(config: config.llm)
         self.memoryService = MemoryService(config: config.memory)
+        self.browserContextService = BrowserContextService(config: config.browserExtension)
+        self.browserExtensionServer = config.browserExtension.enabled
+            ? BrowserExtensionServer(port: config.browserExtension.port, browserContextService: browserContextService)
+            : nil
         
         if #available(macOS 12.3, *) {
-            self.captureService = ScreenCaptureService(config: config.capture)
+            self.captureService = ScreenCaptureService(
+                config: config.capture,
+                browserContextService: browserContextService
+            )
             self.captureService?.onCapture = { [weak self] capture in
                 await self?.processCapture(capture)
             }
@@ -32,6 +45,8 @@ class AppService: ObservableObject {
     func start() {
         status = .running
         captureEnabled = config.capture.enabled
+        captureInterval = config.capture.intervalSeconds
+        browserExtensionServer?.start()
         
         if captureEnabled {
             Task {
@@ -41,11 +56,29 @@ class AppService: ObservableObject {
         
         Task {
             await refreshMemories()
+            await updateHealthStatus()
         }
+        
+        // Start health check polling
+        Task {
+            while status == .running {
+                try? await Task.sleep(nanoseconds: 5_000_000_000) // 5 seconds
+                guard status == .running else { break }
+                await updateHealthStatus()
+            }
+        }
+    }
+    
+    private func updateHealthStatus() async {
+        let health = await checkHealth()
+        isLLMConnected = health.llm
+        isMemoryConnected = health.memory
+        isBackendConnected = health.llm && health.memory
     }
     
     func stop() {
         status = .stopped
+        browserExtensionServer?.stop()
         Task {
             await captureService?.stop()
         }
@@ -83,7 +116,13 @@ class AppService: ObservableObject {
         
         do {
             let recent = try await memoryService.getRecent(limit: config.app.memoryWindow)
-            let context = recent.map { $0.content }.joined(separator: " ")
+            var contextParts = recent.map { $0.content }
+
+            if let browserContext = capture.browserContext {
+                contextParts.append(browserContext.llmSummary)
+            }
+
+            let context = contextParts.joined(separator: " ")
             
             let analysis = try await llmService.analyzeScreen(
                 imageData: capture.imageData,
@@ -98,7 +137,10 @@ class AppService: ObservableObject {
                 activities: analysis.activities,
                 keyElements: analysis.keyElements,
                 userIntent: analysis.userIntent,
-                displayNum: capture.displayNum
+                displayNum: capture.displayNum,
+                browser: capture.browserContext?.browser,
+                url: capture.browserContext?.url,
+                captureReason: capture.captureReason
             )
             
             _ = try await memoryService.add(content: content, metadata: metadata)
