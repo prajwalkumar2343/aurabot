@@ -13,20 +13,32 @@ actor MemoryService {
         guard let url = URL(string: "\(config.baseURL)/v1/memories/") else {
             throw URLError(.badURL)
         }
-        
+
+        var metadataPayload: [String: Any] = [
+            "timestamp": metadata.timestamp,
+            "context": metadata.context,
+            "activities": metadata.activities,
+            "key_elements": metadata.keyElements,
+            "user_intent": metadata.userIntent,
+            "display_num": metadata.displayNum
+        ]
+
+        if let browser = metadata.browser {
+            metadataPayload["browser"] = browser
+        }
+        if let url = metadata.url {
+            metadataPayload["url"] = url
+        }
+        if let captureReason = metadata.captureReason {
+            metadataPayload["capture_reason"] = captureReason
+        }
+
         let payload: [String: Any] = [
             "messages": [
                 ["role": "user", "content": content]
             ],
             "user_id": config.userID,
-            "metadata": [
-                "timestamp": metadata.timestamp,
-                "context": metadata.context,
-                "activities": metadata.activities,
-                "key_elements": metadata.keyElements,
-                "user_intent": metadata.userIntent,
-                "display_num": metadata.displayNum
-            ],
+            "metadata": metadataPayload,
             "agent_id": config.collectionName
         ]
         
