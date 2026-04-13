@@ -7,10 +7,12 @@ struct AuraBotApp: App {
     
     var body: some Scene {
         WindowGroup {
-            MainView()
-                .frame(minWidth: 1000, minHeight: 700)
+            ContentView()
+                .frame(minWidth: 1100, minHeight: 750)
+                .background(Colors.background)
         }
         .windowStyle(.hiddenTitleBar)
+        .defaultPosition(.center)
         .commands {
             CommandMenu("AuraBot") {
                 Button("New Memory") {
@@ -22,16 +24,34 @@ struct AuraBotApp: App {
                     NotificationCenter.default.post(name: .triggerQuickEnhance, object: nil)
                 }
                 .keyboardShortcut("e", modifiers: [.command, .option])
+                
+                Divider()
+                
+                Button("Toggle Capture") {
+                    NotificationCenter.default.post(name: .toggleCapture, object: nil)
+                }
+                .keyboardShortcut("p", modifiers: [.command, .shift])
+            }
+            
+            CommandGroup(after: .windowArrangement) {
+                Button("Show Sidebar") {
+                    NotificationCenter.default.post(name: .showSidebar, object: nil)
+                }
+                .keyboardShortcut("b", modifiers: .command)
             }
         }
         
         Settings {
             SettingsView()
+                .frame(width: 600, height: 600)
         }
     }
 }
 
+// MARK: - Notifications
 extension Notification.Name {
     static let showNewMemory = Notification.Name("showNewMemory")
     static let triggerQuickEnhance = Notification.Name("triggerQuickEnhance")
+    static let toggleCapture = Notification.Name("toggleCapture")
+    static let showSidebar = Notification.Name("showSidebar")
 }
