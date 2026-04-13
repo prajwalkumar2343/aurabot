@@ -9,11 +9,14 @@ class AppService: ObservableObject {
     @Published var memories: [Memory] = []
     @Published var captureEnabled: Bool = true
     @Published var permissionError: String?
+    @Published var isBackendConnected: Bool = false
+    @Published var connectionError: String?
     
     let config: AppConfig
     private let llmService: LLMService
     private let memoryService: MemoryService
     private var captureService: ScreenCaptureService?
+    private var healthCheckTimer: Timer?
     
     private var processingTask: Task<Void, Never>?
     
@@ -33,6 +36,9 @@ class AppService: ObservableObject {
     func start() {
         status = .running
         captureEnabled = config.capture.enabled
+        
+        // Start health check timer
+        startHealthChecks()
         
         if captureEnabled {
             Task {
@@ -55,8 +61,36 @@ class AppService: ObservableObject {
         }
     }
     
+    private func startHealthChecks() {
+        // Check health immediately
+        Task {
+            await checkAndUpdateHealth()
+        }
+        
+        // Check health every 5 seconds
+        healthCheckTimer = Timer.scheduledTimer(withTimeInterval: 5.0, repeats: true) { [weak self] _ in
+            Task { [weak self] in
+                await self?.checkAndUpdateHealth()
+            }
+        }
+    }
+    
+    private func checkAndUpdateHealth() async {
+        let health = await checkHealth()
+        await MainActor.run {
+            self.isBackendConnected = health.memory
+            if !health.memory {
+                self.connectionError = "Cannot connect to Mem0 server at \(config.memory.baseURL)"
+            } else {
+                self.connectionError = nil
+            }
+        }
+    }
+    
     func stop() {
         status = .stopped
+        healthCheckTimer?.invalidate()
+        healthCheckTimer = nil
         Task {
             await captureService?.stop()
         }
