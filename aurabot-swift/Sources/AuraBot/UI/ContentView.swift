@@ -2,7 +2,7 @@ import SwiftUI
 
 @available(macOS 14.0, *)
 struct ContentView: View {
-    @StateObject private var service = AppService()
+    @ObservedObject var service: AppService
     @State private var selectedTab: SidebarTab = .dashboard
     @State private var isLoading = true
     
@@ -20,9 +20,6 @@ struct ContentView: View {
             }
         }
         .onAppear {
-            service.start()
-            
-            // Hide loading after 1 second
             DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
                 withAnimation(.easeOut(duration: 0.3)) {
                     isLoading = false
@@ -111,7 +108,7 @@ struct MainContentView: View {
                 case .chat:
                     ChatView(service: service)
                 case .settings:
-                    SettingsView()
+                    SettingsView(service: service)
                 }
             }
             .clipShape(RoundedRectangle(cornerRadius: 16))
@@ -125,7 +122,7 @@ struct MainContentView: View {
 @available(macOS 14.0, *)
 struct ContentView_Previews: PreviewProvider {
     static var previews: some View {
-        ContentView()
+        ContentView(service: AppService())
             .frame(width: 1200, height: 800)
     }
 }
