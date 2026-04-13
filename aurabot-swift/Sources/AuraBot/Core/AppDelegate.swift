@@ -7,20 +7,15 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     var statusItem: NSStatusItem?
     var overlayWindow: OverlayWindow?
     var quickEnhancePanel: QuickEnhancePanel?
-    var service: AppService?
+    let service = AppService(configPath: AppConfig.defaultPath)
     
     func applicationDidFinishLaunching(_ notification: Notification) {
-        // Setup menu bar
         setupStatusItem()
-        
-        // Setup services
-        let config = AppConfig.load(from: configPath)
-        service = AppService(config: config)
+
         Task {
-            await service?.start()
+            await service.start()
         }
-        
-        // Create overlay window
+
         overlayWindow = OverlayWindow()
         overlayWindow?.onClick = { [weak self] in
             Task { @MainActor in
@@ -31,7 +26,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     
     func applicationWillTerminate(_ notification: Notification) {
         Task {
-            await service?.stop()
+            await service.stop()
         }
     }
     
@@ -99,7 +94,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
     
     private func showQuickEnhance(text: String = "") {
-        if quickEnhancePanel == nil, let service = service {
+        if quickEnhancePanel == nil {
             quickEnhancePanel = QuickEnhancePanel(service: service)
         }
         
@@ -122,10 +117,5 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         cDown?.post(tap: .cghidEventTap)
         cUp?.post(tap: .cghidEventTap)
         cmdUp?.post(tap: .cghidEventTap)
-    }
-    
-    private var configPath: String {
-        let home = FileManager.default.homeDirectoryForCurrentUser
-        return home.appendingPathComponent(".aurabot/config.json").path
     }
 }
