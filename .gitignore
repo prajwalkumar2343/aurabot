@@ -26,6 +26,7 @@ Thumbs.db
 config.yaml
 config.local.yaml
 .env
+.env.*
 
 # Local data storage
 qdrant_storage/
@@ -58,17 +59,49 @@ venv/
 env/
 .env
 
+
 # Node.js
 node_modules/
 
-# Swift build artifacts
+# Swift/macOS
 aurabot-swift/.build/
+aurabot-swift/*.zip
+aurabot-swift/*.app/
 aurabot-swift/Package.resolved
-*.app/
-
-# Swift app bundle
-AuraBot.app/
-AuraBot-*.zip
-
-# Local experiment directories
 swift-mem0/
+
+# Xcode
+xcuserdata/
+DerivedData/
+*.xcworkspace/xcuserdata/
+*.xcodeproj/xcuserdata/
+*.xcodeproj/project.xcworkspace/xcuserdata/
+.swiftpm/
+
+# Databases
+*.db
+*.sqlite
+*.sqlite3
+
+# Python testing & coverage
+.pytest_cache/
+.mypy_cache/
+.tox/
+htmlcov/
+.coverage
+coverage.xml
+*.cover
+pip-wheel-metadata/
+
+# Backup & merge artifacts
+*.bak
+*.orig
+*.rej
+
+# Documentation builds
+docs/_build/
+
+# Misc
+.python-version
+*.mo
+*.pot

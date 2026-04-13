@@ -1,165 +1,100 @@
 import Foundation
 import Combine
 
-@available(macOS 14.0, *)
+@available(macOS 12.3, *)
 @MainActor
 class AppService: ObservableObject {
     @Published var status: ServiceStatus = .stopped
-    @Published var lastActivity: String = "--"
+    @Published var lastActivity: String = ""
     @Published var memories: [Memory] = []
     @Published var captureEnabled: Bool = true
-    @Published var permissionError: String?
+    @Published var isLLMConnected: Bool = false
+    @Published var isMemoryConnected: Bool = false
     @Published var isBackendConnected: Bool = false
-    @Published var connectionError: String?
-
-    @Published private(set) var config: AppConfig
-
-    private let configPath: String
-    private var llmService: LLMService
-    private var memoryService: MemoryService
+    @Published var captureInterval: Int = 30
+    
+    let config: AppConfig
+    private let llmService: LLMService
+    private let memoryService: MemoryService
+    private let browserContextService: BrowserContextService
+    private let browserExtensionServer: BrowserExtensionServer?
     private var captureService: ScreenCaptureService?
-    private var healthCheckTimer: Timer?
-
+    
     private var processingTask: Task<Void, Never>?
-
-    init(configPath: String = AppConfig.defaultPath, config: AppConfig? = nil) {
-        let resolvedConfig = config ?? AppConfig.load(from: configPath)
-
-        self.configPath = configPath
-        self.config = resolvedConfig
-        self.captureEnabled = resolvedConfig.capture.enabled
-        self.llmService = LLMService(config: resolvedConfig.llm)
-        self.memoryService = MemoryService(config: resolvedConfig.memory)
-        self.captureService = nil
-
-        rebuildCaptureService()
-    }
-
-    func start() async {
-        guard status != .running else { return }
-
-        status = .running
-        captureEnabled = config.capture.enabled
-
-        startHealthChecks()
-
-        if captureEnabled {
-            if let hasPerm = await captureService?.checkPermission() {
-                if !hasPerm {
-                    permissionError = "Screen recording permission required. Please grant permission in System Settings > Privacy & Security > Screen Recording"
-                    captureEnabled = false
-                    return
-                }
-                await captureService?.start()
-            }
-        }
-
-        await refreshMemories()
-    }
-
-    private func startHealthChecks() {
-        Task {
-            await checkAndUpdateHealth()
-        }
-
-        healthCheckTimer?.invalidate()
-        healthCheckTimer = Timer.scheduledTimer(withTimeInterval: 5.0, repeats: true) { [weak self] _ in
-            Task { [weak self] in
-                await self?.checkAndUpdateHealth()
+    
+    init(config: AppConfig = .default) {
+        self.config = config
+        self.llmService = LLMService(config: config.llm)
+        self.memoryService = MemoryService(config: config.memory)
+        self.browserContextService = BrowserContextService(config: config.browserExtension)
+        self.browserExtensionServer = config.browserExtension.enabled
+            ? BrowserExtensionServer(port: config.browserExtension.port, browserContextService: browserContextService)
+            : nil
+        
+        if #available(macOS 12.3, *) {
+            self.captureService = ScreenCaptureService(
+                config: config.capture,
+                browserContextService: browserContextService
+            )
+            self.captureService?.onCapture = { [weak self] capture in
+                await self?.processCapture(capture)
             }
         }
     }
     
-    private func checkAndUpdateHealth() async {
-        let health = await checkHealth()
-        await MainActor.run {
-            self.isBackendConnected = health.memory
-            if !health.memory {
-                self.connectionError = "Cannot connect to Mem0 server at \(config.memory.baseURL)"
-            } else {
-                self.connectionError = nil
-            }
-        }
-    }
-
-    func stop() async {
-        status = .stopped
-        healthCheckTimer?.invalidate()
-        healthCheckTimer = nil
-        processingTask?.cancel()
-        processingTask = nil
-        await captureService?.stop()
-    }
-
-    func saveConfiguration(_ newConfig: AppConfig) async {
-        let wasRunning = status == .running
-
-        if wasRunning {
-            await stop()
-        }
-
-        config = newConfig
-        config.save(to: configPath)
-
-        llmService = LLMService(config: newConfig.llm)
-        memoryService = MemoryService(config: newConfig.memory)
-        rebuildCaptureService()
-        captureEnabled = newConfig.capture.enabled
-        permissionError = nil
-
-        if wasRunning {
-            await start()
-        } else {
-            await refreshMemories()
-            await checkAndUpdateHealth()
-        }
-    }
-
-    func toggleCapture() {
-        let newState = !captureEnabled
-
-        if newState {
+    func start() {
+        status = .running
+        captureEnabled = config.capture.enabled
+        captureInterval = config.capture.intervalSeconds
+        browserExtensionServer?.start()
+        
+        if captureEnabled {
             Task {
-                if let hasPerm = await captureService?.checkPermission() {
-                    if hasPerm {
-                        await MainActor.run {
-                            self.captureEnabled = true
-                            self.permissionError = nil
-                        }
-                        await captureService?.start()
-                    } else {
-                        await MainActor.run {
-                            self.permissionError = "Screen recording permission required. Go to System Settings > Privacy & Security > Screen Recording"
-                            self.captureEnabled = false
-                        }
-                    }
-                }
+                await captureService?.start()
             }
+        }
+        
+        Task {
+            await refreshMemories()
+            await updateHealthStatus()
+        }
+        
+        // Start health check polling
+        Task {
+            while status == .running {
+                try? await Task.sleep(nanoseconds: 5_000_000_000) // 5 seconds
+                guard status == .running else { break }
+                await updateHealthStatus()
+            }
+        }
+    }
+    
+    private func updateHealthStatus() async {
+        let health = await checkHealth()
+        isLLMConnected = health.llm
+        isMemoryConnected = health.memory
+        isBackendConnected = health.llm && health.memory
+    }
+    
+    func stop() {
+        status = .stopped
+        browserExtensionServer?.stop()
+        Task {
+            await captureService?.stop()
+        }
+    }
+    
+    func toggleCapture() {
+        captureEnabled.toggle()
+        if captureEnabled {
+            Task { await captureService?.start() }
         } else {
-            captureEnabled = false
             Task { await captureService?.stop() }
         }
     }
     
     func chat(message: String) async throws -> String {
         return try await llmService.generateResponse(message: message, memories: [])
-    }
-    
-    func enhance(text: String) async throws -> EnhancementResult {
-        // Get relevant memories
-        let relevantMemories = try await memoryService.search(query: text, limit: 5)
-        let memoryContents = relevantMemories.map { $0.memory.content }
-        
-        // Enhance with memories
-        let enhanced = try await llmService.enhancePrompt(text, with: memoryContents)
-        
-        return EnhancementResult(
-            originalPrompt: text,
-            enhancedPrompt: enhanced,
-            memoriesUsed: memoryContents,
-            memoryCount: memoryContents.count,
-            enhancementType: "context"
-        )
     }
     
     func refreshMemories() async {
@@ -178,49 +113,47 @@ class AppService: ObservableObject {
     
     private func processCapture(_ capture: ScreenCapture) async {
         guard config.app.processOnCapture else { return }
-
+        
         do {
-            let recent = (try? await memoryService.getRecent(limit: config.app.memoryWindow)) ?? []
-            let context = recent.map { $0.content }.joined(separator: " ")
+            let recent = try await memoryService.getRecent(limit: config.app.memoryWindow)
+            var contextParts = recent.map { $0.content }
 
+            if let browserContext = capture.browserContext {
+                contextParts.append(browserContext.llmSummary)
+            }
+
+            let context = contextParts.joined(separator: " ")
+            
             let analysis = try await llmService.analyzeScreen(
                 imageData: capture.imageData,
                 context: context
             )
-
+            
             let content = "\(analysis.summary) | Context: \(analysis.context) | Intent: \(analysis.userIntent)"
-
+            
             let metadata = Metadata(
                 timestamp: ISO8601DateFormatter().string(from: Date()),
                 context: analysis.context,
                 activities: analysis.activities,
                 keyElements: analysis.keyElements,
                 userIntent: analysis.userIntent,
-                displayNum: capture.displayNum
+                displayNum: capture.displayNum,
+                browser: capture.browserContext?.browser,
+                url: capture.browserContext?.url,
+                captureReason: capture.captureReason
             )
-
-            do {
-                _ = try await memoryService.add(content: content, metadata: metadata)
-            } catch {
-                print("Failed to save memory: \(error)")
-            }
-
+            
+            _ = try await memoryService.add(content: content, metadata: metadata)
+            
             await MainActor.run {
                 lastActivity = analysis.summary
             }
-
+            
             await refreshMemories()
+            
         } catch {
             print("Failed to process capture: \(error)")
         }
-    }
-
-    private func rebuildCaptureService() {
-        let service = ScreenCaptureService(config: config.capture)
-        service.onCapture = { [weak self] capture in
-            await self?.processCapture(capture)
-        }
-        captureService = service
     }
 }
 

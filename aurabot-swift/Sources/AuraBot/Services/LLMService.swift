@@ -6,9 +6,9 @@ actor LLMService {
     
     init(config: LLMConfig) {
         self.config = config
-        let sessionConfig = URLSessionConfiguration.default
-        sessionConfig.timeoutIntervalForRequest = TimeInterval(config.timeoutSeconds)
-        self.session = URLSession(configuration: sessionConfig)
+        let sessionConfiguration = URLSessionConfiguration.default
+        sessionConfiguration.timeoutIntervalForRequest = TimeInterval(config.timeoutSeconds)
+        self.session = URLSession(configuration: sessionConfiguration)
     }
     
     func analyzeScreen(imageData: Data, context: String) async throws -> AnalysisResult {
@@ -37,7 +37,7 @@ actor LLMService {
         ]
         
         let requestBody: [String: Any] = [
-            "model": visionModel,
+            "model": config.model,
             "messages": messages,
             "max_tokens": config.maxTokens,
             "temperature": config.temperature
@@ -62,7 +62,7 @@ actor LLMService {
         ]
         
         let requestBody: [String: Any] = [
-            "model": chatModel,
+            "model": config.model,
             "messages": messages,
             "max_tokens": config.maxTokens,
             "temperature": config.temperature
@@ -94,7 +94,7 @@ actor LLMService {
         ]
         
         let requestBody: [String: Any] = [
-            "model": chatModel,
+            "model": config.model,
             "messages": messages,
             "max_tokens": config.maxTokens,
             "temperature": 0.5
@@ -111,43 +111,11 @@ actor LLMService {
         )
     }
     
-    func enhancePrompt(_ prompt: String, with memories: [String]) async throws -> String {
-        let memoriesText = memories.joined(separator: "\n")
-        
-        let messages: [[String: Any]] = [
-            [
-                "role": "system",
-                "content": "Enhance the user's prompt with relevant context from their memory. Keep the original intent but add helpful context."
-            ],
-            [
-                "role": "user",
-                "content": """
-                Original prompt: \(prompt)
-                
-                Relevant memories:
-                \(memoriesText)
-                
-                Enhance the prompt with relevant context. Return ONLY the enhanced prompt.
-                """
-            ]
-        ]
-        
-        let requestBody: [String: Any] = [
-            "model": chatModel,
-            "messages": messages,
-            "max_tokens": config.maxTokens,
-            "temperature": 0.5
-        ]
-        
-        return try await makeRequest(body: requestBody)
-    }
-    
     func checkHealth() async -> Bool {
         guard let url = URL(string: "\(config.baseURL)/models") else { return false }
         
         do {
-            let request = makeRequest(url: url)
-            let (_, response) = try await session.data(for: request)
+            let (_, response) = try await session.data(from: url)
             return (response as? HTTPURLResponse)?.statusCode == 200
         } catch {
             return false
@@ -159,7 +127,9 @@ actor LLMService {
             throw URLError(.badURL)
         }
         
-        var request = makeRequest(url: url, method: "POST")
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
         
@@ -167,8 +137,7 @@ actor LLMService {
         
         guard let httpResponse = response as? HTTPURLResponse,
               httpResponse.statusCode == 200 else {
-            let message = String(data: data, encoding: .utf8) ?? "Unknown server error"
-            throw ServiceError.server(message)
+            throw URLError(.badServerResponse)
         }
         
         guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
@@ -181,26 +150,6 @@ actor LLMService {
         
         return content
     }
-
-    private func makeRequest(url: URL, method: String = "GET") -> URLRequest {
-        var request = URLRequest(url: url)
-        request.httpMethod = method
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-
-        if !config.openRouterAPIKey.isEmpty {
-            request.setValue("Bearer \(config.openRouterAPIKey)", forHTTPHeaderField: "Authorization")
-        }
-
-        return request
-    }
-
-    private var chatModel: String {
-        config.openRouterChatModel.isEmpty ? config.model : config.openRouterChatModel
-    }
-
-    private var visionModel: String {
-        config.model
-    }
     
     private func parseAnalysisResult(_ text: String) -> AnalysisResult {
         return AnalysisResult(
@@ -210,16 +159,5 @@ actor LLMService {
             keyElements: [],
             userIntent: "Productivity"
         )
-    }
-}
-
-private enum ServiceError: LocalizedError {
-    case server(String)
-
-    var errorDescription: String? {
-        switch self {
-        case .server(let message):
-            return message
-        }
     }
 }
