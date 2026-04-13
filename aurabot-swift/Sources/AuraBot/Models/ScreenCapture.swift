@@ -6,6 +6,8 @@ struct ScreenCapture {
     let imageData: Data
     let timestamp: Date
     let displayNum: Int
+    let browserContext: BrowserContext?
+    let captureReason: String?
     
     var compressed: Data { imageData }
 }

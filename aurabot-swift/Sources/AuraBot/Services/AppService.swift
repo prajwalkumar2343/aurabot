@@ -17,6 +17,8 @@ class AppService: ObservableObject {
     private let configPath: String
     private var llmService: LLMService
     private var memoryService: MemoryService
+    private let browserContextService: BrowserContextService
+    private let browserExtensionServer: BrowserExtensionServer?
     private var captureService: ScreenCaptureService?
     private var healthCheckTimer: Timer?
 
@@ -30,6 +32,13 @@ class AppService: ObservableObject {
         self.captureEnabled = resolvedConfig.capture.enabled
         self.llmService = LLMService(config: resolvedConfig.llm)
         self.memoryService = MemoryService(config: resolvedConfig.memory)
+        self.browserContextService = BrowserContextService(config: resolvedConfig.browserExtension)
+        self.browserExtensionServer = resolvedConfig.browserExtension.enabled
+            ? BrowserExtensionServer(
+                port: resolvedConfig.browserExtension.port,
+                browserContextService: browserContextService
+            )
+            : nil
         self.captureService = nil
 
         rebuildCaptureService()
@@ -41,6 +50,7 @@ class AppService: ObservableObject {
         status = .running
         captureEnabled = config.capture.enabled
 
+        browserExtensionServer?.start()
         startHealthChecks()
 
         if captureEnabled {
@@ -88,6 +98,7 @@ class AppService: ObservableObject {
         healthCheckTimer = nil
         processingTask?.cancel()
         processingTask = nil
+        browserExtensionServer?.stop()
         await captureService?.stop()
     }
 
@@ -181,7 +192,13 @@ class AppService: ObservableObject {
 
         do {
             let recent = (try? await memoryService.getRecent(limit: config.app.memoryWindow)) ?? []
-            let context = recent.map { $0.content }.joined(separator: " ")
+            var contextParts = recent.map { $0.content }
+
+            if let browserContext = capture.browserContext {
+                contextParts.append(browserContext.llmSummary)
+            }
+
+            let context = contextParts.joined(separator: " ")
 
             let analysis = try await llmService.analyzeScreen(
                 imageData: capture.imageData,
@@ -196,7 +213,10 @@ class AppService: ObservableObject {
                 activities: analysis.activities,
                 keyElements: analysis.keyElements,
                 userIntent: analysis.userIntent,
-                displayNum: capture.displayNum
+                displayNum: capture.displayNum,
+                browser: capture.browserContext?.browser,
+                url: capture.browserContext?.url,
+                captureReason: capture.captureReason
             )
 
             do {
@@ -216,7 +236,10 @@ class AppService: ObservableObject {
     }
 
     private func rebuildCaptureService() {
-        let service = ScreenCaptureService(config: config.capture)
+        let service = ScreenCaptureService(
+            config: config.capture,
+            browserContextService: browserContextService
+        )
         service.onCapture = { [weak self] capture in
             await self?.processCapture(capture)
         }
