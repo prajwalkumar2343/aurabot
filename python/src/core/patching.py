@@ -1,5 +1,5 @@
 import openai
-from config import CEREBRAS_API_KEY
+from config import OPENROUTER_BASE_URL, OPENROUTER_EMBEDDING_DIMENSIONS
 
 def apply_patches():
     # Patch Qdrant vector store to handle None vector in update method
@@ -33,7 +33,7 @@ def apply_patches():
             orig_create = self.chat.completions.create
             def _patched_create(*args, **kwargs):
                 kwargs.pop('store', None)
-                if not CEREBRAS_API_KEY:
+                if "openrouter.ai" not in OPENROUTER_BASE_URL:
                     kwargs.pop('response_format', None)
                 return orig_create(*args, **kwargs)
             self.chat.completions.create = _patched_create
@@ -71,7 +71,7 @@ def apply_patches():
                             zero_embeddings = []
                             for i, _ in enumerate(input_data):
                                 zero_embeddings.append(Embedding(
-                                    embedding=[0.0] * 768,
+                                    embedding=[0.0] * OPENROUTER_EMBEDDING_DIMENSIONS,
                                     index=i,
                                     object="embedding"
                                 ))
@@ -84,7 +84,4 @@ def apply_patches():
             self.embeddings.create = _patched_embed
 
     openai.OpenAI.__init__ = _patched_openai_init
-    if CEREBRAS_API_KEY:
-        print("[INFO] Patched OpenAI client for Cerebras compatibility (removed 'store' parameter)")
-    else:
-        print("[INFO] Patched OpenAI client for LM Studio compatibility")
+    print("[INFO] Patched OpenAI client for AuraBot compatibility")
