@@ -4,23 +4,85 @@ import SwiftUI
 struct ContentView: View {
     @StateObject private var service = AppService()
     @State private var selectedTab: SidebarTab = .dashboard
-    @State private var showLaunchAnimation = true
+    @State private var isLoading = true
     
     var body: some View {
         ZStack {
-            // Main content - always rendered but opacity changes
+            // Main content
             MainContentView(service: service, selectedTab: $selectedTab)
-                .opacity(showLaunchAnimation ? 0 : 1)
-                .scaleEffect(showLaunchAnimation ? 0.98 : 1)
+                .opacity(isLoading ? 0 : 1)
             
-            // Launch animation overlay
-            if showLaunchAnimation {
-                LaunchAnimation(isComplete: $showLaunchAnimation)
+            // Loading screen
+            if isLoading {
+                LoadingScreen()
                     .transition(.opacity)
-                    .zIndex(100)
+                    .zIndex(1)
             }
         }
-        .animation(.spring(response: 0.6, dampingFraction: 0.8), value: showLaunchAnimation)
+        .onAppear {
+            service.start()
+            
+            // Hide loading after 1 second
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+                withAnimation(.easeOut(duration: 0.3)) {
+                    isLoading = false
+                }
+            }
+        }
+    }
+}
+
+@available(macOS 14.0, *)
+struct LoadingScreen: View {
+    @State private var opacity = 0.0
+    
+    var body: some View {
+        ZStack {
+            // White background
+            Color.white
+            
+            // Logo
+            VStack(spacing: 16) {
+                ZStack {
+                    // Glow effect
+                    Circle()
+                        .fill(Color(hex: "#2563EB"))
+                        .frame(width: 100, height: 100)
+                        .blur(radius: 30)
+                        .opacity(0.4)
+                    
+                    // Main circle
+                    Circle()
+                        .fill(
+                            LinearGradient(
+                                colors: [
+                                    Color(hex: "#2563EB"),
+                                    Color(hex: "#7C3AED")
+                                ],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        )
+                        .frame(width: 80, height: 80)
+                    
+                    // Icon
+                    Image(systemName: "brain.head.profile")
+                        .font(.system(size: 36, weight: .light))
+                        .foregroundColor(.white)
+                }
+                
+                Text("Aura")
+                    .font(.system(size: 28, weight: .bold))
+                    .foregroundColor(Color(hex: "#111827"))
+            }
+            .opacity(opacity)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .onAppear {
+            withAnimation(.easeOut(duration: 0.3)) {
+                opacity = 1.0
+            }
+        }
     }
 }
 
@@ -31,50 +93,32 @@ struct MainContentView: View {
     
     var body: some View {
         HStack(spacing: 0) {
-            // Glass Sidebar
+            // Sidebar
             GlassSidebar(selectedTab: $selectedTab, service: service)
             
-            // Content area with page transitions
+            // Content area
             ZStack {
-                // Background
-                Colors.background
+                // White background
+                Color.white
                     .ignoresSafeArea()
                 
-                // Mesh gradient overlay
-                MeshGradient()
-                    .opacity(0.5)
-                    .ignoresSafeArea()
-                
-                // Content
-                Group {
-                    switch selectedTab {
-                    case .dashboard:
-                        DashboardView(service: service)
-                            .transition(pageTransition)
-                    case .memories:
-                        MemoriesView(service: service)
-                            .transition(pageTransition)
-                    case .chat:
-                        ChatView(service: service)
-                            .transition(pageTransition)
-                    case .settings:
-                        SettingsView()
-                            .transition(pageTransition)
-                    }
+                // Content based on selected tab
+                switch selectedTab {
+                case .dashboard:
+                    DashboardView(service: service)
+                case .memories:
+                    MemoriesView(service: service)
+                case .chat:
+                    ChatView(service: service)
+                case .settings:
+                    SettingsView()
                 }
             }
-            .clipShape(RoundedRectangle(cornerRadius: Radius.xxl))
-            .padding(.vertical, Spacing.lg)
-            .padding(.trailing, Spacing.lg)
+            .clipShape(RoundedRectangle(cornerRadius: 16))
+            .padding(.vertical, 12)
+            .padding(.trailing, 12)
         }
-        .background(Colors.background)
-    }
-    
-    private var pageTransition: AnyTransition {
-        .asymmetric(
-            insertion: .opacity.combined(with: .scale(scale: 0.98)),
-            removal: .opacity
-        )
+        .background(Color.white)
     }
 }
 
