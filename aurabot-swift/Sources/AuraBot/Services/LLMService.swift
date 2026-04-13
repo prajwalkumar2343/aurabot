@@ -37,7 +37,7 @@ actor LLMService {
         ]
         
         let requestBody: [String: Any] = [
-            "model": config.model,
+            "model": visionModel,
             "messages": messages,
             "max_tokens": config.maxTokens,
             "temperature": config.temperature
@@ -62,7 +62,7 @@ actor LLMService {
         ]
         
         let requestBody: [String: Any] = [
-            "model": config.model,
+            "model": chatModel,
             "messages": messages,
             "max_tokens": config.maxTokens,
             "temperature": config.temperature
@@ -94,7 +94,7 @@ actor LLMService {
         ]
         
         let requestBody: [String: Any] = [
-            "model": config.model,
+            "model": chatModel,
             "messages": messages,
             "max_tokens": config.maxTokens,
             "temperature": 0.5
@@ -133,7 +133,7 @@ actor LLMService {
         ]
         
         let requestBody: [String: Any] = [
-            "model": config.model,
+            "model": chatModel,
             "messages": messages,
             "max_tokens": config.maxTokens,
             "temperature": 0.5
@@ -146,7 +146,8 @@ actor LLMService {
         guard let url = URL(string: "\(config.baseURL)/models") else { return false }
         
         do {
-            let (_, response) = try await session.data(from: url)
+            let request = makeRequest(url: url)
+            let (_, response) = try await session.data(for: request)
             return (response as? HTTPURLResponse)?.statusCode == 200
         } catch {
             return false
@@ -158,9 +159,7 @@ actor LLMService {
             throw URLError(.badURL)
         }
         
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        var request = makeRequest(url: url, method: "POST")
         
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
         
@@ -168,7 +167,8 @@ actor LLMService {
         
         guard let httpResponse = response as? HTTPURLResponse,
               httpResponse.statusCode == 200 else {
-            throw URLError(.badServerResponse)
+            let message = String(data: data, encoding: .utf8) ?? "Unknown server error"
+            throw ServiceError.server(message)
         }
         
         guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
@@ -181,6 +181,26 @@ actor LLMService {
         
         return content
     }
+
+    private func makeRequest(url: URL, method: String = "GET") -> URLRequest {
+        var request = URLRequest(url: url)
+        request.httpMethod = method
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+
+        if !config.openRouterAPIKey.isEmpty {
+            request.setValue("Bearer \(config.openRouterAPIKey)", forHTTPHeaderField: "Authorization")
+        }
+
+        return request
+    }
+
+    private var chatModel: String {
+        config.openRouterChatModel.isEmpty ? config.model : config.openRouterChatModel
+    }
+
+    private var visionModel: String {
+        config.model
+    }
     
     private func parseAnalysisResult(_ text: String) -> AnalysisResult {
         return AnalysisResult(
@@ -190,5 +210,16 @@ actor LLMService {
             keyElements: [],
             userIntent: "Productivity"
         )
+    }
+}
+
+private enum ServiceError: LocalizedError {
+    case server(String)
+
+    var errorDescription: String? {
+        switch self {
+        case .server(let message):
+            return message
+        }
     }
 }
