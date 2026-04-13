@@ -1,7 +1,7 @@
 import Foundation
 import Combine
 
-@available(macOS 12.3, *)
+@available(macOS 14.0, *)
 @MainActor
 class AppService: ObservableObject {
     @Published var status: ServiceStatus = .stopped
@@ -31,15 +31,10 @@ class AppService: ObservableObject {
             ? BrowserExtensionServer(port: config.browserExtension.port, browserContextService: browserContextService)
             : nil
         
-        if #available(macOS 12.3, *) {
-            self.captureService = ScreenCaptureService(
-                config: config.capture,
-                browserContextService: browserContextService
-            )
-            self.captureService?.onCapture = { [weak self] capture in
-                await self?.processCapture(capture)
-            }
-        }
+        self.captureService = ScreenCaptureService(
+            config: config.capture,
+            browserContextService: browserContextService
+        )
     }
     
     func start() {
@@ -109,6 +104,29 @@ class AppService: ObservableObject {
         async let llmHealth = llmService.checkHealth()
         async let memoryHealth = memoryService.checkHealth()
         return await (llm: llmHealth, memory: memoryHealth)
+    }
+    
+    func saveConfiguration(_ config: AppConfig) {
+        // Save config to file or update as needed
+        // For now, this is a placeholder
+        print("Configuration saved")
+    }
+    
+    func enhance(text: String) async throws -> EnhancementResult {
+        // Get relevant memories for context
+        let relevantMemories = try await memoryService.search(query: text, limit: 5)
+        let memoryInfos = relevantMemories.map { 
+            MemoryInfo(
+                id: $0.memory.id,
+                content: $0.memory.content,
+                context: $0.memory.metadata.context,
+                score: $0.score,
+                date: $0.memory.createdAt
+            )
+        }
+        
+        // Generate enhanced prompt using LLM
+        return try await llmService.enhancePrompt(prompt: text, memories: memoryInfos)
     }
     
     private func processCapture(_ capture: ScreenCapture) async {

@@ -103,7 +103,10 @@ actor MemoryService {
                     activities: [],
                     keyElements: [],
                     userIntent: "",
-                    displayNum: 0
+                    displayNum: 0,
+                    browser: nil,
+                    url: nil,
+                    captureReason: nil
                 ),
                 createdAt: Date()
             )

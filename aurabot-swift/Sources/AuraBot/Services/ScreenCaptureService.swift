@@ -15,11 +15,15 @@ actor ScreenCaptureService {
     private var lastAcceptedMediaSession: String?
     private var lastAcceptedAt: Date?
     
-    var onCapture: ((ScreenCapture) async -> Void)?
+    var onCapture: (@MainActor (ScreenCapture) async -> Void)?
     
     init(config: CaptureConfig, browserContextService: BrowserContextService) {
         self.config = config
         self.browserContextService = browserContextService
+    }
+    
+    func setOnCapture(_ handler: (@MainActor (ScreenCapture) async -> Void)?) {
+        onCapture = handler
     }
     
     func start() {
