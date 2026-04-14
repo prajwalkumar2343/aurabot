@@ -1,5 +1,6 @@
 """
 LM Studio client for LLM and embeddings.
+Compatible with any model loaded in LM Studio.
 """
 
 import os
@@ -8,13 +9,14 @@ from typing import List, Dict, Any, Optional
 
 
 class LMStudioClient:
-    """Client for LM Studio API."""
+    """Client for LM Studio OpenAI-compatible API."""
 
     def __init__(self, base_url: str):
         self.base_url = base_url.rstrip("/")
-        self.models = []
-        self.lfm2_model = None
-        self.embedding_model = None
+        self.models: List[Dict[str, Any]] = []
+        self.chat_model: Optional[str] = None
+        self.embedding_model: Optional[str] = None
+        self.embedding_dims: int = 768
 
     def connect(self) -> bool:
         """Connect to LM Studio and detect models."""
@@ -29,23 +31,26 @@ class LMStudioClient:
             if not self.models:
                 return False
 
-            # Detect LFM2 model
+            # Auto-detect chat model: prefer non-embedding models, fallback to first
+            non_embedding_models = [
+                m for m in self.models
+                if not any(k in m.get("id", "").lower() for k in ("embed", "nomic", "gte", "bge"))
+            ]
+            self.chat_model = (non_embedding_models[0] if non_embedding_models else self.models[0]).get("id")
+
+            # Auto-detect embedding model: look for known embedding keywords
             for m in self.models:
                 model_id = m.get("id", "").lower()
-                if "lfm" in model_id or "350m" in model_id:
-                    self.lfm2_model = m["id"]
-                    break
-
-            # Use first model if LFM2 not detected
-            if not self.lfm2_model and self.models:
-                self.lfm2_model = self.models[0]["id"]
-
-            # Check for embedding model
-            for m in self.models:
-                model_id = m.get("id", "").lower()
-                if any(x in model_id for x in ["embed", "nomic", "gemma"]):
+                if any(k in model_id for k in ("embed", "nomic", "gte", "bge", "gemma")):
                     self.embedding_model = m["id"]
                     break
+
+            # If no dedicated embedding model, use first model (many LM Studio versions support embeddings on any model)
+            if not self.embedding_model and self.models:
+                self.embedding_model = self.models[0]["id"]
+
+            # Detect embedding dimensions dynamically
+            self._detect_embedding_dims()
 
             return True
 
@@ -54,20 +59,50 @@ class LMStudioClient:
         except Exception:
             return False
 
+    def _detect_embedding_dims(self) -> None:
+        """Probe embedding dimensions by making a test embedding request."""
+        if not self.embedding_model:
+            return
+        try:
+            resp = requests.post(
+                f"{self.base_url}/embeddings",
+                json={"model": self.embedding_model, "input": "test"},
+                timeout=15,
+            )
+            if resp.status_code == 200:
+                data = resp.json()
+                emb = data.get("data", [{}])[0].get("embedding", [])
+                if emb:
+                    self.embedding_dims = len(emb)
+        except Exception:
+            pass
+
+    def get_info(self) -> Dict[str, Any]:
+        """Return current connection info."""
+        return {
+            "base_url": self.base_url,
+            "chat_model": self.chat_model,
+            "embedding_model": self.embedding_model,
+            "embedding_dims": self.embedding_dims,
+            "available_models": [m.get("id") for m in self.models],
+        }
+
     def chat(
         self,
         messages: List[Dict[str, str]],
         max_tokens: int = 512,
         temperature: float = 0.7,
+        stream: bool = False,
     ) -> str:
         """Send chat completion request to LM Studio."""
         url = f"{self.base_url}/chat/completions"
 
         payload = {
-            "model": self.lfm2_model or "local-model",
+            "model": self.chat_model or "local-model",
             "messages": messages,
             "max_tokens": max_tokens,
             "temperature": temperature,
+            "stream": stream,
         }
 
         try:
@@ -84,8 +119,8 @@ class LMStudioClient:
             raise Exception("No embedding model available in LM Studio")
 
         url = f"{self.base_url}/embeddings"
-
         embeddings = []
+
         for text in texts:
             payload = {"model": self.embedding_model, "input": text}
             try:

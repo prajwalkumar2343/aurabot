@@ -8,6 +8,33 @@ from api.auth import is_authorized, requires_auth
 from api.cors import get_cors_headers
 from config import CEREBRAS_API_KEY, LM_STUDIO_URL
 
+
+def _probe_lm_studio_health() -> dict:
+    """Lightweight probe of LM Studio for health endpoint."""
+    import requests
+    info = {"available": False, "chat_model": None, "embedding_model": None, "embedding_dims": 768}
+    try:
+        resp = requests.get(f"{LM_STUDIO_URL}/models", timeout=3)
+        if resp.status_code != 200:
+            return info
+        models = resp.json().get("data", [])
+        if not models:
+            return info
+        info["available"] = True
+        non_emb = [m for m in models if not any(k in m.get("id", "").lower() for k in ("embed", "nomic", "gte", "bge"))]
+        info["chat_model"] = (non_emb[0] if non_emb else models[0]).get("id")
+        for m in models:
+            mid = m.get("id", "").lower()
+            if any(k in mid for k in ("embed", "nomic", "gte", "bge", "gemma")):
+                info["embedding_model"] = m["id"]
+                break
+        if not info["embedding_model"]:
+            info["embedding_model"] = models[0]["id"]
+    except Exception:
+        pass
+    return info
+
+
 class Mem0Handler(BaseHTTPRequestHandler):
     memory = None
 
@@ -51,15 +78,17 @@ class Mem0Handler(BaseHTTPRequestHandler):
             return
 
         if path == "/health":
+            lm_health = _probe_lm_studio_health()
             self.send_json_response({
                 "status": "ok",
                 "timestamp": datetime.now().isoformat(),
                 "llm_provider": "cerebras" if CEREBRAS_API_KEY else "lm_studio",
-                "llm_model": "llama3.1-70b" if CEREBRAS_API_KEY else "local",
-                "embedder_provider": "lm_studio",
-                "embedder_model": "text-embedding-embeddinggemma-300m",
+                "llm_model": "llama3.1-70b" if CEREBRAS_API_KEY else (lm_health.get("chat_model") or "local"),
+                "embedder_provider": "lm_studio" if lm_health["available"] else "unknown",
+                "embedder_model": lm_health.get("embedding_model") or "unknown",
                 "vector_store": "qdrant",
-                "lm_studio_url": LM_STUDIO_URL
+                "lm_studio_url": LM_STUDIO_URL,
+                "lm_studio_connected": lm_health["available"],
             })
             return
 

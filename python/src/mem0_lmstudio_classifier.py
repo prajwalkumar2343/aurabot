@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """
 Mem0 with LM Studio Classifier
-Uses your already-running LM Studio (LFM2-350M-Q8_0.gguf) to classify memories.
+Uses your already-running LM Studio to classify memories.
 
 Prerequisites:
-- LM Studio running with LFM2-350M-Q8_0.gguf loaded
+- LM Studio running with any GGUF model loaded
 - API server enabled in LM Studio (default port 1234)
 - pip install mem0ai qdrant-client transformers torch requests
 
@@ -48,16 +48,24 @@ class LMStudioClassifier:
     def __init__(self, base_url: str):
         self.base_url = base_url.rstrip('/')
         self.chat_url = f"{self.base_url}/chat/completions"
+        self.model = None
         
     def check_connection(self) -> bool:
-        """Verify LM Studio is running."""
+        """Verify LM Studio is running and detect model."""
         try:
             resp = requests.get(f"{self.base_url}/models", timeout=5)
             if resp.status_code == 200:
                 models = resp.json().get('data', [])
-                print(f"[OK] LM Studio connected")
+                print("[OK] LM Studio connected")
                 if models:
-                    print(f"     Model: {models[0]['id']}")
+                    for m in models:
+                        print(f"     Model: {m['id']}")
+                    non_emb = [
+                        m for m in models
+                        if not any(k in m.get('id', '').lower() for k in ("embed", "nomic", "gte", "bge"))
+                    ]
+                    self.model = (non_emb[0] if non_emb else models[0]).get('id')
+                    print(f"[OK] Using model: {self.model}")
                 return True
         except Exception as e:
             print(f"[ERROR] Cannot connect to LM Studio: {e}")
@@ -94,7 +102,7 @@ REASON: one line explanation"""
         ]
         
         payload = {
-            "model": "local-model",
+            "model": self.model or "local-model",
             "messages": messages,
             "max_tokens": 128,
             "temperature": 0.1,
@@ -273,7 +281,7 @@ class FilteringMemoryStore:
         enriched_metadata = {
             **(metadata or {}),
             "classified": True,
-            "classifier": "lmstudio_lfm2",
+            "classifier": "lmstudio",
             "classification_reason": reason
         }
         
@@ -332,7 +340,7 @@ config = {
     "llm": {
         "provider": "openai",
         "config": {
-            "model": "local-model",
+            "model": classifier.model or "local-model",
             "api_key": "not-needed",
             "openai_base_url": LM_STUDIO_URL,
             "temperature": 0.1,
@@ -346,7 +354,7 @@ try:
     memory = FilteringMemoryStore(base_memory)
     print("[OK] Mem0 initialized with LM Studio classifier!")
     print()
-    print("Flow: Text → LM Studio (classify) → [USEFUL] → Embed → Store")
+    print("Flow: Text -> LM Studio (classify) -> [USEFUL] -> Embed -> Store")
     print("                         ↓[DISCARD]  (no embedding created)")
     print()
 except Exception as e:
@@ -422,7 +430,8 @@ class Handler(BaseHTTPRequestHandler):
             self.send_json({
                 "status": "ok",
                 "lm_studio": LM_STUDIO_URL,
-                "classifier": "lmstudio_lfm2",
+                "classifier": "lmstudio",
+                "classifier_model": classifier.model,
                 "stats": memory.get_stats() if memory else {},
             })
             return

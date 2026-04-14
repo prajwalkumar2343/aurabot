@@ -1,6 +1,49 @@
 import openai
 from config import OPENROUTER_BASE_URL, OPENROUTER_EMBEDDING_DIMENSIONS
 
+
+def _infer_embedding_dims(model_name: str) -> int:
+    """Infer embedding dimensions from model name for common models."""
+    name = (model_name or "").lower()
+    # Common embedding dimensions
+    if "384" in name:
+        return 384
+    if "512" in name:
+        return 512
+    if "768" in name:
+        return 768
+    if "1024" in name:
+        return 1024
+    if "1536" in name:
+        return 1536
+    if "2048" in name:
+        return 2048
+    if "4096" in name:
+        return 4096
+    # Known models
+    if "nomic" in name:
+        return 768
+    if "bge-large" in name:
+        return 1024
+    if "bge-base" in name:
+        return 768
+    if "bge-small" in name:
+        return 384
+    if "gte-large" in name:
+        return 1024
+    if "gte-base" in name:
+        return 768
+    if "gte-small" in name:
+        return 384
+    if "text-embedding-3-small" in name:
+        return 1536
+    if "text-embedding-3-large" in name:
+        return 3072
+    if "gemma" in name and "embed" in name:
+        return 768
+    return OPENROUTER_EMBEDDING_DIMENSIONS
+
+
 def apply_patches():
     # Patch Qdrant vector store to handle None vector in update method
     try:
@@ -44,6 +87,8 @@ def apply_patches():
                 import time
                 max_retries = 3
                 input_data = kwargs.get('input', [])
+                model_name = kwargs.get('model', 'unknown')
+                dims = _infer_embedding_dims(model_name)
                 for attempt in range(max_retries):
                     try:
                         response = orig_embed(*args, **kwargs)
@@ -71,7 +116,7 @@ def apply_patches():
                             zero_embeddings = []
                             for i, _ in enumerate(input_data):
                                 zero_embeddings.append(Embedding(
-                                    embedding=[0.0] * OPENROUTER_EMBEDDING_DIMENSIONS,
+                                    embedding=[0.0] * dims,
                                     index=i,
                                     object="embedding"
                                 ))
