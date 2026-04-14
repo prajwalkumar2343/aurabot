@@ -273,7 +273,10 @@ struct MemoryCell_Previews: PreviewProvider {
                     activities: ["designing", "coding"],
                     keyElements: ["dashboard", "glassmorphism"],
                     userIntent: "create modern UI",
-                    displayNum: 1
+                    displayNum: 1,
+                    browser: nil,
+                    url: nil,
+                    captureReason: nil
                 ),
                 createdAt: Date().addingTimeInterval(-3600)
             ))
@@ -288,7 +291,10 @@ struct MemoryCell_Previews: PreviewProvider {
                     activities: ["reviewing"],
                     keyElements: ["PR", "code review"],
                     userIntent: "ensure code quality",
-                    displayNum: 2
+                    displayNum: 2,
+                    browser: nil,
+                    url: nil,
+                    captureReason: nil
                 ),
                 createdAt: Date().addingTimeInterval(-7200)
             ))
@@ -303,7 +309,10 @@ struct MemoryCell_Previews: PreviewProvider {
                     activities: ["planning"],
                     keyElements: ["standup", "roadmap"],
                     userIntent: "align team",
-                    displayNum: 3
+                    displayNum: 3,
+                    browser: nil,
+                    url: nil,
+                    captureReason: nil
                 ),
                 createdAt: Date().addingTimeInterval(-14400)
             ))

@@ -1,81 +1,47 @@
 import Foundation
 import CoreGraphics
-@preconcurrency import ScreenCaptureKit
+import ScreenCaptureKit
 import AppKit
 
-@available(macOS 14.0, *)
-@MainActor
-class ScreenCaptureService {
+@available(macOS 12.3, *)
+actor ScreenCaptureService {
     private let config: CaptureConfig
     private let browserContextService: BrowserContextService
     private var isRunning = false
     private var captureLoopTask: Task<Void, Never>?
-    private var hasPermission = false
     private var lastAcceptedFingerprint: UInt64?
     private var lastAcceptedPageSignature: String?
     private var lastAcceptedViewportSignature: String?
     private var lastAcceptedMediaSession: String?
     private var lastAcceptedAt: Date?
     
-    var onCapture: ((ScreenCapture) async -> Void)?
+    var onCapture: (@MainActor (ScreenCapture) async -> Void)?
     
     init(config: CaptureConfig, browserContextService: BrowserContextService) {
         self.config = config
         self.browserContextService = browserContextService
     }
     
-    func checkPermission() async -> Bool {
-        // If we already have permission, return true
-        if hasPermission {
-            return true
-        }
-        
-        do {
-            // Try to get shareable content - this will trigger permission dialog if needed
-            _ = try await SCShareableContent.current
-            hasPermission = true
-            print("[ScreenCapture] Permission granted")
-            return true
-        } catch {
-            print("[ScreenCapture] Permission not granted: \(error)")
-            hasPermission = false
-            return false
-        }
+    func setOnCapture(_ handler: (@MainActor (ScreenCapture) async -> Void)?) {
+        onCapture = handler
     }
     
-    func start() async {
-        guard config.enabled else {
-            print("[ScreenCapture] Capture disabled in config")
-            return
-        }
-        
-        guard !isRunning else {
-            print("[ScreenCapture] Already running")
-            return
-        }
-        
-        // Check permission first
-        let permissionGranted = await checkPermission()
-        guard permissionGranted else {
-            print("[ScreenCapture] Cannot start: Permission not granted")
-            return
-        }
-        
+    func start() {
+        guard config.enabled, !isRunning else { return }
         isRunning = true
-        print("[ScreenCapture] Starting capture service")
-
-        captureLoopTask = Task { @MainActor [weak self] in
-            await self?.runCaptureLoop()
+        captureLoopTask = Task {
+            await runCaptureLoop()
         }
     }
     
-    func stop() async {
-        guard isRunning else { return }
+    func stop() {
         isRunning = false
         captureLoopTask?.cancel()
         captureLoopTask = nil
-        
-        print("[ScreenCapture] Stopped")
+    }
+    
+    func capturePrimary() async -> ScreenCapture? {
+        await captureDisplay(displayID: CGMainDisplayID(), browserContext: nil, reason: "manual")
     }
     
     private func runCaptureLoop() async {
@@ -109,83 +75,63 @@ class ScreenCaptureService {
         )
 
         guard decision.shouldCapture else { return }
-        if let capture = await captureDisplay(
-            displayID: CGMainDisplayID(),
-            browserContext: browserContext,
-            reason: decision.reason
-        ) {
-            await onCapture?(capture)
-        }
+        _ = await captureDisplay(displayID: CGMainDisplayID(), browserContext: browserContext, reason: decision.reason)
     }
 
-    func capturePrimary() async -> ScreenCapture? {
-        let capture = await captureDisplay(
-            displayID: CGMainDisplayID(),
-            browserContext: nil,
-            reason: "manual"
-        )
-        if let capture {
+    func captureDisplay(displayID: CGDirectDisplayID, browserContext: BrowserContext?, reason: String?) async -> ScreenCapture? {
+        do {
+            guard let image = await captureImage(
+                displayID: displayID,
+                maxWidth: config.maxWidth,
+                maxHeight: config.maxHeight
+            ) else {
+                return nil
+            }
+
+            guard let data = image.jpegData(compressionQuality: Double(config.quality) / 100.0) else {
+                return nil
+            }
+            
+            let capture = ScreenCapture(
+                displayID: displayID,
+                imageData: data,
+                timestamp: Date(),
+                displayNum: 1,
+                browserContext: browserContext,
+                captureReason: reason
+            )
+
+            lastAcceptedFingerprint = image.differenceHash()
+            lastAcceptedPageSignature = browserContext?.pageSignature
+            lastAcceptedViewportSignature = browserContext?.viewportSignature
+            lastAcceptedMediaSession = browserContext?.activity == .media ? browserContext?.sessionKey : nil
+            lastAcceptedAt = capture.timestamp
+            
             await onCapture?(capture)
-        }
-        return capture
-    }
-
-    private func captureDisplay(
-        displayID: CGDirectDisplayID,
-        browserContext: BrowserContext?,
-        reason: String?
-    ) async -> ScreenCapture? {
-        guard let image = await captureImage(
-            displayID: displayID,
-            maxWidth: config.maxWidth,
-            maxHeight: config.maxHeight
-        ) else {
+            return capture
+            
+        } catch {
+            print("Screen capture error: \(error)")
             return nil
         }
-
-        guard let data = image.jpegData(compressionQuality: Double(config.quality) / 100.0) else {
-            print("[ScreenCapture] Failed to compress image")
-            return nil
-        }
-
-        print("[ScreenCapture] Captured screen: \(data.count) bytes")
-
-        let capture = ScreenCapture(
-            displayID: displayID,
-            imageData: data,
-            timestamp: Date(),
-            displayNum: 1,
-            browserContext: browserContext,
-            captureReason: reason
-        )
-
-        lastAcceptedFingerprint = image.differenceHash()
-        lastAcceptedPageSignature = browserContext?.pageSignature
-        lastAcceptedViewportSignature = browserContext?.viewportSignature
-        lastAcceptedMediaSession = browserContext?.activity == .media ? browserContext?.sessionKey : nil
-        lastAcceptedAt = capture.timestamp
-
-        return capture
     }
 
     private func captureImage(displayID: CGDirectDisplayID, maxWidth: Int, maxHeight: Int) async -> CGImage? {
         do {
             let content = try await SCShareableContent.current
-            
+
             guard let display = content.displays.first(where: { $0.displayID == displayID }) else {
-                print("[ScreenCapture] Display not found")
                 return nil
             }
-            
+
             let filter = SCContentFilter(display: display, excludingApplications: [], exceptingWindows: [])
             let configuration = SCStreamConfiguration()
             configuration.width = min(maxWidth, display.width)
             configuration.height = min(maxHeight, display.height)
-            
+
             return try await SCScreenshotManager.captureImage(contentFilter: filter, configuration: configuration)
-            
         } catch {
-            print("[ScreenCapture] Error: \(error)")
+            print("Screen capture error: \(error)")
             return nil
         }
     }
@@ -196,7 +142,7 @@ class ScreenCaptureService {
         force: Bool,
         now: Date
     ) -> CaptureDecision {
-        if force {
+        guard !force else {
             return CaptureDecision(shouldCapture: true, reason: "initial_capture")
         }
 

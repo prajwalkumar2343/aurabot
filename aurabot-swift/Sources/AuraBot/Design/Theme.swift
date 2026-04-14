@@ -143,6 +143,58 @@ struct ShadowStyle {
     }
 }
 
+// MARK: - Button Styles
+
+@available(macOS 14.0, *)
+struct PrimaryButtonStyle: ButtonStyle {
+    @State private var isHovered = false
+    
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .padding(.horizontal, Spacing.lg)
+            .padding(.vertical, Spacing.sm)
+            .background(
+                RoundedRectangle(cornerRadius: Radius.md)
+                    .fill(Colors.primary)
+                    .shadow(
+                        color: Colors.primary.opacity(0.3),
+                        radius: isHovered ? 12 : 8,
+                        x: 0,
+                        y: isHovered ? 4 : 2
+                    )
+            )
+            .foregroundColor(.white)
+            .font(Typography.callout.weight(.semibold))
+            .scaleEffect(configuration.isPressed ? 0.96 : (isHovered ? 1.02 : 1.0))
+            .animation(AnimationPresets.hover, value: isHovered)
+            .onHover { isHovered = $0 }
+    }
+}
+
+@available(macOS 14.0, *)
+struct SecondaryButtonStyle: ButtonStyle {
+    @State private var isHovered = false
+    
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .padding(.horizontal, Spacing.lg)
+            .padding(.vertical, Spacing.sm)
+            .background(
+                RoundedRectangle(cornerRadius: Radius.md)
+                    .fill(Colors.surface)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: Radius.md)
+                            .stroke(Colors.border, lineWidth: 1)
+                    )
+            )
+            .foregroundColor(Colors.textPrimary)
+            .font(Typography.callout.weight(.medium))
+            .scaleEffect(configuration.isPressed ? 0.96 : (isHovered ? 1.02 : 1.0))
+            .animation(AnimationPresets.hover, value: isHovered)
+            .onHover { isHovered = $0 }
+    }
+}
+
 struct ShadowModifier: ViewModifier {
     let color: Color
     let radius: CGFloat
