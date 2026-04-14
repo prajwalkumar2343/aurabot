@@ -7,12 +7,14 @@ struct GlassCard<Content: View>: View {
     let cornerRadius: CGFloat
     let shadow: ShadowStyle
     let showBorder: Bool
+    let blur: Material
     
     init(
         padding: CGFloat = Spacing.lg,
         cornerRadius: CGFloat = Radius.xl,
         shadow: ShadowStyle = Shadows.md,
         showBorder: Bool = true,
+        blur: Material = .thinMaterial,
         @ViewBuilder content: () -> Content
     ) {
         self.content = content()
@@ -20,6 +22,7 @@ struct GlassCard<Content: View>: View {
         self.cornerRadius = cornerRadius
         self.shadow = shadow
         self.showBorder = showBorder
+        self.blur = blur
     }
     
     var body: some View {
@@ -29,18 +32,23 @@ struct GlassCard<Content: View>: View {
                 ZStack {
                     // Glass background
                     RoundedRectangle(cornerRadius: cornerRadius)
-                        .fill(.ultraThinMaterial)
+                        .fill(blur)
                     
                     // Subtle white overlay for frosted look
                     RoundedRectangle(cornerRadius: cornerRadius)
-                        .fill(Colors.white.opacity(0.6))
+                        .fill(Colors.white.opacity(0.35))
+                    
+                    // Top inner highlight
+                    RoundedRectangle(cornerRadius: cornerRadius)
+                        .stroke(Color.white.opacity(0.5), lineWidth: 1)
+                        .padding(0.5)
                 }
             )
             .overlay(
                 Group {
                     if showBorder {
                         RoundedRectangle(cornerRadius: cornerRadius)
-                            .stroke(Colors.border, lineWidth: 1)
+                            .stroke(Colors.glassBorder, lineWidth: 1)
                     }
                 }
             )

@@ -19,7 +19,7 @@ struct DashboardView: View {
             }
             .padding(Spacing.xxxl)
         }
-        .background(Colors.background)
+        .background(Color.clear)
         .sheet(isPresented: $showingNewMemory) {
             NewMemorySheet(service: service)
         }
@@ -119,6 +119,7 @@ struct RecentMemoriesSection: View {
 @available(macOS 14.0, *)
 struct EmptyMemoriesPlaceholder: View {
     let onStartCapture: () -> Void
+    @State private var isHovered = false
     
     var body: some View {
         VStack(spacing: Spacing.xl) {
@@ -141,13 +142,20 @@ struct EmptyMemoriesPlaceholder: View {
         .frame(maxWidth: .infinity)
         .padding(Spacing.xxxxl)
         .background(
-            RoundedRectangle(cornerRadius: Radius.xxl)
-                .fill(Colors.surface)
-                .overlay(
-                    RoundedRectangle(cornerRadius: Radius.xxl)
-                        .stroke(Colors.border, lineWidth: 1)
-                )
+            ZStack {
+                RoundedRectangle(cornerRadius: Radius.xxl)
+                    .fill(.ultraThinMaterial)
+                RoundedRectangle(cornerRadius: Radius.xxl)
+                    .fill(Colors.white.opacity(0.3))
+                RoundedRectangle(cornerRadius: Radius.xxl)
+                    .stroke(Colors.glassBorder, lineWidth: 1)
+            }
         )
+        .scaleEffect(isHovered ? 1.01 : 1.0)
+        .animation(AnimationPresets.hover, value: isHovered)
+        .onHover { hovering in
+            isHovered = hovering
+        }
     }
 }
 
@@ -173,8 +181,14 @@ struct NewMemorySheet: View {
                 .frame(minHeight: 120)
                 .padding(Spacing.sm)
                 .background(
-                    RoundedRectangle(cornerRadius: Radius.md)
-                        .fill(Colors.surface)
+                    ZStack {
+                        RoundedRectangle(cornerRadius: Radius.md)
+                            .fill(.ultraThinMaterial)
+                        RoundedRectangle(cornerRadius: Radius.md)
+                            .fill(Colors.white.opacity(0.3))
+                        RoundedRectangle(cornerRadius: Radius.md)
+                            .stroke(Colors.glassBorder, lineWidth: 1)
+                    }
                 )
             
             HStack {

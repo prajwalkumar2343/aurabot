@@ -21,7 +21,7 @@ struct ChatView: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(Spacing.xxxl)
-            .background(Colors.background)
+            .background(Color.clear)
             
             // Messages
             ScrollView {
@@ -36,18 +36,45 @@ struct ChatView: View {
             // Input
             HStack(spacing: Spacing.md) {
                 TextField("Ask about your memories...", text: $inputText)
-                    .textFieldStyle(RoundedBorderTextFieldStyle())
+                    .font(Typography.body)
+                    .textFieldStyle(.plain)
+                    .padding(.horizontal, Spacing.lg)
+                    .padding(.vertical, Spacing.md)
+                    .background(
+                        ZStack {
+                            RoundedRectangle(cornerRadius: Radius.lg)
+                                .fill(.ultraThinMaterial)
+                            RoundedRectangle(cornerRadius: Radius.lg)
+                                .fill(Colors.white.opacity(0.4))
+                            RoundedRectangle(cornerRadius: Radius.lg)
+                                .stroke(Colors.glassBorder, lineWidth: 1)
+                        }
+                    )
                 
                 Button(action: sendMessage) {
                     Image(systemName: "paperplane.fill")
+                        .font(.system(size: 16, weight: .semibold))
+                        .frame(width: 44, height: 44)
+                        .background(
+                            Circle()
+                                .fill(Colors.primary)
+                        )
+                        .foregroundColor(.white)
+                        .shadow(
+                            color: Colors.primary.opacity(0.3),
+                            radius: 10,
+                            x: 0,
+                            y: 4
+                        )
                 }
-                .buttonStyle(.borderedProminent)
-                .tint(Colors.primary)
+                .buttonStyle(.plain)
                 .disabled(inputText.isEmpty || isLoading)
+                .opacity(inputText.isEmpty || isLoading ? 0.6 : 1.0)
             }
             .padding()
-            .background(Colors.surface)
+            .background(Color.clear)
         }
+        .background(Color.clear)
     }
     
     private func sendMessage() {
@@ -111,8 +138,20 @@ struct MessageBubbleView: View {
                 
                 Text(message.content)
                     .padding(Spacing.md)
-                    .background(message.isUser ? Colors.primary.opacity(0.1) : Colors.surface)
-                    .cornerRadius(Radius.lg)
+                    .background(
+                        ZStack {
+                            RoundedRectangle(cornerRadius: Radius.lg)
+                                .fill(message.isUser ? Colors.primary.opacity(0.15) : .ultraThinMaterial)
+                            RoundedRectangle(cornerRadius: Radius.lg)
+                                .fill(message.isUser ? Colors.primary.opacity(0.05) : Colors.white.opacity(0.3))
+                            RoundedRectangle(cornerRadius: Radius.lg)
+                                .stroke(
+                                    message.isUser ? Colors.primary.opacity(0.2) : Colors.glassBorder,
+                                    lineWidth: 1
+                                )
+                        }
+                    )
+                    .foregroundColor(Colors.textPrimary)
             }
             .frame(maxWidth: 600, alignment: message.isUser ? .trailing : .leading)
             
