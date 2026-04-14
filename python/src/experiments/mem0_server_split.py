@@ -2,7 +2,7 @@
 """
 Mem0 REST API Server with split LLM setup:
 - Cerebras: For chat/LLM responses (fast, high quality)
-- LM Studio (LFM2): For memory classification/extraction (local, privacy)
+- LM Studio: For memory classification/extraction (local, privacy)
 - LM Studio: For embeddings (local)
 
 Environment Variables:
@@ -47,6 +47,7 @@ class LMStudioClient:
         self.base_url = base_url
         self.model = None
         self.embedding_model = None
+        self.embedding_dims = 768
         
     def connect(self):
         try:
@@ -57,17 +58,41 @@ class LMStudioClient:
                 for m in models:
                     print(f"     - {m['id']}")
                     mid = m['id'].lower()
-                    if 'lfm' in mid or '350m' in mid:
+                    if not self.model and not any(k in mid for k in ('embed', 'nomic', 'gte', 'bge')):
                         self.model = m['id']
-                    elif 'embed' in mid or 'nomic' in mid:
+                    if any(k in mid for k in ('embed', 'nomic', 'gte', 'bge', 'gemma')):
                         self.embedding_model = m['id']
+                if not self.model and models:
+                    self.model = models[0]['id']
+                if not self.embedding_model and models:
+                    self.embedding_model = models[0]['id']
+                self._detect_dims()
+                print(f"     Chat model: {self.model}")
+                print(f"     Embedding model: {self.embedding_model}")
+                print(f"     Embedding dims: {self.embedding_dims}")
                 return True
         except Exception as e:
             print(f"[ERROR] LM Studio: {e}")
         return False
     
+    def _detect_dims(self):
+        if not self.embedding_model:
+            return
+        try:
+            resp = requests.post(
+                f"{self.base_url}/embeddings",
+                json={"model": self.embedding_model, "input": "test"},
+                timeout=10,
+            )
+            if resp.status_code == 200:
+                emb = resp.json().get("data", [{}])[0].get("embedding", [])
+                if emb:
+                    self.embedding_dims = len(emb)
+        except Exception:
+            pass
+    
     def classify_memory(self, text):
-        """Use LFM2 to classify if text is important."""
+        """Use LM Studio to classify if text is important."""
         url = f"{self.base_url}/chat/completions"
         
         system_prompt = """You classify if text is worth remembering.
@@ -100,7 +125,7 @@ REASON: one line"""
     
     def embed(self, texts):
         if not self.embedding_model:
-            return [[0.0] * 768] * len(texts)
+            return [[0.0] * self.embedding_dims] * len(texts)
         
         url = f"{self.base_url}/embeddings"
         results = []
@@ -112,13 +137,13 @@ REASON: one line"""
                 }, timeout=30)
                 results.append(resp.json()["data"][0]["embedding"])
             except:
-                results.append([0.0] * 768)
+                results.append([0.0] * self.embedding_dims)
         return results
 
 
 lmstudio = LMStudioClient(LM_STUDIO_URL)
 if not lmstudio.connect():
-    print("Please start LM Studio with LFM2-350M loaded")
+    print("Please start LM Studio with a model loaded")
     sys.exit(1)
 
 print()
@@ -175,7 +200,7 @@ config = {
         "provider": "qdrant",
         "config": {
             "collection_name": "split_memories",
-            "embedding_model_dims": 768,
+            "embedding_model_dims": lmstudio.embedding_dims,
             "path": "./qdrant_storage",
         }
     },
@@ -222,7 +247,7 @@ class SmartMemoryStore:
         
         print(f"[CLASSIFY] {text[:80]}...")
         
-        # LM Studio (LFM2) decides if important
+        # LM Studio decides if important
         is_useful, reason = lmstudio.classify_memory(text)
         
         if not is_useful:
@@ -307,6 +332,9 @@ class Handler(BaseHTTPRequestHandler):
                 "status": "ok",
                 "lm_studio": LM_STUDIO_URL,
                 "cerebras": bool(CEREBRAS_API_KEY),
+                "lm_studio_model": lmstudio.model,
+                "lm_studio_embedding_model": lmstudio.embedding_model,
+                "lm_studio_embedding_dims": lmstudio.embedding_dims,
                 "stats": memory.stats
             })
             return
@@ -399,12 +427,12 @@ print("-" * 70)
 print(f"Server: http://{HOST}:{PORT}")
 print()
 print("Setup:")
-print("  • Chat/Responses: Cerebras (llama3.1-70b)")
-print("  • Memory Classification: LM Studio (LFM2-350M)")
-print("  • Embeddings: LM Studio")
+print(f"  • Chat/Responses: {'Cerebras (llama3.1-70b)' if CEREBRAS_API_KEY else 'LM Studio (' + str(lmstudio.model) + ')'}")
+print(f"  • Memory Classification: LM Studio ({lmstudio.model})")
+print(f"  • Embeddings: LM Studio ({lmstudio.embedding_model}, dims={lmstudio.embedding_dims})")
 print()
 print("Endpoints:")
-print(f"  POST /v1/chat/completions  -> Cerebras")
+print(f"  POST /v1/chat/completions  -> Cerebras/LM Studio")
 print(f"  POST /v1/memories/         -> LM Studio (classify) + Embed")
 print(f"  POST /v1/memories/search/  -> Qdrant search")
 print("-" * 70)

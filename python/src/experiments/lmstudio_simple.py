@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 """
-Simple Mem0 server using LM Studio API endpoint with LFM2-350M.
+Simple Mem0 server using LM Studio API endpoint with any loaded model.
 
 This is the simplest setup - just connects to your running LM Studio
-and uses it for all LLM operations.
+and uses the available model for all LLM operations.
 
 Prerequisites:
-- LM Studio running with LFM2-350M-Q8_0.gguf loaded
+- LM Studio running with any GGUF model loaded
 - API server started in LM Studio
 
 Usage:
@@ -34,16 +34,50 @@ PORT = int(os.getenv("MEM0_PORT", "8000"))
 LM_STUDIO_URL = os.getenv("LM_STUDIO_URL", "http://localhost:1234/v1").rstrip('/')
 
 print("="*60)
-print("Mem0 Server + LM Studio (LFM2-350M)")
+print("Mem0 Server + LM Studio (Auto-detected model)")
 print("="*60)
 
-# Check LM Studio
+# Check LM Studio and detect model
+selected_model = "local-model"
+embedding_dims = 768
 try:
     resp = requests.get(f"{LM_STUDIO_URL}/models", timeout=5)
     models = resp.json().get('data', [])
     print(f"[OK] LM Studio connected: {len(models)} model(s)")
-    for m in models[:3]:
+    for m in models[:5]:
         print(f"     - {m['id']}")
+    if models:
+        non_emb = [
+            m for m in models
+            if not any(k in m.get('id', '').lower() for k in ("embed", "nomic", "gte", "bge"))
+        ]
+        selected_model = (non_emb[0] if non_emb else models[0]).get('id', 'local-model')
+        print(f"[OK] Using model: {selected_model}")
+        
+        # Detect embedding model
+        embed_model = None
+        for m in models:
+            mid = m.get('id', '').lower()
+            if any(k in mid for k in ('embed', 'nomic', 'gte', 'bge', 'gemma')):
+                embed_model = m['id']
+                break
+        if not embed_model:
+            embed_model = models[0]['id']
+        
+        # Detect embedding dimensions
+        try:
+            emb_resp = requests.post(
+                f"{LM_STUDIO_URL}/embeddings",
+                json={"model": embed_model, "input": "test"},
+                timeout=10,
+            )
+            if emb_resp.status_code == 200:
+                emb = emb_resp.json().get("data", [{}])[0].get("embedding", [])
+                if emb:
+                    embedding_dims = len(emb)
+                    print(f"[OK] Embedding dimensions: {embedding_dims}")
+        except Exception:
+            pass
 except Exception as e:
     print(f"[ERROR] Cannot connect: {e}")
     print("Make sure LM Studio is running with API server started")
@@ -64,15 +98,15 @@ config = {
     "vector_store": {
         "provider": "qdrant",
         "config": {
-            "collection_name": "lfm2_memories",
-            "embedding_model_dims": 768,
+            "collection_name": "lmstudio_memories",
+            "embedding_model_dims": embedding_dims,
             "path": "./qdrant_storage",
         }
     },
     "llm": {
         "provider": "openai",
         "config": {
-            "model": "local-model",
+            "model": selected_model,
             "api_key": "not-needed",
             "openai_base_url": LM_STUDIO_URL,
             "temperature": 0.7,
@@ -83,7 +117,7 @@ config = {
 
 try:
     memory = Memory.from_config(config_dict=config)
-    print("[OK] Mem0 ready with LFM2-350M")
+    print(f"[OK] Mem0 ready with {selected_model}")
     print()
 except Exception as e:
     print(f"[ERROR] {e}")
@@ -143,7 +177,12 @@ class Handler(BaseHTTPRequestHandler):
         q = parse_qs(p.query)
         
         if p.path == "/health":
-            self.json({"status": "ok", "lm_studio": LM_STUDIO_URL})
+            self.json({
+                "status": "ok",
+                "lm_studio": LM_STUDIO_URL,
+                "model": selected_model,
+                "embedding_dims": embedding_dims,
+            })
             return
         
         if p.path == "/v1/memories/":
@@ -165,13 +204,13 @@ class Handler(BaseHTTPRequestHandler):
         body = self.rfile.read(n).decode()
         data = json.loads(body) if body else {}
         
-        # Add memory (LFM2 extracts important facts)
+        # Add memory
         if p.path == "/v1/memories/":
             try:
                 result = memory.add(
                     messages=data.get("messages", []),
                     user_id=data.get("user_id", "default"),
-                    infer=True  # LFM2 decides what's important
+                    infer=True
                 )
                 self.json(result, 201)
             except Exception as e:
@@ -203,7 +242,7 @@ class Handler(BaseHTTPRequestHandler):
 
 print(f"Server: http://{HOST}:{PORT}")
 print("Endpoints:")
-print(f"  POST /v1/memories/       - Add memory (LFM2 extracts facts)")
+print(f"  POST /v1/memories/       - Add memory")
 print(f"  POST /v1/memories/search/ - Search memories")
 print(f"  GET  /v1/memories/        - List memories")
 print(f"  GET  /health              - Health check")

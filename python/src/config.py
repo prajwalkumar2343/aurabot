@@ -70,7 +70,7 @@ OPENROUTER_EMBEDDING_DIMENSIONS = int(
     _config_value("OPENROUTER_EMBEDDING_DIMENSIONS", "1536")
 )
 MEM0_API_KEY = _config_value("MEM0_API_KEY", "", "memory.apiKey")
-LM_STUDIO_URL = os.getenv("LM_STUDIO_URL", "http://localhost:1234")
+LM_STUDIO_URL = os.getenv("LM_STUDIO_URL", "http://localhost:1234/v1")
 CEREBRAS_API_KEY = os.getenv("CEREBRAS_API_KEY", "")
 GGUF_SERVER_PORT = int(os.getenv("GGUF_SERVER_PORT", "8080"))
 LLAMA_CPP_PATH = os.getenv("LLAMA_CPP_PATH", "")

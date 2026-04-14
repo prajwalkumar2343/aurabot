@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
 """
-Mem0 REST API Server using LM Studio with LFM2-350M model.
+Mem0 REST API Server using LM Studio with any loaded model.
 
 This server connects to your already-running LM Studio instance
-and uses the LFM2-350M model for:
+and uses the available model for:
 - LLM operations (memory extraction, classification)
 - Embeddings (if an embedding model is loaded)
 
 Prerequisites:
-- LM Studio running with LFM2-350M-Q8_0.gguf loaded
+- LM Studio running with any GGUF model loaded
 - API server enabled in LM Studio
 
 Environment Variables:
@@ -44,7 +44,7 @@ PORT = int(os.getenv("MEM0_PORT", "8000"))
 LM_STUDIO_URL = os.getenv("LM_STUDIO_URL", "http://localhost:1234/v1").rstrip('/')
 
 print("="*70)
-print("Mem0 + LM Studio (LFM2-350M)")
+print("Mem0 + LM Studio (Auto-detected model)")
 print("="*70)
 print(f"LM Studio URL: {LM_STUDIO_URL}")
 print()
@@ -56,13 +56,13 @@ class LMStudioClient:
     def __init__(self, base_url: str):
         self.base_url = base_url
         self.models = []
-        self.lfm2_model = None
+        self.chat_model = None
         self.embedding_model = None
+        self.embedding_dims = 768
         
     def connect(self) -> bool:
         """Connect to LM Studio and detect models."""
         try:
-            # Get available models
             resp = requests.get(f"{self.base_url}/models", timeout=10)
             if resp.status_code != 200:
                 print(f"[ERROR] LM Studio returned status {resp.status_code}")
@@ -77,27 +77,32 @@ class LMStudioClient:
             
             print(f"[OK] Connected to LM Studio")
             print(f"     Models available: {len(self.models)}")
+            for m in self.models:
+                print(f"     - {m['id']}")
             
-            # Detect LFM2 model
+            # Auto-detect chat model: prefer non-embedding
+            non_emb = [
+                m for m in self.models
+                if not any(k in m.get('id', '').lower() for k in ("embed", "nomic", "gte", "bge"))
+            ]
+            self.chat_model = (non_emb[0] if non_emb else self.models[0]).get('id')
+            print(f"     Chat model: {self.chat_model}")
+            
+            # Auto-detect embedding model
             for m in self.models:
                 model_id = m.get('id', '').lower()
-                if 'lfm' in model_id or '350m' in model_id:
-                    self.lfm2_model = m['id']
-                    print(f"     LFM2 Model: {self.lfm2_model}")
-                    break
-            
-            # Use first model if LFM2 not detected
-            if not self.lfm2_model and self.models:
-                self.lfm2_model = self.models[0]['id']
-                print(f"     Using model: {self.lfm2_model}")
-            
-            # Check for embedding model
-            for m in self.models:
-                model_id = m.get('id', '').lower()
-                if any(x in model_id for x in ['embed', 'nomic', 'gemma']):
+                if any(k in model_id for k in ['embed', 'nomic', 'gte', 'bge', 'gemma']):
                     self.embedding_model = m['id']
                     print(f"     Embedding model: {self.embedding_model}")
                     break
+            
+            if not self.embedding_model and self.models:
+                self.embedding_model = self.models[0]['id']
+                print(f"     Using chat model for embeddings: {self.embedding_model}")
+            
+            # Detect embedding dimensions
+            self._detect_embedding_dims()
+            print(f"     Embedding dimensions: {self.embedding_dims}")
             
             return True
             
@@ -106,12 +111,29 @@ class LMStudioClient:
             print()
             print("Please ensure:")
             print("  1. LM Studio is running")
-            print("  2. LFM2-350M-Q8_0.gguf is loaded")
+            print("  2. A model is loaded")
             print("  3. API server is started (click 'Start Server' in LM Studio)")
             return False
         except Exception as e:
             print(f"[ERROR] Connection failed: {e}")
             return False
+    
+    def _detect_embedding_dims(self) -> None:
+        """Probe embedding dimensions dynamically."""
+        if not self.embedding_model:
+            return
+        try:
+            resp = requests.post(
+                f"{self.base_url}/embeddings",
+                json={"model": self.embedding_model, "input": "test"},
+                timeout=15,
+            )
+            if resp.status_code == 200:
+                emb = resp.json().get("data", [{}])[0].get("embedding", [])
+                if emb:
+                    self.embedding_dims = len(emb)
+        except Exception:
+            pass
     
     def chat(self, messages: List[Dict[str, str]], max_tokens: int = 512, 
              temperature: float = 0.7) -> str:
@@ -119,7 +141,7 @@ class LMStudioClient:
         url = f"{self.base_url}/chat/completions"
         
         payload = {
-            "model": self.lfm2_model,
+            "model": self.chat_model or "local-model",
             "messages": messages,
             "max_tokens": max_tokens,
             "temperature": temperature,
@@ -139,7 +161,7 @@ class LMStudioClient:
         """Get embeddings from LM Studio."""
         if not self.embedding_model:
             print("[WARN] No embedding model available in LM Studio")
-            return [[0.0] * 768] * len(texts)
+            return [[0.0] * self.embedding_dims] * len(texts)
         
         url = f"{self.base_url}/embeddings"
         results = []
@@ -157,7 +179,7 @@ class LMStudioClient:
                 results.append(embedding)
             except Exception as e:
                 print(f"[ERROR] Embedding failed: {e}")
-                results.append([0.0] * 768)
+                results.append([0.0] * self.embedding_dims)
         
         return results
 
@@ -217,15 +239,15 @@ config = {
     "vector_store": {
         "provider": "qdrant",
         "config": {
-            "collection_name": "lmstudio_lfm2_memories",
-            "embedding_model_dims": 768,
+            "collection_name": "lmstudio_memories",
+            "embedding_model_dims": lmstudio.embedding_dims,
             "path": "./qdrant_storage",
         }
     },
     "llm": {
         "provider": "openai",
         "config": {
-            "model": lmstudio.lfm2_model,
+            "model": lmstudio.chat_model or "local-model",
             "api_key": "not-needed",
             "openai_base_url": LM_STUDIO_URL,
             "temperature": 0.7,
@@ -320,8 +342,9 @@ class LMStudioHandler(BaseHTTPRequestHandler):
             self.send_json({
                 "status": "ok",
                 "lm_studio_url": LM_STUDIO_URL,
-                "lfm2_model": lmstudio.lfm2_model,
+                "chat_model": lmstudio.chat_model,
                 "embedding_model": lmstudio.embedding_model,
+                "embedding_dims": lmstudio.embedding_dims,
                 "timestamp": datetime.now().isoformat(),
             })
             return
@@ -398,13 +421,13 @@ class LMStudioHandler(BaseHTTPRequestHandler):
                 agent_id = data.get("agent_id")
                 metadata = data.get("metadata", {})
                 
-                # Add to Mem0 (uses LFM2 via LM Studio for extraction)
+                # Add to Mem0
                 result = memory.add(
                     messages=messages,
                     user_id=user_id,
                     agent_id=agent_id,
                     metadata=metadata,
-                    infer=True  # Use LFM2 to extract facts
+                    infer=True
                 )
                 
                 self.send_json(result, 201)
@@ -444,8 +467,19 @@ class LMStudioHandler(BaseHTTPRequestHandler):
         
         if path.startswith("/v1/memories/"):
             try:
-                self.send_json({"deleted": True})
+                memory_id = path.rstrip("/").split("/")[-1]
+                try:
+                    result = memory.delete(memory_id=memory_id)
+                except TypeError:
+                    result = memory.delete(id=memory_id)
+                
+                deleted = result if isinstance(result, bool) else True
+                if isinstance(result, dict):
+                    deleted = bool(result.get("deleted", True))
+                
+                self.send_json({"deleted": deleted})
             except Exception as e:
+                print(f"[ERROR] Delete memory: {e}")
                 self.send_json({"error": str(e)}, 500)
             return
         
@@ -464,11 +498,11 @@ def main():
     print("-" * 70)
     print()
     print("Features:")
-    print("  ✓ LFM2-350M for memory extraction")
-    print("  ✓ LM Studio for embeddings (if available)")
+    print(f"  ✓ {lmstudio.chat_model} for memory extraction")
+    print(f"  ✓ {lmstudio.embedding_model or 'None'} for embeddings")
     print("  ✓ Qdrant vector storage")
     print()
-    print("Your Go app connects to: http://localhost:8000")
+    print("Your app connects to: http://localhost:8000")
     print()
     print("Press Ctrl+C to stop")
     print()
