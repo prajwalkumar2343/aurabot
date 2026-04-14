@@ -66,7 +66,7 @@ struct MemoriesView: View {
             }
             .padding(Spacing.xxxl)
         }
-        .background(Colors.background)
+        .background(Color.clear)
         .onAppear {
             withAnimation(.spring(response: 0.6, dampingFraction: 0.8).delay(0.1)) {
                 appearAnimation = true
@@ -121,12 +121,14 @@ struct MemoriesHeaderSection: View {
                 }
                 .padding(Spacing.xs)
                 .background(
-                    RoundedRectangle(cornerRadius: Radius.md)
-                        .fill(Colors.surface)
-                        .overlay(
-                            RoundedRectangle(cornerRadius: Radius.md)
-                                .stroke(Colors.border, lineWidth: 1)
-                        )
+                    ZStack {
+                        RoundedRectangle(cornerRadius: Radius.md)
+                            .fill(.ultraThinMaterial)
+                        RoundedRectangle(cornerRadius: Radius.md)
+                            .fill(Colors.white.opacity(0.3))
+                        RoundedRectangle(cornerRadius: Radius.md)
+                            .stroke(Colors.glassBorder, lineWidth: 1)
+                    }
                 )
             }
             
@@ -216,7 +218,7 @@ struct EmptySearchState: View {
         VStack(spacing: Spacing.xl) {
             ZStack {
                 Circle()
-                    .fill(Colors.textMuted.opacity(0.1))
+                    .fill(Colors.textMuted.opacity(0.08))
                     .frame(width: 100, height: 100)
                 
                 Image(systemName: hasSearch ? "magnifyingglass" : "brain.head.profile")
@@ -247,12 +249,14 @@ struct EmptySearchState: View {
         .frame(maxWidth: .infinity)
         .padding(Spacing.xxxxl)
         .background(
-            RoundedRectangle(cornerRadius: Radius.xxl)
-                .fill(Colors.surface)
-                .overlay(
-                    RoundedRectangle(cornerRadius: Radius.xxl)
-                        .stroke(Colors.border, lineWidth: 1)
-                )
+            ZStack {
+                RoundedRectangle(cornerRadius: Radius.xxl)
+                    .fill(.ultraThinMaterial)
+                RoundedRectangle(cornerRadius: Radius.xxl)
+                    .fill(Colors.white.opacity(0.3))
+                RoundedRectangle(cornerRadius: Radius.xxl)
+                    .stroke(Colors.glassBorder, lineWidth: 1)
+            }
         )
         .scaleEffect(isHovered ? 1.01 : 1.0)
         .animation(AnimationPresets.hover, value: isHovered)

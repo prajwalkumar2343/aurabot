@@ -12,7 +12,8 @@ struct GlassSidebar: View {
             padding: 0,
             cornerRadius: Radius.xxl,
             shadow: Shadows.lg,
-            showBorder: true
+            showBorder: true,
+            blur: .thinMaterial
         ) {
             VStack(spacing: 0) {
                 // App Brand
@@ -21,6 +22,7 @@ struct GlassSidebar: View {
                     .padding(.horizontal, Spacing.lg)
                 
                 Divider()
+                    .background(Colors.glassBorder)
                     .padding(.vertical, Spacing.lg)
                     .padding(.horizontal, Spacing.lg)
                 
@@ -64,6 +66,7 @@ struct GlassSidebar: View {
                     .padding(.bottom, Spacing.lg)
                 
                 Divider()
+                    .background(Colors.glassBorder)
                     .padding(.horizontal, Spacing.lg)
                 
                 // User Profile
@@ -159,7 +162,7 @@ struct NavButton: View {
                         RoundedRectangle(cornerRadius: Radius.md)
                             .fill(Colors.primary.opacity(0.15))
                             .frame(width: 32, height: 32)
-                            .matchedGeometryEffect(id: "iconBg", in: namespace)
+                            .matchedGeometryEffect(id: "iconBg_\(tab)", in: namespace)
                     }
                     
                     Image(systemName: icon)
@@ -189,7 +192,7 @@ struct NavButton: View {
                     if isSelected {
                         RoundedRectangle(cornerRadius: Radius.lg)
                             .fill(Colors.primary.opacity(0.08))
-                            .matchedGeometryEffect(id: "selection", in: namespace)
+                            .matchedGeometryEffect(id: "selection_\(tab)", in: namespace)
                     }
                     
                     if isHovered && !isSelected {
@@ -249,8 +252,14 @@ struct StatusPanel: View {
                     .foregroundColor(Colors.textMuted)
                     .padding(.horizontal, Spacing.sm)
                     .padding(.vertical, 2)
-                    .background(Colors.surfaceHover)
-                    .cornerRadius(Radius.sm)
+                    .background(
+                        ZStack {
+                            RoundedRectangle(cornerRadius: Radius.sm)
+                                .fill(Colors.surfaceHover)
+                            RoundedRectangle(cornerRadius: Radius.sm)
+                                .stroke(Colors.glassBorder, lineWidth: 1)
+                        }
+                    )
             }
             
             // System status
@@ -265,12 +274,14 @@ struct StatusPanel: View {
         }
         .padding(Spacing.md)
         .background(
-            RoundedRectangle(cornerRadius: Radius.lg)
-                .fill(Colors.surfaceHover)
-                .overlay(
-                    RoundedRectangle(cornerRadius: Radius.lg)
-                        .stroke(Colors.border, lineWidth: 1)
-                )
+            ZStack {
+                RoundedRectangle(cornerRadius: Radius.lg)
+                    .fill(.ultraThinMaterial)
+                RoundedRectangle(cornerRadius: Radius.lg)
+                    .fill(Colors.white.opacity(0.3))
+                RoundedRectangle(cornerRadius: Radius.lg)
+                    .stroke(Colors.glassBorder, lineWidth: 1)
+            }
         )
         .scaleEffect(isHovered ? 1.02 : 1.0)
         .shadow(
@@ -384,8 +395,12 @@ struct UserProfileSection: View {
         }
         .padding(Spacing.sm)
         .background(
-            RoundedRectangle(cornerRadius: Radius.md)
-                .fill(isHovered ? Colors.surfaceHover : Color.clear)
+            ZStack {
+                RoundedRectangle(cornerRadius: Radius.md)
+                    .fill(isHovered ? Colors.surfaceHover : Color.clear)
+                RoundedRectangle(cornerRadius: Radius.md)
+                    .stroke(isHovered ? Colors.glassBorder : Color.clear, lineWidth: 1)
+            }
         )
         .animation(AnimationPresets.hover, value: isHovered)
         .onHover { hovering in

@@ -64,7 +64,7 @@ struct SettingsView: View {
             }
             .padding(Spacing.xxxl)
         }
-        .background(Colors.background)
+        .background(Color.clear)
         .overlay(
             Group {
                 if showSavedToast {
@@ -164,6 +164,7 @@ struct CaptureSettingsSection: View {
                 )
                 
                 Divider()
+                    .background(Colors.glassBorder)
                 
                 // Interval slider
                 VStack(alignment: .leading, spacing: Spacing.md) {
@@ -180,8 +181,14 @@ struct CaptureSettingsSection: View {
                             .foregroundColor(Colors.primary)
                             .padding(.horizontal, Spacing.sm)
                             .padding(.vertical, Spacing.xs)
-                            .background(Colors.primary.opacity(0.1))
-                            .cornerRadius(Radius.sm)
+                            .background(
+                                ZStack {
+                                    RoundedRectangle(cornerRadius: Radius.sm)
+                                        .fill(Colors.primary.opacity(0.1))
+                                    RoundedRectangle(cornerRadius: Radius.sm)
+                                        .stroke(Colors.primary.opacity(0.15), lineWidth: 1)
+                                }
+                            )
                     }
                     
                     CustomSlider(
@@ -200,6 +207,7 @@ struct CaptureSettingsSection: View {
                 }
                 
                 Divider()
+                    .background(Colors.glassBorder)
                 
                 // Quality slider
                 VStack(alignment: .leading, spacing: Spacing.md) {
@@ -216,8 +224,14 @@ struct CaptureSettingsSection: View {
                             .foregroundColor(Colors.primary)
                             .padding(.horizontal, Spacing.sm)
                             .padding(.vertical, Spacing.xs)
-                            .background(Colors.primary.opacity(0.1))
-                            .cornerRadius(Radius.sm)
+                            .background(
+                                ZStack {
+                                    RoundedRectangle(cornerRadius: Radius.sm)
+                                        .fill(Colors.primary.opacity(0.1))
+                                    RoundedRectangle(cornerRadius: Radius.sm)
+                                        .stroke(Colors.primary.opacity(0.15), lineWidth: 1)
+                                }
+                            )
                     }
                     
                     CustomSlider(
@@ -261,6 +275,7 @@ struct AISettingsSection: View {
                 )
                 
                 Divider()
+                    .background(Colors.glassBorder)
 
                 CustomTextField(
                     title: "OpenRouter API Key",
@@ -271,6 +286,7 @@ struct AISettingsSection: View {
                 )
 
                 Divider()
+                    .background(Colors.glassBorder)
 
                 CustomTextField(
                     title: "Vision Model",
@@ -280,6 +296,7 @@ struct AISettingsSection: View {
                 )
 
                 Divider()
+                    .background(Colors.glassBorder)
 
                 CustomTextField(
                     title: "Chat Model",
@@ -289,6 +306,7 @@ struct AISettingsSection: View {
                 )
 
                 Divider()
+                    .background(Colors.glassBorder)
                 
                 CustomTextField(
                     title: "Mem0 Base URL",
@@ -298,6 +316,7 @@ struct AISettingsSection: View {
                 )
 
                 Divider()
+                    .background(Colors.glassBorder)
 
                 CustomTextField(
                     title: "Memory API Key",
@@ -308,6 +327,7 @@ struct AISettingsSection: View {
                 )
 
                 Divider()
+                    .background(Colors.glassBorder)
 
                 CustomTextField(
                     title: "Memory User ID",
@@ -317,6 +337,7 @@ struct AISettingsSection: View {
                 )
 
                 Divider()
+                    .background(Colors.glassBorder)
 
                 CustomTextField(
                     title: "Collection Name",
@@ -398,11 +419,11 @@ struct SettingsSection<Content: View>: View {
                     .foregroundColor(Colors.textPrimary)
                 
                 Divider()
-                    .background(Colors.border)
+                    .background(Colors.glassBorder)
             }
             
             // Content
-            GlassCard(padding: Spacing.xl, showBorder: true) {
+            GlassCard(padding: Spacing.xl, showBorder: true, blur: .thinMaterial) {
                 content
             }
         }
@@ -448,7 +469,7 @@ struct CustomSlider: View {
             ZStack(alignment: .leading) {
                 // Track background
                 RoundedRectangle(cornerRadius: 4)
-                    .fill(Colors.border)
+                    .fill(Colors.glassBorder)
                     .frame(height: 8)
                 
                 // Filled track
@@ -518,12 +539,14 @@ struct CustomTextField: View {
             }
             .padding(Spacing.md)
             .background(
-                RoundedRectangle(cornerRadius: Radius.md)
-                    .fill(isFocused ? Colors.surfaceHover : Colors.surface)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: Radius.md)
-                            .stroke(isFocused ? Colors.borderFocus : Colors.border, lineWidth: isFocused ? 2 : 1)
-                    )
+                ZStack {
+                    RoundedRectangle(cornerRadius: Radius.md)
+                        .fill(.ultraThinMaterial)
+                    RoundedRectangle(cornerRadius: Radius.md)
+                        .fill(Colors.white.opacity(isFocused ? 0.5 : 0.3))
+                    RoundedRectangle(cornerRadius: Radius.md)
+                        .stroke(isFocused ? Colors.borderFocus : Colors.glassBorder, lineWidth: isFocused ? 1.5 : 1)
+                }
             )
         }
     }
@@ -581,8 +604,14 @@ struct PermissionCard: View {
                 }
                 .padding(.horizontal, Spacing.sm)
                 .padding(.vertical, Spacing.xs)
-                .background(Colors.success.opacity(0.1))
-                .cornerRadius(Radius.sm)
+                .background(
+                    ZStack {
+                        RoundedRectangle(cornerRadius: Radius.sm)
+                            .fill(Colors.success.opacity(0.1))
+                        RoundedRectangle(cornerRadius: Radius.sm)
+                            .stroke(Colors.success.opacity(0.15), lineWidth: 1)
+                    }
+                )
             } else {
                 Button("Grant") {}
                     .buttonStyle(.bordered)
@@ -591,8 +620,12 @@ struct PermissionCard: View {
         }
         .padding(Spacing.md)
         .background(
-            RoundedRectangle(cornerRadius: Radius.lg)
-                .fill(isHovered ? Colors.surfaceHover : Color.clear)
+            ZStack {
+                RoundedRectangle(cornerRadius: Radius.lg)
+                    .fill(isHovered ? Colors.white.opacity(0.3) : .ultraThinMaterial)
+                RoundedRectangle(cornerRadius: Radius.lg)
+                    .stroke(isHovered ? Colors.glassBorder : Color.clear, lineWidth: 1)
+            }
         )
         .animation(AnimationPresets.hover, value: isHovered)
         .onHover { hovering in
@@ -617,12 +650,14 @@ struct SavedToast: View {
         .padding(.horizontal, Spacing.lg)
         .padding(.vertical, Spacing.md)
         .background(
-            RoundedRectangle(cornerRadius: Radius.lg)
-                .fill(Colors.surfaceHover)
-                .overlay(
-                    RoundedRectangle(cornerRadius: Radius.lg)
-                        .stroke(Colors.success.opacity(0.3), lineWidth: 1)
-                )
+            ZStack {
+                RoundedRectangle(cornerRadius: Radius.lg)
+                    .fill(.ultraThinMaterial)
+                RoundedRectangle(cornerRadius: Radius.lg)
+                    .fill(Colors.white.opacity(0.5))
+                RoundedRectangle(cornerRadius: Radius.lg)
+                    .stroke(Colors.success.opacity(0.3), lineWidth: 1)
+            }
         )
         .shadow(color: Shadows.md.color, radius: Shadows.md.radius, x: Shadows.md.x, y: Shadows.md.y)
         .padding(.top, Spacing.lg)

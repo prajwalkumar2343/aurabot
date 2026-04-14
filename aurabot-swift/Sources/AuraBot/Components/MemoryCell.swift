@@ -41,9 +41,15 @@ struct MemoryCell: View {
                             .fontWeight(.medium)
                             .padding(.horizontal, Spacing.sm)
                             .padding(.vertical, 2)
-                            .background(categoryColor.opacity(0.1))
+                            .background(
+                                ZStack {
+                                    RoundedRectangle(cornerRadius: Radius.sm)
+                                        .fill(categoryColor.opacity(0.12))
+                                    RoundedRectangle(cornerRadius: Radius.sm)
+                                        .stroke(categoryColor.opacity(0.2), lineWidth: 1)
+                                }
+                            )
                             .foregroundColor(categoryColor)
-                            .cornerRadius(Radius.sm)
                         
                         // Timestamp
                         Text(timeAgo)
@@ -63,18 +69,23 @@ struct MemoryCell: View {
             }
             .padding(Spacing.lg)
             .background(
-                RoundedRectangle(cornerRadius: Radius.xl)
-                    .fill(isHovered ? Colors.surfaceHover : Colors.surface)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: Radius.xl)
-                            .stroke(isHovered ? Colors.borderFocus : Colors.border, lineWidth: isHovered ? 2 : 1)
-                    )
+                ZStack {
+                    RoundedRectangle(cornerRadius: Radius.xl)
+                        .fill(.ultraThinMaterial)
+                    RoundedRectangle(cornerRadius: Radius.xl)
+                        .fill(Colors.white.opacity(isHovered ? 0.5 : 0.3))
+                    RoundedRectangle(cornerRadius: Radius.xl)
+                        .stroke(
+                            isHovered ? Colors.borderFocus.opacity(0.5) : Colors.glassBorder,
+                            lineWidth: isHovered ? 1.5 : 1
+                        )
+                }
             )
             .shadow(
-                color: isHovered ? Colors.primary.opacity(0.1) : Color.clear,
+                color: isHovered ? Colors.primary.opacity(0.08) : Color.clear,
                 radius: isHovered ? 16 : 0,
                 x: 0,
-                y: isHovered ? 8 : 0
+                y: isHovered ? 6 : 0
             )
         }
         .buttonStyle(.plain)
@@ -138,8 +149,12 @@ struct CompactMemoryCell: View {
         }
         .padding(Spacing.md)
         .background(
-            RoundedRectangle(cornerRadius: Radius.md)
-                .fill(isHovered ? Colors.surfaceHover : Color.clear)
+            ZStack {
+                RoundedRectangle(cornerRadius: Radius.md)
+                    .fill(isHovered ? Colors.white.opacity(0.35) : .ultraThinMaterial)
+                RoundedRectangle(cornerRadius: Radius.md)
+                    .stroke(isHovered ? Colors.glassBorder : Color.clear, lineWidth: 1)
+            }
         )
         .animation(AnimationPresets.hover, value: isHovered)
         .onHover { hovering in
@@ -205,26 +220,37 @@ struct MemoryGridCell: View {
                 .fontWeight(.medium)
                 .padding(.horizontal, Spacing.sm)
                 .padding(.vertical, 2)
-                .background(categoryColor.opacity(0.1))
+                .background(
+                    ZStack {
+                        RoundedRectangle(cornerRadius: Radius.sm)
+                            .fill(categoryColor.opacity(0.12))
+                        RoundedRectangle(cornerRadius: Radius.sm)
+                            .stroke(categoryColor.opacity(0.2), lineWidth: 1)
+                    }
+                )
                 .foregroundColor(categoryColor)
-                .cornerRadius(Radius.sm)
         }
         .padding(Spacing.lg)
         .frame(height: 160)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
-            RoundedRectangle(cornerRadius: Radius.xl)
-                .fill(isHovered ? Colors.surfaceHover : Colors.surface)
-                .overlay(
-                    RoundedRectangle(cornerRadius: Radius.xl)
-                        .stroke(isHovered ? Colors.borderFocus : Colors.border, lineWidth: isHovered ? 2 : 1)
-                )
+            ZStack {
+                RoundedRectangle(cornerRadius: Radius.xl)
+                    .fill(.ultraThinMaterial)
+                RoundedRectangle(cornerRadius: Radius.xl)
+                    .fill(Colors.white.opacity(isHovered ? 0.5 : 0.3))
+                RoundedRectangle(cornerRadius: Radius.xl)
+                    .stroke(
+                        isHovered ? Colors.borderFocus.opacity(0.5) : Colors.glassBorder,
+                        lineWidth: isHovered ? 1.5 : 1
+                    )
+            }
         )
         .shadow(
-            color: isHovered ? Colors.primary.opacity(0.1) : Color.clear,
+            color: isHovered ? Colors.primary.opacity(0.08) : Color.clear,
             radius: isHovered ? 16 : 0,
             x: 0,
-            y: isHovered ? 8 : 0
+            y: isHovered ? 6 : 0
         )
         .scaleEffect(isHovered ? 1.02 : 1.0)
         .offset(y: isHovered ? -4 : 0)
