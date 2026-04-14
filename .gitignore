@@ -42,6 +42,9 @@ MEM0_SERVER_README.md
 # Skills (local only)
 skills/
 
+# Local agent tracker
+agent_tracker.py
+
 # Downloaded models (large files)
 models/*
 !models/.gitignore
