@@ -50,21 +50,23 @@ struct SearchBar: View {
         .padding(.horizontal, Spacing.lg)
         .padding(.vertical, Spacing.md)
         .background(
-            RoundedRectangle(cornerRadius: Radius.lg)
-                .fill(isFocused ? Colors.surfaceHover : Colors.surface)
-                .overlay(
-                    RoundedRectangle(cornerRadius: Radius.lg)
-                        .stroke(
-                            isFocused ? Colors.borderFocus : (isHovered ? Colors.border.opacity(0.8) : Colors.border),
-                            lineWidth: isFocused ? 2 : 1
-                        )
-                )
+            ZStack {
+                RoundedRectangle(cornerRadius: Radius.lg)
+                    .fill(.ultraThinMaterial)
+                RoundedRectangle(cornerRadius: Radius.lg)
+                    .fill(Colors.white.opacity(isFocused ? 0.5 : 0.3))
+                RoundedRectangle(cornerRadius: Radius.lg)
+                    .stroke(
+                        isFocused ? Colors.borderFocus : Colors.glassBorder,
+                        lineWidth: isFocused ? 1.5 : 1
+                    )
+            }
         )
         .shadow(
             color: isFocused ? Colors.primaryGlow : Color.clear,
-            radius: isFocused ? 12 : 0,
+            radius: isFocused ? 16 : 0,
             x: 0,
-            y: isFocused ? 4 : 0
+            y: isFocused ? 6 : 0
         )
         .scaleEffect(isFocused ? 1.01 : 1.0)
         .animation(AnimationPresets.spring, value: isFocused)
@@ -111,16 +113,21 @@ struct ExpandableSearchBar: View {
         .padding(.vertical, Spacing.md)
         .frame(width: isExpanded ? 300 : 44)
         .background(
-            RoundedRectangle(cornerRadius: Radius.lg)
-                .fill(isFocused ? Colors.surfaceHover : Colors.surface)
-                .overlay(
-                    RoundedRectangle(cornerRadius: Radius.lg)
-                        .stroke(isFocused ? Colors.borderFocus : Colors.border, lineWidth: isFocused ? 2 : 1)
-                )
+            ZStack {
+                RoundedRectangle(cornerRadius: Radius.lg)
+                    .fill(.ultraThinMaterial)
+                RoundedRectangle(cornerRadius: Radius.lg)
+                    .fill(Colors.white.opacity(isFocused ? 0.5 : 0.3))
+                RoundedRectangle(cornerRadius: Radius.lg)
+                    .stroke(
+                        isFocused ? Colors.borderFocus : Colors.glassBorder,
+                        lineWidth: isFocused ? 1.5 : 1
+                    )
+            }
         )
         .shadow(
             color: isFocused ? Colors.primaryGlow : Color.clear,
-            radius: isFocused ? 12 : 0
+            radius: isFocused ? 16 : 0
         )
         .onTapGesture {
             withAnimation(AnimationPresets.spring) {
@@ -179,8 +186,12 @@ struct FilterSearchBar: View {
                     .padding(.horizontal, Spacing.sm)
                     .padding(.vertical, Spacing.xs)
                     .background(
-                        RoundedRectangle(cornerRadius: Radius.sm)
-                            .fill(showFilters ? Colors.primary.opacity(0.1) : Color.clear)
+                        ZStack {
+                            RoundedRectangle(cornerRadius: Radius.sm)
+                                .fill(showFilters ? Colors.primary.opacity(0.1) : Color.clear)
+                            RoundedRectangle(cornerRadius: Radius.sm)
+                                .stroke(showFilters ? Colors.primary.opacity(0.2) : Color.clear, lineWidth: 1)
+                        }
                     )
                     .foregroundColor(showFilters ? Colors.primary : Colors.textMuted)
                 }
@@ -200,16 +211,21 @@ struct FilterSearchBar: View {
             .padding(.horizontal, Spacing.lg)
             .padding(.vertical, Spacing.md)
             .background(
-                RoundedRectangle(cornerRadius: Radius.lg)
-                    .fill(isFocused ? Colors.surfaceHover : Colors.surface)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: Radius.lg)
-                            .stroke(isFocused ? Colors.borderFocus : Colors.border, lineWidth: isFocused ? 2 : 1)
-                    )
+                ZStack {
+                    RoundedRectangle(cornerRadius: Radius.lg)
+                        .fill(.ultraThinMaterial)
+                    RoundedRectangle(cornerRadius: Radius.lg)
+                        .fill(Colors.white.opacity(isFocused ? 0.5 : 0.3))
+                    RoundedRectangle(cornerRadius: Radius.lg)
+                        .stroke(
+                            isFocused ? Colors.borderFocus : Colors.glassBorder,
+                            lineWidth: isFocused ? 1.5 : 1
+                        )
+                }
             )
             .shadow(
                 color: isFocused ? Colors.primaryGlow : Color.clear,
-                radius: isFocused ? 12 : 0
+                radius: isFocused ? 16 : 0
             )
             
             // Filter chips
@@ -252,14 +268,14 @@ struct FilterChip: View {
                 .padding(.horizontal, Spacing.md)
                 .padding(.vertical, Spacing.xs)
                 .background(
-                    Capsule()
-                        .fill(isSelected ? Colors.primary : (isHovered ? Colors.surfaceHover : Colors.surface))
+                    ZStack {
+                        Capsule()
+                            .fill(isSelected ? Colors.primary : (isHovered ? Colors.surfaceHover : Colors.surface))
+                        Capsule()
+                            .stroke(isSelected ? Color.clear : Colors.glassBorder, lineWidth: 1)
+                    }
                 )
                 .foregroundColor(isSelected ? .white : Colors.textSecondary)
-                .overlay(
-                    Capsule()
-                        .stroke(isSelected ? Color.clear : Colors.border, lineWidth: 1)
-                )
         }
         .buttonStyle(.plain)
         .scaleEffect(isHovered ? 1.05 : 1.0)

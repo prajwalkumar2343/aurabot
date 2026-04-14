@@ -3,24 +3,29 @@ import SwiftUI
 // MARK: - Color Palette
 @available(macOS 14.0, *)
 enum Colors {
-    // Background
+    // Background - soft ethereal tones for glassmorphism
     static let white = Color.white
-    static let background = Color.white
-    static let surface = Color.white.opacity(0.8)
-    static let surfaceHover = Color.white.opacity(0.95)
+    static let background = Color(hex: "#F8FAFF")
+    static let surface = Color.white.opacity(0.45)
+    static let surfaceHover = Color.white.opacity(0.70)
     
-    // Borders
-    static let border = Color(hex: "#E5E7EB")
+    // Deep background for contrast
+    static let backdrop = Color(hex: "#EEF2FF")
+    static let backdropSecondary = Color(hex: "#F5F3FF")
+    
+    // Borders - softer for glassmorphism
+    static let border = Color.white.opacity(0.6)
     static let borderFocus = Color(hex: "#3B82F6")
+    static let glassBorder = Color.white.opacity(0.4)
     
     // Primary - Electric Blue
     static let primary = Color(hex: "#2563EB")
     static let primaryHover = Color(hex: "#1D4ED8")
-    static let primaryGlow = Color(hex: "#2563EB").opacity(0.3)
+    static let primaryGlow = Color(hex: "#2563EB").opacity(0.25)
     
     // Secondary - Violet
     static let secondary = Color(hex: "#7C3AED")
-    static let secondaryGlow = Color(hex: "#7C3AED").opacity(0.3)
+    static let secondaryGlow = Color(hex: "#7C3AED").opacity(0.25)
     
     // Accents
     static let accent = Color(hex: "#F59E0B")
@@ -41,15 +46,25 @@ enum Colors {
     )
     
     static let heroGradient = LinearGradient(
-        colors: [primary.opacity(0.1), secondary.opacity(0.05)],
+        colors: [primary.opacity(0.12), secondary.opacity(0.08)],
         startPoint: .topLeading,
         endPoint: .bottomTrailing
     )
     
     static let glassGradient = LinearGradient(
-        colors: [Color.white.opacity(0.9), Color.white.opacity(0.7)],
+        colors: [Color.white.opacity(0.7), Color.white.opacity(0.4)],
         startPoint: .top,
         endPoint: .bottom
+    )
+    
+    static let meshGradient = LinearGradient(
+        colors: [
+            Color(hex: "#EEF2FF").opacity(0.8),
+            Color(hex: "#F5F3FF").opacity(0.6),
+            Color(hex: "#EFF6FF").opacity(0.8)
+        ],
+        startPoint: .topLeading,
+        endPoint: .bottomTrailing
     )
 }
 
@@ -90,43 +105,43 @@ enum Spacing {
 @available(macOS 14.0, *)
 enum Shadows {
     static let sm = ShadowStyle(
-        color: Color.black.opacity(0.05),
-        radius: 4,
+        color: Color.black.opacity(0.04),
+        radius: 6,
         x: 0,
-        y: 2
+        y: 3
     )
     
     static let md = ShadowStyle(
-        color: Color.black.opacity(0.08),
-        radius: 8,
+        color: Color.black.opacity(0.06),
+        radius: 12,
         x: 0,
-        y: 4
+        y: 6
     )
     
     static let lg = ShadowStyle(
-        color: Color.black.opacity(0.1),
-        radius: 16,
+        color: Color.black.opacity(0.08),
+        radius: 20,
         x: 0,
-        y: 8
+        y: 10
     )
     
     static let xl = ShadowStyle(
-        color: Color.black.opacity(0.12),
-        radius: 24,
+        color: Color.black.opacity(0.1),
+        radius: 28,
         x: 0,
-        y: 12
+        y: 14
     )
     
     static let glow = ShadowStyle(
         color: Colors.primaryGlow,
-        radius: 20,
+        radius: 24,
         x: 0,
         y: 0
     )
     
     static let glowHover = ShadowStyle(
-        color: Colors.primary.opacity(0.4),
-        radius: 30,
+        color: Colors.primary.opacity(0.35),
+        radius: 36,
         x: 0,
         y: 0
     )
@@ -157,10 +172,10 @@ struct PrimaryButtonStyle: ButtonStyle {
                 RoundedRectangle(cornerRadius: Radius.md)
                     .fill(Colors.primary)
                     .shadow(
-                        color: Colors.primary.opacity(0.3),
-                        radius: isHovered ? 12 : 8,
+                        color: Colors.primary.opacity(0.25),
+                        radius: isHovered ? 14 : 10,
                         x: 0,
-                        y: isHovered ? 4 : 2
+                        y: isHovered ? 5 : 3
                     )
             )
             .foregroundColor(.white)
@@ -180,12 +195,12 @@ struct SecondaryButtonStyle: ButtonStyle {
             .padding(.horizontal, Spacing.lg)
             .padding(.vertical, Spacing.sm)
             .background(
-                RoundedRectangle(cornerRadius: Radius.md)
-                    .fill(Colors.surface)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: Radius.md)
-                            .stroke(Colors.border, lineWidth: 1)
-                    )
+                ZStack {
+                    RoundedRectangle(cornerRadius: Radius.md)
+                        .fill(Colors.surface)
+                    RoundedRectangle(cornerRadius: Radius.md)
+                        .stroke(Colors.glassBorder, lineWidth: 1)
+                }
             )
             .foregroundColor(Colors.textPrimary)
             .font(Typography.callout.weight(.medium))
@@ -211,10 +226,10 @@ struct ShadowModifier: ViewModifier {
 @available(macOS 14.0, *)
 enum Radius {
     static let sm: CGFloat = 6
-    static let md: CGFloat = 8
-    static let lg: CGFloat = 12
-    static let xl: CGFloat = 16
-    static let xxl: CGFloat = 20
+    static let md: CGFloat = 10
+    static let lg: CGFloat = 14
+    static let xl: CGFloat = 18
+    static let xxl: CGFloat = 22
     static let full: CGFloat = 9999
 }
 
@@ -254,7 +269,7 @@ extension View {
             .background(Colors.glassGradient)
             .overlay(
                 RoundedRectangle(cornerRadius: Radius.lg)
-                    .stroke(Colors.border, lineWidth: 1)
+                    .stroke(Colors.glassBorder, lineWidth: 1)
             )
             .cornerRadius(Radius.lg)
     }
@@ -263,10 +278,10 @@ extension View {
         self
             .padding(Spacing.lg)
             .background(.ultraThinMaterial)
-            .background(Colors.white.opacity(0.8))
+            .background(Colors.surface)
             .overlay(
                 RoundedRectangle(cornerRadius: Radius.xl)
-                    .stroke(Colors.border, lineWidth: 1)
+                    .stroke(Colors.glassBorder, lineWidth: 1)
             )
             .cornerRadius(Radius.xl)
             .shadow(color: Shadows.md.color, radius: Shadows.md.radius, x: Shadows.md.x, y: Shadows.md.y)

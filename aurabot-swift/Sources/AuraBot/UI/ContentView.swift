@@ -35,8 +35,8 @@ struct LoadingScreen: View {
     
     var body: some View {
         ZStack {
-            // White background
-            Color.white
+            // Soft gradient background
+            Colors.background
             
             // Logo
             VStack(spacing: 16) {
@@ -95,10 +95,6 @@ struct MainContentView: View {
             
             // Content area
             ZStack {
-                // White background
-                Color.white
-                    .ignoresSafeArea()
-                
                 // Content based on selected tab
                 switch selectedTab {
                 case .dashboard:
@@ -111,11 +107,68 @@ struct MainContentView: View {
                     SettingsView(service: service)
                 }
             }
-            .clipShape(RoundedRectangle(cornerRadius: 16))
+            .background(.ultraThinMaterial)
+            .background(Colors.surface.opacity(0.5))
+            .clipShape(RoundedRectangle(cornerRadius: Radius.xxl))
+            .overlay(
+                RoundedRectangle(cornerRadius: Radius.xxl)
+                    .stroke(Colors.glassBorder, lineWidth: 1)
+            )
+            .shadow(color: Shadows.lg.color, radius: Shadows.lg.radius, x: Shadows.lg.x, y: Shadows.lg.y)
             .padding(.vertical, 12)
             .padding(.trailing, 12)
         }
-        .background(Color.white)
+        .background(
+            MeshGradientBackground()
+                .ignoresSafeArea()
+        )
+    }
+}
+
+@available(macOS 14.0, *)
+struct MeshGradientBackground: View {
+    @State private var animate = false
+    
+    var body: some View {
+        GeometryReader { geometry in
+            ZStack {
+                // Base soft color
+                Colors.background
+                
+                // Animated soft orbs for mesh-like effect
+                Circle()
+                    .fill(Colors.primary.opacity(0.08))
+                    .frame(width: geometry.size.width * 0.8, height: geometry.size.width * 0.8)
+                    .blur(radius: 80)
+                    .offset(
+                        x: animate ? 40 : -40,
+                        y: animate ? -60 : 60
+                    )
+                
+                Circle()
+                    .fill(Colors.secondary.opacity(0.06))
+                    .frame(width: geometry.size.width * 0.6, height: geometry.size.width * 0.6)
+                    .blur(radius: 70)
+                    .offset(
+                        x: animate ? -50 : 50,
+                        y: animate ? 80 : -80
+                    )
+                
+                Circle()
+                    .fill(Colors.accent.opacity(0.04))
+                    .frame(width: geometry.size.width * 0.5, height: geometry.size.width * 0.5)
+                    .blur(radius: 60)
+                    .offset(
+                        x: animate ? 30 : -30,
+                        y: animate ? 40 : -40
+                    )
+            }
+            .onAppear {
+                withAnimation(.easeInOut(duration: 12).repeatForever(autoreverses: true)) {
+                    animate.toggle()
+                }
+            }
+        }
     }
 }
 
