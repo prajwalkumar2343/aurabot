@@ -52,13 +52,19 @@ actor BrowserContextService {
     }
 
     private func browserSnapshot(for browser: SupportedBrowser) -> (url: String?, title: String?) {
+        let script = browser.appleScript
+        guard !script.isEmpty else {
+            return (nil, nil)
+        }
+
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/osascript")
-        process.arguments = ["-e", browser.appleScript]
+        process.arguments = ["-e", script]
 
         let outputPipe = Pipe()
+        let errorPipe = Pipe()
         process.standardOutput = outputPipe
-        process.standardError = Pipe()
+        process.standardError = errorPipe
 
         do {
             try process.run()
@@ -90,7 +96,8 @@ actor BrowserContextService {
 
     static func deriveActivity(url: String?, title: String?) -> (activity: BrowserActivityKind, pageID: String?, mediaID: String?) {
         guard let rawURL = url, let components = URLComponents(string: rawURL) else {
-            return (.browsing, title?.trimmingCharacters(in: .whitespacesAndNewlines), nil)
+            let fallbackPageID = title?.trimmingCharacters(in: .whitespacesAndNewlines)
+            return (.browsing, fallbackPageID, nil)
         }
 
         let host = components.host?.lowercased() ?? ""
@@ -107,7 +114,8 @@ actor BrowserContextService {
             }
         }
 
-        return (.browsing, normalizedPageID(for: components), nil)
+        let pageID = normalizedPageID(for: components)
+        return (.browsing, pageID, nil)
     }
 
     static func normalizedPageID(for components: URLComponents) -> String {

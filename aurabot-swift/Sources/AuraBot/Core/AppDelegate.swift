@@ -7,7 +7,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     var statusItem: NSStatusItem?
     var overlayWindow: OverlayWindow?
     var quickEnhancePanel: QuickEnhancePanel?
-    let service = AppService(configPath: AppConfig.defaultPath)
+    let service = AppService(config: .default)
     
     func applicationDidFinishLaunching(_ notification: Notification) {
         setupStatusItem()

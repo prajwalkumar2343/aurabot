@@ -4,118 +4,79 @@ import SwiftUI
 struct DashboardView: View {
     @ObservedObject var service: AppService
     @State private var showingNewMemory = false
-    @State private var appearAnimation = false
     
     var body: some View {
         ScrollView(showsIndicators: false) {
             VStack(alignment: .leading, spacing: Spacing.xxxl) {
-                // Header with greeting
-                DashboardHeaderSection(service: service)
-                    .opacity(appearAnimation ? 1 : 0)
-                    .offset(y: appearAnimation ? 0 : 20)
+                // Header
+                DashboardHeader(service: service, showingNewMemory: $showingNewMemory)
                 
-                // Stats row
-                StatsSection(service: service)
-                    .opacity(appearAnimation ? 1 : 0)
-                    .offset(y: appearAnimation ? 0 : 20)
+                // Stats Grid
+                StatsGrid(service: service)
                 
-                // Recent memories
-                RecentMemoriesSection(service: service, showingNewMemory: $showingNewMemory)
-                    .opacity(appearAnimation ? 1 : 0)
-                    .offset(y: appearAnimation ? 0 : 20)
+                // Recent Memories
+                RecentMemoriesSection(service: service)
             }
             .padding(Spacing.xxxl)
         }
+        .background(Colors.background)
         .sheet(isPresented: $showingNewMemory) {
-            NewMemorySheet { content in
-                // Add memory
-            }
-        }
-        .onAppear {
-            withAnimation(.spring(response: 0.6, dampingFraction: 0.8).delay(0.1)) {
-                appearAnimation = true
-            }
+            NewMemorySheet(service: service)
         }
     }
 }
 
 @available(macOS 14.0, *)
-struct DashboardHeaderSection: View {
+struct DashboardHeader: View {
     @ObservedObject var service: AppService
-    @State private var greeting = ""
+    @Binding var showingNewMemory: Bool
     
     var body: some View {
         HStack {
-            VStack(alignment: .leading, spacing: Spacing.sm) {
-                Text(greeting)
+            VStack(alignment: .leading, spacing: Spacing.xs) {
+                Text("Dashboard")
                     .font(Typography.title1)
                     .foregroundColor(Colors.textPrimary)
-                    .task {
-                        greeting = getGreeting()
-                    }
                 
-                Text("Here's what's happening with your memory")
+                Text("Overview of your memory system")
                     .font(Typography.body)
                     .foregroundColor(Colors.textSecondary)
             }
             
             Spacer()
             
-            // Date
-            VStack(alignment: .trailing, spacing: Spacing.xs) {
-                Text(Date(), style: .date)
-                    .font(Typography.headline)
-                    .foregroundColor(Colors.textPrimary)
-                
-                Text(Date(), style: .time)
-                    .font(Typography.subheadline)
-                    .foregroundColor(Colors.textSecondary)
+            Button(action: { showingNewMemory = true }) {
+                Label("New Memory", systemImage: "plus")
             }
-        }
-    }
-    
-    private func getGreeting() -> String {
-        let hour = Calendar.current.component(.hour, from: Date())
-        switch hour {
-        case 0..<12: return "Good morning, John"
-        case 12..<17: return "Good afternoon, John"
-        default: return "Good evening, John"
+            .buttonStyle(PrimaryButtonStyle())
         }
     }
 }
 
 @available(macOS 14.0, *)
-struct StatsSection: View {
+struct StatsGrid: View {
     @ObservedObject var service: AppService
     
     var body: some View {
         HStack(spacing: Spacing.lg) {
-            AnimatedStatWidget(
+            StatWidget(
                 title: "Total Memories",
-                value: service.memories.count,
+                value: "\(service.memories.count)",
                 icon: "brain.head.profile",
                 color: Colors.primary
             )
             
             StatWidget(
                 title: "Capture Interval",
-                value: "30s",
-                icon: "timer",
-                color: Colors.secondary,
-                trend: "Optimal"
+                value: "\(service.captureInterval)s",
+                icon: "clock",
+                color: Colors.secondary
             )
             
             StatWidget(
                 title: "Last Activity",
-                value: service.lastActivity.isEmpty ? "Just now" : service.lastActivity,
+                value: service.lastActivity.isEmpty ? "--" : "Just now",
                 icon: "waveform",
-                color: Colors.success
-            )
-            
-            StatWidget(
-                title: "Storage Used",
-                value: "24%",
-                icon: "externaldrive",
                 color: Colors.accent
             )
         }
@@ -125,43 +86,29 @@ struct StatsSection: View {
 @available(macOS 14.0, *)
 struct RecentMemoriesSection: View {
     @ObservedObject var service: AppService
-    @Binding var showingNewMemory: Bool
     
     var body: some View {
         VStack(alignment: .leading, spacing: Spacing.lg) {
-            // Section header
             HStack {
-                VStack(alignment: .leading, spacing: Spacing.xs) {
-                    Text("Recent Memories")
-                        .font(Typography.title2)
-                        .foregroundColor(Colors.textPrimary)
-                    
-                    Text("Your latest captured moments")
-                        .font(Typography.subheadline)
-                        .foregroundColor(Colors.textSecondary)
-                }
+                Text("Recent Memories")
+                    .font(Typography.title2)
+                    .foregroundColor(Colors.textPrimary)
                 
                 Spacer()
                 
-                NavigationLink(value: "memories") {
-                    Text("View All")
-                        .font(Typography.subheadline)
-                        .fontWeight(.medium)
-                        .foregroundColor(Colors.primary)
-                }
-                .buttonStyle(.plain)
+                Button("View All") {}
+                    .font(Typography.callout)
+                    .foregroundColor(Colors.primary)
             }
             
-            // Memories list or empty state
             if service.memories.isEmpty {
-                EmptyMemoriesState(onStart: {
+                EmptyMemoriesPlaceholder {
                     service.toggleCapture()
-                })
+                }
             } else {
-                VStack(spacing: Spacing.md) {
-                    ForEach(Array(service.memories.prefix(5).enumerated()), id: \.element.id) { index, memory in
-                        MemoryCell(memory: memory)
-                            .transition(.move(edge: .leading).combined(with: .opacity))
+                LazyVStack(spacing: Spacing.md) {
+                    ForEach(service.memories.prefix(5)) { memory in
+                        CompactMemoryCell(memory: memory)
                     }
                 }
             }
@@ -170,43 +117,26 @@ struct RecentMemoriesSection: View {
 }
 
 @available(macOS 14.0, *)
-struct EmptyMemoriesState: View {
-    let onStart: () -> Void
-    @State private var isHovered = false
+struct EmptyMemoriesPlaceholder: View {
+    let onStartCapture: () -> Void
     
     var body: some View {
         VStack(spacing: Spacing.xl) {
-            // Animated illustration
-            ZStack {
-                Circle()
-                    .fill(Colors.primary.opacity(0.1))
-                    .frame(width: 120, height: 120)
-                
-                Circle()
-                    .fill(Colors.primary.opacity(0.15))
-                    .frame(width: 80, height: 80)
-                
-                Image(systemName: "brain.head.profile")
-                    .font(.system(size: 40, weight: .light))
-                    .foregroundColor(Colors.primary)
-                    .scaleEffect(isHovered ? 1.1 : 1.0)
-            }
+            Image(systemName: "brain.head.profile")
+                .font(.system(size: 48))
+                .foregroundColor(Colors.textMuted)
             
-            VStack(spacing: Spacing.sm) {
-                Text("No memories yet")
-                    .font(Typography.title3)
-                    .foregroundColor(Colors.textPrimary)
-                
-                Text("Start screen capture to begin recording your activities and building your AI memory")
-                    .font(Typography.body)
-                    .foregroundColor(Colors.textSecondary)
-                    .multilineTextAlignment(.center)
-            }
-            .frame(maxWidth: 400)
+            Text("No memories yet")
+                .font(Typography.title3)
+                .foregroundColor(Colors.textPrimary)
             
-            GradientButton("Start Capture", icon: "play.fill") {
-                onStart()
-            }
+            Text("Start screen capture to begin recording your activities")
+                .font(Typography.body)
+                .foregroundColor(Colors.textSecondary)
+                .multilineTextAlignment(.center)
+            
+            Button("Start Capture", action: onStartCapture)
+                .buttonStyle(PrimaryButtonStyle())
         }
         .frame(maxWidth: .infinity)
         .padding(Spacing.xxxxl)
@@ -217,90 +147,48 @@ struct EmptyMemoriesState: View {
                     RoundedRectangle(cornerRadius: Radius.xxl)
                         .stroke(Colors.border, lineWidth: 1)
                 )
-                .overlay(
-                    // Subtle gradient mesh
-                    MeshGradient()
-                        .opacity(0.3)
-                        .clipShape(RoundedRectangle(cornerRadius: Radius.xxl))
-                )
         )
-        .animation(AnimationPresets.hover, value: isHovered)
-        .onHover { hovering in
-            isHovered = hovering
-        }
     }
 }
 
 @available(macOS 14.0, *)
 struct NewMemorySheet: View {
-    let onSave: (String) -> Void
+    @ObservedObject var service: AppService
     @State private var content: String = ""
     @Environment(\.dismiss) var dismiss
-    @FocusState private var isFocused: Bool
     
     var body: some View {
         VStack(spacing: Spacing.xl) {
-            // Header
             HStack {
                 Text("New Memory")
                     .font(Typography.title2)
-                    .foregroundColor(Colors.textPrimary)
                 
                 Spacer()
                 
-                IconButton("xmark", size: 32, background: Colors.surface) {
-                    dismiss()
-                }
+                Button("Cancel") { dismiss() }
+                    .buttonStyle(PlainButtonStyle())
             }
             
-            // Text editor
             TextEditor(text: $content)
-                .font(Typography.body)
-                .foregroundColor(Colors.textPrimary)
-                .padding(Spacing.md)
+                .frame(minHeight: 120)
+                .padding(Spacing.sm)
                 .background(
-                    RoundedRectangle(cornerRadius: Radius.lg)
+                    RoundedRectangle(cornerRadius: Radius.md)
                         .fill(Colors.surface)
-                        .overlay(
-                            RoundedRectangle(cornerRadius: Radius.lg)
-                                .stroke(isFocused ? Colors.borderFocus : Colors.border, lineWidth: isFocused ? 2 : 1)
-                        )
                 )
-                .focused($isFocused)
-                .frame(minHeight: 150)
             
-            // Footer
             HStack {
-                Text("\(content.count) characters")
-                    .font(Typography.caption)
-                    .foregroundColor(Colors.textMuted)
-                
                 Spacer()
                 
-                SecondaryButton("Cancel") {
+                Button("Save") {
+                    // Save memory logic
                     dismiss()
                 }
-                
-                GradientButton("Save Memory", icon: "checkmark") {
-                    onSave(content)
-                    dismiss()
-                }
+                .buttonStyle(PrimaryButtonStyle())
                 .disabled(content.isEmpty)
             }
         }
-        .padding(Spacing.xl)
+        .padding()
         .frame(width: 500)
-        .background(Colors.background)
-        .onAppear {
-            isFocused = true
-        }
-    }
-}
-
-@available(macOS 14.0, *)
-struct DashboardView_Previews: PreviewProvider {
-    static var previews: some View {
-        DashboardView(service: AppService())
-            .background(Colors.background)
     }
 }
