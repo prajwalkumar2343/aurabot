@@ -39,6 +39,9 @@ qdrant_storage/
 kimi-workflow.md
 MEM0_SERVER_README.md
 
+# Skills (local only)
+skills/
+
 # Downloaded models (large files)
 models/*
 !models/.gitignore
