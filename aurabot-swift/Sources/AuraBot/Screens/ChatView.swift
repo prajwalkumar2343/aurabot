@@ -141,9 +141,11 @@ struct MessageBubbleView: View {
                     .background(
                         ZStack {
                             RoundedRectangle(cornerRadius: Radius.lg)
-                                .fill(message.isUser ? Colors.primary.opacity(0.15) : .ultraThinMaterial)
+                                .fill(.ultraThinMaterial)
                             RoundedRectangle(cornerRadius: Radius.lg)
-                                .fill(message.isUser ? Colors.primary.opacity(0.05) : Colors.white.opacity(0.3))
+                                .fill(message.isUser ? Colors.primary.opacity(0.15) : Color.clear)
+                            RoundedRectangle(cornerRadius: Radius.lg)
+                                .fill(message.isUser ? Colors.primary.opacity(0.05) : Colors.white.opacity(message.isUser ? 0 : 0.3))
                             RoundedRectangle(cornerRadius: Radius.lg)
                                 .stroke(
                                     message.isUser ? Colors.primary.opacity(0.2) : Colors.glassBorder,
