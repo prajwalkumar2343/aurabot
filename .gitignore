@@ -126,3 +126,4 @@ aurabot/tests/__pycache__/
 aurabot/tests/.pytest_cache/
 aurabot/python/src/__pycache__/
 aurabot/.env
+test-results/
