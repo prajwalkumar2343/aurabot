@@ -622,7 +622,9 @@ struct PermissionCard: View {
         .background(
             ZStack {
                 RoundedRectangle(cornerRadius: Radius.lg)
-                    .fill(isHovered ? Colors.white.opacity(0.3) : .ultraThinMaterial)
+                    .fill(.ultraThinMaterial)
+                RoundedRectangle(cornerRadius: Radius.lg)
+                    .fill(Colors.white.opacity(isHovered ? 0.3 : 0))
                 RoundedRectangle(cornerRadius: Radius.lg)
                     .stroke(isHovered ? Colors.glassBorder : Color.clear, lineWidth: 1)
             }
