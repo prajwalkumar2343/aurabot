@@ -1,7 +1,6 @@
 # Mem0 REST API Server Dependencies
 
 # Core
-mem0ai>=0.1.0
 requests>=2.31.0
 
 # For .env file support
