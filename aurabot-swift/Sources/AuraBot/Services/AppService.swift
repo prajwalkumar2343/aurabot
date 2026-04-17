@@ -1,5 +1,6 @@
 import Foundation
 import Combine
+import CoreGraphics
 
 @available(macOS 14.0, *)
 @MainActor
@@ -17,16 +18,21 @@ class AppService: ObservableObject {
     private let llmService: LLMService
     private let memoryService: MemoryService
     private let browserContextService: BrowserContextService
+    private let contextRouter: ContextRouter
     private let browserExtensionServer: BrowserExtensionServer?
     private var captureService: ScreenCaptureService?
     
-    private var processingTask: Task<Void, Never>?
+    private var contextProcessingTask: Task<Void, Never>?
     
     init(config: AppConfig = .default) {
         self.config = config
         self.llmService = LLMService(config: config.llm)
         self.memoryService = MemoryService(config: config.memory)
         self.browserContextService = BrowserContextService(config: config.browserExtension)
+        self.contextRouter = ContextRouter(
+            captureConfig: config.capture,
+            browserContextService: browserContextService
+        )
         self.browserExtensionServer = config.browserExtension.enabled
             ? BrowserExtensionServer(port: config.browserExtension.port, browserContextService: browserContextService)
             : nil
@@ -44,9 +50,7 @@ class AppService: ObservableObject {
         browserExtensionServer?.start()
         
         if captureEnabled {
-            Task {
-                await captureService?.start()
-            }
+            startContextProcessing()
         }
         
         Task {
@@ -73,6 +77,7 @@ class AppService: ObservableObject {
     
     func stop() {
         status = .stopped
+        stopContextProcessing()
         browserExtensionServer?.stop()
         Task {
             await captureService?.stop()
@@ -82,14 +87,16 @@ class AppService: ObservableObject {
     func toggleCapture() {
         captureEnabled.toggle()
         if captureEnabled {
-            Task { await captureService?.start() }
+            startContextProcessing()
         } else {
-            Task { await captureService?.stop() }
+            stopContextProcessing()
         }
     }
     
     func chat(message: String) async throws -> String {
-        return try await llmService.generateResponse(message: message, memories: [])
+        let relevantMemories = try await memoryService.search(query: message, limit: 5)
+        let context = relevantMemories.map { $0.memory.content }
+        return try await llmService.generateResponse(message: message, memories: context)
     }
     
     func refreshMemories() async {
@@ -127,6 +134,69 @@ class AppService: ObservableObject {
         
         // Generate enhanced prompt using LLM
         return try await llmService.enhancePrompt(prompt: text, memories: memoryInfos)
+    }
+
+    private func startContextProcessing() {
+        guard contextProcessingTask == nil else { return }
+
+        contextProcessingTask = Task { [weak self] in
+            await self?.runContextLoop()
+        }
+    }
+
+    private func stopContextProcessing() {
+        contextProcessingTask?.cancel()
+        contextProcessingTask = nil
+        Task {
+            await captureService?.stop()
+        }
+    }
+
+    private func runContextLoop() async {
+        await processContextTick(force: true)
+
+        while status == .running, captureEnabled, !Task.isCancelled {
+            let duration = UInt64(max(config.capture.probeIntervalSeconds, 1)) * 1_000_000_000
+            try? await Task.sleep(nanoseconds: duration)
+
+            guard status == .running, captureEnabled, !Task.isCancelled else { break }
+            await processContextTick(force: false)
+        }
+    }
+
+    private func processContextTick(force: Bool) async {
+        guard config.app.processOnCapture else { return }
+
+        let plan = await contextRouter.capturePlan(force: force)
+
+        switch plan.screenshotDirective {
+        case .skip:
+            guard let event = plan.event else { return }
+            await storeContextEvent(event)
+        case .fallback:
+            guard let capture = await captureService?.captureDisplay(
+                displayID: CGMainDisplayID(),
+                browserContext: plan.browserContext,
+                reason: plan.reason
+            ) else {
+                return
+            }
+            await processCapture(capture)
+        }
+    }
+
+    private func storeContextEvent(_ event: ContextEvent) async {
+        do {
+            _ = try await memoryService.add(
+                content: event.memoryContent,
+                metadata: event.metadata()
+            )
+
+            lastActivity = event.summary
+            await refreshMemories()
+        } catch {
+            print("Failed to store context event: \(error)")
+        }
     }
     
     private func processCapture(_ capture: ScreenCapture) async {
