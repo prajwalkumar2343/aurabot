@@ -92,7 +92,7 @@ class Mem0Handler(BaseHandler, MemoryMixin, EmbeddingsMixin, ChatMixin):
             return
 
         if path.startswith("/v1/memories/"):
-            self.delete_memory(path.split("/")[-1])
+            self.delete_memory(path.rstrip("/").split("/")[-1])
             return
 
         self.send_json_response({"error": "Not found"}, 404)
