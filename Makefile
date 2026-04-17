@@ -40,7 +40,7 @@ deps-py:
 
 # Run Python tests
 test-py:
-	cd $(PYTHON_DIR) && python -m pytest tests/ -v
+	cd $(PYTHON_DIR) && python -m unittest discover -s tests -v
 
 # Run Python server (Mem0)
 run-server:
