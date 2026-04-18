@@ -48,9 +48,10 @@ def _config_value(env_key: str, default, config_path: str = ""):
     return default
 
 
-HOST = os.getenv("MEM0_HOST", "localhost")
-PORT = int(os.getenv("MEM0_PORT", "8000"))
+HOST = os.getenv("AURABOT_MEMORY_HOST", "localhost")
+PORT = int(os.getenv("AURABOT_MEMORY_PORT", "8000"))
 MODELS_DIR = Path(os.getenv("MODELS_DIR", "./models"))
+DATABASE_URL = _config_value("DATABASE_URL", "", "memory.databaseURL")
 OPENROUTER_API_KEY = _config_value("OPENROUTER_API_KEY", "", "llm.openRouterAPIKey")
 OPENROUTER_BASE_URL = _config_value(
     "OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1", "llm.baseURL"
@@ -69,8 +70,4 @@ OPENROUTER_EMBEDDING_MODEL = _config_value(
 OPENROUTER_EMBEDDING_DIMENSIONS = int(
     _config_value("OPENROUTER_EMBEDDING_DIMENSIONS", "1536")
 )
-MEM0_API_KEY = _config_value("MEM0_API_KEY", "", "memory.apiKey")
-LM_STUDIO_URL = os.getenv("LM_STUDIO_URL", "http://localhost:1234/v1")
-CEREBRAS_API_KEY = os.getenv("CEREBRAS_API_KEY", "")
-GGUF_SERVER_PORT = int(os.getenv("GGUF_SERVER_PORT", "8080"))
-LLAMA_CPP_PATH = os.getenv("LLAMA_CPP_PATH", "")
+MEMORY_API_KEY = _config_value("AURABOT_MEMORY_API_KEY", "", "memory.apiKey")
