@@ -37,7 +37,6 @@ qdrant_storage/
 
 # Personal/Development files
 kimi-workflow.md
-MEM0_SERVER_README.md
 
 # Skills (local only)
 skills/
@@ -74,7 +73,6 @@ apps/macos/.build/
 apps/macos/*.zip
 apps/macos/*.app/
 apps/macos/Package.resolved
-swift-mem0/
 
 # Xcode
 xcuserdata/
@@ -111,11 +109,6 @@ docs/_build/
 .python-version
 *.mo
 *.pot
-
-# Swift build artifacts
-swift-mem0/.build/
-swift-mem0/.git/
-swift-mem0/Packages/
 
 # Swift app bundle
 AuraBot.app/

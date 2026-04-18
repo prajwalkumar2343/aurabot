@@ -265,7 +265,7 @@ struct StatusPanel: View {
             // System status
             HStack(spacing: Spacing.lg) {
                 StatusDot(color: Colors.success, label: "LLM")
-                StatusDot(color: Colors.success, label: "Mem0")
+                StatusDot(color: Colors.success, label: "Memory")
                 StatusDot(
                     color: service.captureEnabled ? Colors.success : Colors.textMuted,
                     label: "Capture"

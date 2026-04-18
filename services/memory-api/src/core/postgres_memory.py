@@ -1,8 +1,8 @@
 """
 Postgres-backed structured memory store for AuraBot.
 
-The runtime API intentionally mirrors the subset of the old mem0 API that the
-HTTP handlers already use: add/get_all/search/delete.
+The runtime API exposes the methods the HTTP handlers use:
+add/get_all/search/delete.
 """
 
 from __future__ import annotations

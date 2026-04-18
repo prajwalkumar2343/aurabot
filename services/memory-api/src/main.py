@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Main entry point for the Mem0 REST API Server.
+Main entry point for the AuraBot memory API server.
 
 Uses OpenRouter-backed models for chat and embeddings.
 """
@@ -9,26 +9,26 @@ from http.server import HTTPServer
 
 from config import HOST, PORT
 from core.memory_factory import init_server_memory
-from api.handlers import Mem0Handler
+from api.handlers import MemoryHandler
 from models.remote_manager import RemoteModelManager
 
 
 def main():
     print("=" * 70)
-    print("Mem0 Server: OpenRouter (Chat + Embeddings)")
+    print("AuraBot Memory Server: OpenRouter (Chat + Embeddings)")
     print("=" * 70)
 
-    memory = init_server_memory()
     model_manager = RemoteModelManager()
+    memory = init_server_memory(model_manager)
 
-    Mem0Handler.memory = memory
-    Mem0Handler.model_manager = model_manager
-    Mem0Handler.HAS_MEM0 = True
+    MemoryHandler.memory = memory
+    MemoryHandler.model_manager = model_manager
+    MemoryHandler.HAS_MEMORY = True
 
     print(f"[OK] Server starting on http://{HOST}:{PORT}")
     print()
 
-    server = HTTPServer((HOST, PORT), Mem0Handler)
+    server = HTTPServer((HOST, PORT), MemoryHandler)
     print("-" * 60)
     print("Available endpoints:")
     print(f"  Health:  GET  http://{HOST}:{PORT}/health")

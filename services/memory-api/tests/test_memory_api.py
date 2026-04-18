@@ -5,7 +5,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from api.memoryMixin import MemoryMixin
-from api.handlers import Mem0Handler
+from api.handlers import MemoryHandler
 
 
 class FakeMemoryStore:
@@ -46,7 +46,7 @@ class FakeMemoryStore:
 class DummyMemoryHandler(MemoryMixin):
     def __init__(self, memory, body=None):
         self.memory = memory
-        self.HAS_MEM0 = True
+        self.HAS_MEMORY = True
         self._body = body or {}
         self.response = None
         self.status = None
@@ -205,7 +205,7 @@ class MemoryMixinTests(unittest.TestCase):
 
 class HandlerRouteTests(unittest.TestCase):
     def test_delete_route_strips_trailing_slash_before_dispatch(self):
-        handler = Mem0Handler.__new__(Mem0Handler)
+        handler = MemoryHandler.__new__(MemoryHandler)
         handler.path = "/v1/memories/mem-9/"
         deleted_ids = []
 
@@ -213,7 +213,7 @@ class HandlerRouteTests(unittest.TestCase):
         handler.delete_memory = deleted_ids.append
         handler.send_json_response = lambda data, status=200: None
 
-        Mem0Handler.do_DELETE(handler)
+        MemoryHandler.do_DELETE(handler)
 
         self.assertEqual(deleted_ids, ["mem-9"])
 
