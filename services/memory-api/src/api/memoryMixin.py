@@ -11,11 +11,11 @@ class MemoryMixin:
     """Mixin providing memory endpoint handlers."""
 
     memory = None
-    HAS_MEM0 = False
+    HAS_MEMORY = False
 
     def get_memories(self, user_id: str, agent_id: str = None, limit: int = 10):
         """Handle GET /v1/memories/"""
-        if not self.HAS_MEM0 or not self.memory:
+        if not self.HAS_MEMORY or not self.memory:
             self.send_json_response({"error": "Memory not available"}, 503)
             return
 
@@ -36,7 +36,7 @@ class MemoryMixin:
         infer: bool = True,
     ):
         """Handle POST /v1/memories/"""
-        if not self.HAS_MEM0 or not self.memory:
+        if not self.HAS_MEMORY or not self.memory:
             self.send_json_response({"error": "Memory not available"}, 503)
             return
 
@@ -67,7 +67,7 @@ class MemoryMixin:
 
     def search_memories(self, user_id: str, agent_id: str = None, limit: int = 10):
         """Handle POST /v1/memories/search/"""
-        if not self.HAS_MEM0 or not self.memory:
+        if not self.HAS_MEMORY or not self.memory:
             self.send_json_response({"error": "Memory not available"}, 503)
             return
 
@@ -87,7 +87,7 @@ class MemoryMixin:
 
     def delete_memory(self, memory_id: str):
         """Handle DELETE /v1/memories/{id}"""
-        if not self.HAS_MEM0 or not self.memory:
+        if not self.HAS_MEMORY or not self.memory:
             self.send_json_response({"error": "Memory not available"}, 503)
             return
 
