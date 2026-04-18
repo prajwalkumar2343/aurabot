@@ -151,7 +151,9 @@ struct CompactMemoryCell: View {
         .background(
             ZStack {
                 RoundedRectangle(cornerRadius: Radius.md)
-                    .fill(isHovered ? Colors.white.opacity(0.35) : .ultraThinMaterial)
+                    .fill(.ultraThinMaterial)
+                RoundedRectangle(cornerRadius: Radius.md)
+                    .fill(Colors.white.opacity(isHovered ? 0.35 : 0))
                 RoundedRectangle(cornerRadius: Radius.md)
                     .stroke(isHovered ? Colors.glassBorder : Color.clear, lineWidth: 1)
             }

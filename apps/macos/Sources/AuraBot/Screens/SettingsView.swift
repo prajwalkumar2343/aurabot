@@ -10,8 +10,8 @@ struct SettingsView: View {
     @State private var openRouterAPIKey = ""
     @State private var visionModel = ""
     @State private var chatModel = ""
-    @State private var mem0URL = "http://localhost:8000"
-    @State private var mem0APIKey = ""
+    @State private var memoryURL = "http://localhost:8000"
+    @State private var memoryAPIKey = ""
     @State private var memoryUserID = "default_user"
     @State private var memoryCollection = "screen_memories_v3"
     @State private var showSavedToast = false
@@ -41,8 +41,8 @@ struct SettingsView: View {
                     openRouterAPIKey: $openRouterAPIKey,
                     visionModel: $visionModel,
                     chatModel: $chatModel,
-                    mem0URL: $mem0URL,
-                    mem0APIKey: $mem0APIKey,
+                    memoryURL: $memoryURL,
+                    memoryAPIKey: $memoryAPIKey,
                     memoryUserID: $memoryUserID,
                     memoryCollection: $memoryCollection
                 )
@@ -91,8 +91,8 @@ struct SettingsView: View {
         openRouterAPIKey = config.llm.openRouterAPIKey
         visionModel = config.llm.model
         chatModel = config.llm.openRouterChatModel
-        mem0URL = config.memory.baseURL
-        mem0APIKey = config.memory.apiKey
+        memoryURL = config.memory.baseURL
+        memoryAPIKey = config.memory.apiKey
         memoryUserID = config.memory.userID
         memoryCollection = config.memory.collectionName
     }
@@ -109,8 +109,8 @@ struct SettingsView: View {
             updatedConfig.llm.openRouterAPIKey = openRouterAPIKey.trimmingCharacters(in: .whitespacesAndNewlines)
             updatedConfig.llm.model = visionModel.trimmingCharacters(in: .whitespacesAndNewlines)
             updatedConfig.llm.openRouterChatModel = chatModel.trimmingCharacters(in: .whitespacesAndNewlines)
-            updatedConfig.memory.baseURL = mem0URL.trimmingCharacters(in: .whitespacesAndNewlines)
-            updatedConfig.memory.apiKey = mem0APIKey.trimmingCharacters(in: .whitespacesAndNewlines)
+            updatedConfig.memory.baseURL = memoryURL.trimmingCharacters(in: .whitespacesAndNewlines)
+            updatedConfig.memory.apiKey = memoryAPIKey.trimmingCharacters(in: .whitespacesAndNewlines)
             updatedConfig.memory.userID = memoryUserID.trimmingCharacters(in: .whitespacesAndNewlines)
             updatedConfig.memory.collectionName = memoryCollection.trimmingCharacters(in: .whitespacesAndNewlines)
 
@@ -259,8 +259,8 @@ struct AISettingsSection: View {
     @Binding var openRouterAPIKey: String
     @Binding var visionModel: String
     @Binding var chatModel: String
-    @Binding var mem0URL: String
-    @Binding var mem0APIKey: String
+    @Binding var memoryURL: String
+    @Binding var memoryAPIKey: String
     @Binding var memoryUserID: String
     @Binding var memoryCollection: String
     
@@ -309,9 +309,9 @@ struct AISettingsSection: View {
                     .background(Colors.glassBorder)
                 
                 CustomTextField(
-                    title: "Mem0 Base URL",
+                    title: "Memory API URL",
                     placeholder: "http://localhost:8000",
-                    text: $mem0URL,
+                    text: $memoryURL,
                     icon: "server.rack"
                 )
 
@@ -321,7 +321,7 @@ struct AISettingsSection: View {
                 CustomTextField(
                     title: "Memory API Key",
                     placeholder: "Optional bearer token",
-                    text: $mem0APIKey,
+                    text: $memoryAPIKey,
                     icon: "lock.shield",
                     isSecure: true
                 )
@@ -622,7 +622,9 @@ struct PermissionCard: View {
         .background(
             ZStack {
                 RoundedRectangle(cornerRadius: Radius.lg)
-                    .fill(isHovered ? Colors.white.opacity(0.3) : .ultraThinMaterial)
+                    .fill(.ultraThinMaterial)
+                RoundedRectangle(cornerRadius: Radius.lg)
+                    .fill(Colors.white.opacity(isHovered ? 0.3 : 0))
                 RoundedRectangle(cornerRadius: Radius.lg)
                     .stroke(isHovered ? Colors.glassBorder : Color.clear, lineWidth: 1)
             }
