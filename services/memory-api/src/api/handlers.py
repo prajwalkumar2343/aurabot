@@ -17,12 +17,12 @@ from config import (
 )
 
 
-class Mem0Handler(BaseHandler, MemoryMixin, EmbeddingsMixin, ChatMixin):
-    """Unified HTTP handler for Mem0 API server."""
+class MemoryHandler(BaseHandler, MemoryMixin, EmbeddingsMixin, ChatMixin):
+    """Unified HTTP handler for the AuraBot memory API server."""
 
     memory = None
     model_manager = None
-    HAS_MEM0 = False
+    HAS_MEMORY = False
 
     def do_GET(self):
         parsed = urlparse(self.path)
@@ -99,6 +99,7 @@ class Mem0Handler(BaseHandler, MemoryMixin, EmbeddingsMixin, ChatMixin):
 
     def handle_health(self):
         """Handle GET /health"""
+        memory_info = self.memory.info() if self.memory and hasattr(self.memory, "info") else None
         self.send_json_response(
             {
                 "status": "ok",
@@ -107,7 +108,8 @@ class Mem0Handler(BaseHandler, MemoryMixin, EmbeddingsMixin, ChatMixin):
                 "llm_model": OPENROUTER_CHAT_MODEL,
                 "embedder_provider": "openrouter",
                 "embedder_model": OPENROUTER_EMBEDDING_MODEL,
-                "vector_store": "qdrant",
+                "memory_backend": memory_info.backend if memory_info else "unavailable",
+                "vector_store": memory_info.vector_store if memory_info else "unavailable",
                 "openrouter_url": OPENROUTER_BASE_URL,
             }
         )
