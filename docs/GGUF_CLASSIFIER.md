@@ -44,8 +44,8 @@ DISCARD            USEFUL
 # 1. Install Ollama if needed
 curl -fsSL https://ollama.com/install.sh | sh
 
-# 2. Go to the python src directory
-cd aurabot/python/src
+# 2. Go to the memory API source directory
+cd services/memory-api/src
 
 # 3. Create the model
 cat > Modelfile << 'EOF'
@@ -67,7 +67,7 @@ ollama serve
 # 5. In another terminal, run the Mem0 classifier server
 export CLASSIFIER_URL="http://localhost:11434/v1/chat/completions"
 export CLASSIFIER_MODEL="lfm2-classifier"
-python mem0_with_classifier.py
+python experiments/mem0_with_classifier.py
 ```
 
 ### Option 2: llama.cpp
@@ -88,7 +88,7 @@ make
 # 3. In another terminal, run Mem0 server
 export CLASSIFIER_URL="http://localhost:8080/v1/chat/completions"
 export CLASSIFIER_MODEL="LFM2-350M-Q8_0"
-python mem0_with_classifier.py
+python experiments/mem0_with_classifier.py
 ```
 
 ### Option 3: Automatic Setup
@@ -147,7 +147,7 @@ Your Go app connects automatically to `http://localhost:8000`. The classifier fi
 
 ```bash
 # Make sure Mem0 classifier server is running first
-python python/src/mem0_with_classifier.py
+python services/memory-api/src/experiments/mem0_with_classifier.py
 
 # Then run Go app
 cd go && go run .
@@ -209,9 +209,10 @@ Visit `http://localhost:8000/health` for JSON stats:
 ## File Structure
 
 ```
-aurabot/python/src/
-├── mem0_with_classifier.py    # ← Main server (use this)
-├── gguf_memory_classifier.py   # Alternative (auto-starts GGUF)
+services/memory-api/src/
+├── experiments/
+│   ├── mem0_with_classifier.py    # Classifier server
+│   └── gguf_memory_classifier.py  # Alternative (auto-starts GGUF)
 ├── Modelfile                   # Ollama model definition
 └── ...
 ```

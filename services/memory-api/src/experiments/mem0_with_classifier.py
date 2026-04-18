@@ -14,7 +14,7 @@ Usage:
     ./llama-server -m LFM2-350M-Q8_0.gguf --port 8080
     
     # Then run this script
-    cd python/src && python mem0_with_classifier.py
+    cd services/memory-api/src && python experiments/mem0_with_classifier.py
 """
 
 import os

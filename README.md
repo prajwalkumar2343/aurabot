@@ -16,9 +16,19 @@ Screen Capture (every 30s) → Vision AI Analysis → Vector Storage → Memory 
 
 ### Architecture
 
-- **macOS App**: Handles screen capture and user interaction
-- **Python Backend**: Mem0 server with vector storage (Qdrant)
+- **macOS App**: `apps/macos` handles screen capture and user interaction
+- **Python Backend**: `services/memory-api` provides the Mem0 server with vector storage (Qdrant)
 - **LLM Integration**: OpenRouter for vision and chat capabilities
+
+### Repository Layout
+
+```text
+apps/macos/             # SwiftUI macOS app
+services/memory-api/    # Python memory API service
+tools/                  # Development and demo utilities
+config/                 # Example configuration
+docs/                   # Project documentation
+```
 
 ## Prerequisites
 
@@ -45,7 +55,7 @@ cp .env.example .env
 ### 3. Install Dependencies
 
 ```bash
-pip install -r python/requirements.txt
+pip install -r services/memory-api/requirements.txt
 ```
 
 ### 4. Start the Backend
@@ -59,7 +69,7 @@ This will automatically download required AI models and start the Mem0 server on
 ### 5. Run the App
 
 ```bash
-cd aurabot-swift && swift run AuraBot
+cd apps/macos && swift run AuraBot
 ```
 
 Or download a pre-built release from GitHub Releases and run `python start.py` separately.

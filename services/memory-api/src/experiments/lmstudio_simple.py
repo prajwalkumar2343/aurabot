@@ -10,7 +10,7 @@ Prerequisites:
 - API server started in LM Studio
 
 Usage:
-    python lmstudio_simple.py
+    python experiments/lmstudio_simple.py
 """
 
 import os

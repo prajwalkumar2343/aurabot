@@ -70,10 +70,10 @@ env/
 node_modules/
 
 # Swift/macOS
-aurabot-swift/.build/
-aurabot-swift/*.zip
-aurabot-swift/*.app/
-aurabot-swift/Package.resolved
+apps/macos/.build/
+apps/macos/*.zip
+apps/macos/*.app/
+apps/macos/Package.resolved
 swift-mem0/
 
 # Xcode
@@ -126,4 +126,5 @@ aurabot/tests/__pycache__/
 aurabot/tests/.pytest_cache/
 aurabot/python/src/__pycache__/
 aurabot/.env
+services/memory-api/src/__pycache__/
 test-results/

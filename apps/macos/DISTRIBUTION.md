@@ -5,7 +5,7 @@
 ### Build the App
 
 ```bash
-cd aurabot-swift
+cd apps/macos
 ./scripts/build-app.sh
 ```
 
