@@ -15,7 +15,7 @@ DEFAULT_ALLOWED_ORIGINS = [
 
 def get_allowed_origins() -> List[str]:
     """Return the configured list of allowed CORS origins."""
-    configured = os.getenv("MEM0_ALLOWED_ORIGINS", "").strip()
+    configured = os.getenv("AURABOT_MEMORY_ALLOWED_ORIGINS", "").strip()
     if not configured:
         return DEFAULT_ALLOWED_ORIGINS
 
