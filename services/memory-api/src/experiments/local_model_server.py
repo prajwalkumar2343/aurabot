@@ -11,7 +11,7 @@ This server provides a REST API for:
 - Vision-language inference (chat with images)
 
 Usage:
-    python local_model_server.py
+    python experiments/local_model_server.py
     
 Requirements will be auto-installed on first run.
 """

@@ -13,7 +13,7 @@ from http.server import HTTPServer
 from config import HOST, PORT, MODELS_DIR
 from models.local_manager import LocalModelManager
 from core.memory_factory import init_local_memory
-from api.handlers import Mem0Handler
+from api.handlers import MemoryHandler
 
 
 def main():
@@ -31,16 +31,16 @@ def main():
         sys.exit(1)
 
     print("=" * 70)
-    print("Mem0 REST API Server (Local Models - No External Dependencies)")
+    print("AuraBot Memory API Server (Local Models)")
     print("=" * 70)
     print()
 
     model_manager = LocalModelManager()
-    memory, has_mem0 = init_local_memory(model_manager, HOST, PORT)
+    memory, has_memory = init_local_memory(model_manager, HOST, PORT)
 
-    Mem0Handler.model_manager = model_manager
-    Mem0Handler.memory = memory
-    Mem0Handler.HAS_MEM0 = has_mem0
+    MemoryHandler.model_manager = model_manager
+    MemoryHandler.memory = memory
+    MemoryHandler.HAS_MEMORY = has_memory
 
     print("-" * 70)
     print("Available endpoints:")
@@ -48,7 +48,7 @@ def main():
     print(f"  Models:      GET  http://{HOST}:{PORT}/v1/models")
     print(f"  Embeddings:  POST http://{HOST}:{PORT}/v1/embeddings")
     print(f"  Chat:        POST http://{HOST}:{PORT}/v1/chat/completions")
-    if has_mem0:
+    if has_memory:
         print(f"  Memories:    GET  http://{HOST}:{PORT}/v1/memories/")
         print(f"  Add Memory:  POST http://{HOST}:{PORT}/v1/memories/")
         print(f"  Search:      POST http://{HOST}:{PORT}/v1/memories/search/")
@@ -57,7 +57,7 @@ def main():
     print("Press Ctrl+C to stop")
     print()
 
-    server = HTTPServer((HOST, PORT), Mem0Handler)
+    server = HTTPServer((HOST, PORT), MemoryHandler)
 
     try:
         server.serve_forever()

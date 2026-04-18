@@ -1,8 +1,9 @@
-# Mem0 REST API Server Dependencies
+# AuraBot memory API server dependencies
 
 # Core
-mem0ai>=0.1.0
 requests>=2.31.0
+SQLAlchemy>=2.0.0
+psycopg[binary]>=3.1.0
 
 # For .env file support
 python-dotenv>=1.0.0

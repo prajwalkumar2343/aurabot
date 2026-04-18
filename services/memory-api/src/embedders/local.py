@@ -50,7 +50,7 @@ class LocalEmbedder:
         if self.model is None:
             raise ValueError(
                 "Local embedding model not available. "
-                "Please download the model or switch to LM Studio/Ollama in settings."
+                "Please download the model or switch to a remote embedding provider."
             )
 
         embeddings = self.model.encode(texts, convert_to_numpy=True)
