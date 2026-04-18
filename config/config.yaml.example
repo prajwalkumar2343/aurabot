@@ -10,7 +10,7 @@ capture:
 # LLM Configuration (Chat & Text)
 # Using OpenRouter - set OPENROUTER_API_KEY in your .env file
 llm:
-  provider: "openrouter"        # openai, anthropic, gemini, groq, cerebras, ollama, lm-studio, openrouter, custom
+  provider: "openrouter"        # openai, anthropic, gemini, groq, cerebras, ollama, openrouter, custom
   base_url: "https://openrouter.ai/api/v1"
   api_key: ""                   # Loaded from OPENROUTER_API_KEY env var
   model: "anthropic/claude-3.5-sonnet"
@@ -34,10 +34,11 @@ embeddings:
   model: "openai/text-embedding-3-small"
   dimensions: 1536
 
-# Mem0 Configuration
+# Memory API configuration
 memory:
-  api_key: ""                   # Leave empty for local Mem0
-  base_url: "http://localhost:8000"  # Mem0 server URL
+  api_key: ""                   # Optional bearer token
+  base_url: "http://localhost:8000"  # Memory API server URL
+  database_url: ""              # Postgres connection string
   user_id: "default_user"
   collection_name: "screen_memories"
 

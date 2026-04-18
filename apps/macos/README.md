@@ -5,7 +5,7 @@ A complete Swift/macOS rewrite of the AuraBot screen memory assistant.
 ## Features
 
 - ✅ **Screen Capture** - Periodic screenshots using ScreenCaptureKit
-- ✅ **Memory Storage** - Mem0 integration for vector embeddings
+- ✅ **Memory Storage** - Memory API integration with vector embeddings
 - ✅ **LLM Integration** - OpenAI-compatible API support
 - ✅ **Quick Enhance** - Global hotkey (⌘⌥E) to enhance any text
 - ✅ **Floating Overlay** - System-wide floating button
@@ -23,7 +23,7 @@ A complete Swift/macOS rewrite of the AuraBot screen memory assistant.
 ### 1. Clone and Setup
 
 ```bash
-cd aurabot-swift
+cd apps/macos
 ```
 
 ### 2. Build with Swift Package Manager
@@ -58,7 +58,7 @@ Sources/AuraBot/
 ├── Services/
 │   ├── AppService.swift       # Main service orchestrator
 │   ├── LLMService.swift       # LLM API client
-│   ├── MemoryService.swift    # Mem0 API client
+│   ├── MemoryService.swift    # Memory API client
 │   ├── ScreenCaptureService.swift  # ScreenCaptureKit wrapper
 │   ├── EnhancerService.swift  # Prompt enhancement logic
 │   └── APIServer.swift        # HTTP API for extension
