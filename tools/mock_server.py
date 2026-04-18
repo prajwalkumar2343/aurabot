@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Mock Mem0 Server for UI Demo"""
+"""Mock memory server for UI demos."""
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
