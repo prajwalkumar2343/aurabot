@@ -23,7 +23,7 @@ A complete Swift/macOS rewrite of the AuraBot screen memory assistant.
 ### 1. Clone and Setup
 
 ```bash
-cd aurabot-swift
+cd apps/macos
 ```
 
 ### 2. Build with Swift Package Manager

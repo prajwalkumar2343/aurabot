@@ -1,35 +1,29 @@
 #!/usr/bin/env python3
 """
-Simpler Mem0 setup that uses external GGUF/Ollama for memory classification.
+Mem0 with LM Studio Classifier
+Uses your already-running LM Studio to classify memories.
 
 Prerequisites:
-1. Install Ollama or run llama.cpp server with your LFM2-350M-Q8_0.gguf
-2. pip install mem0ai
+- LM Studio running with any GGUF model loaded
+- API server enabled in LM Studio (default port 1234)
+- pip install mem0ai qdrant-client transformers torch requests
 
 Usage:
-    # Option 1: With Ollama
-    ollama create lfm2-classifier -f ./Modelfile  # See below
-    
-    # Option 2: With llama.cpp
-    ./llama-server -m LFM2-350M-Q8_0.gguf --port 8080
-    
-    # Then run this script
-    cd python/src && python mem0_with_classifier.py
+    python experiments/mem0_lmstudio_classifier.py
 """
 
 import os
 import sys
 import json
-import uuid
 import time
 import requests
 from datetime import datetime
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from urllib.parse import parse_qs, urlparse
 from pathlib import Path
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Tuple
 
-# Load .env
+# Load .env if exists
 try:
     from dotenv import load_dotenv
     load_dotenv()
@@ -39,134 +33,131 @@ except ImportError:
 # Configuration
 HOST = os.getenv("MEM0_HOST", "localhost")
 PORT = int(os.getenv("MEM0_PORT", "8000"))
-CLASSIFIER_URL = os.getenv("CLASSIFIER_URL", "http://localhost:8080/v1/chat/completions")
-MODEL_NAME = os.getenv("CLASSIFIER_MODEL", "lfm2-classifier")
+LM_STUDIO_URL = os.getenv("LM_STUDIO_URL", "http://localhost:1234/v1")
 
 print("="*70)
-print("Mem0 with GGUF Memory Classifier")
+print("Mem0 + LM Studio Memory Classifier")
 print("="*70)
-print(f"Classifier URL: {CLASSIFIER_URL}")
+print(f"LM Studio: {LM_STUDIO_URL}")
 print()
 
 
-class MemoryClassifier:
-    """Uses external GGUF/Ollama server to classify memories."""
+class LMStudioClassifier:
+    """Uses LM Studio to classify if text is a useful memory."""
     
-    def __init__(self, server_url: str, model: str):
-        self.server_url = server_url
-        self.model = model
-        self.system_prompt = """You are a memory filter. Determine if the text contains useful, memorable information.
+    def __init__(self, base_url: str):
+        self.base_url = base_url.rstrip('/')
+        self.chat_url = f"{self.base_url}/chat/completions"
+        self.model = None
+        
+    def check_connection(self) -> bool:
+        """Verify LM Studio is running and detect model."""
+        try:
+            resp = requests.get(f"{self.base_url}/models", timeout=5)
+            if resp.status_code == 200:
+                models = resp.json().get('data', [])
+                print("[OK] LM Studio connected")
+                if models:
+                    for m in models:
+                        print(f"     Model: {m['id']}")
+                    non_emb = [
+                        m for m in models
+                        if not any(k in m.get('id', '').lower() for k in ("embed", "nomic", "gte", "bge"))
+                    ]
+                    self.model = (non_emb[0] if non_emb else models[0]).get('id')
+                    print(f"[OK] Using model: {self.model}")
+                return True
+        except Exception as e:
+            print(f"[ERROR] Cannot connect to LM Studio: {e}")
+        return False
+    
+    def classify(self, text: str) -> Tuple[bool, str]:
+        """
+        Ask LM Studio if this text is worth remembering.
+        Returns: (is_useful, reason)
+        """
+        system_prompt = """You are a memory classifier. Your job is to decide if the given text contains useful information worth remembering.
 
 USEFUL memories include:
-- User preferences, goals, important facts
-- Tasks, reminders, decisions made
-- Context valuable for future reference
+- User preferences, goals, personal details
+- Tasks, reminders, deadlines, decisions
+- Important context to recall later
+- Work projects, commitments
 - Key insights or information
 
 NOT useful (respond DISCARD):
-- Greetings, small talk
-- Temporary info, loading messages
-- Obvious/generic statements
+- Greetings, small talk, "hello", "thanks"
+- Loading messages, "please wait"
+- System notifications
+- Temporary or obvious info
 - Incomplete thoughts
 
-Respond ONLY with:
+Respond ONLY in this format:
 DECISION: USEFUL or DISCARD
-REASON: brief explanation"""
+REASON: one line explanation"""
 
-    def check_server(self) -> bool:
-        """Verify classifier server is running."""
-        try:
-            # Try Ollama-style check
-            resp = requests.get(self.server_url.replace("/v1/chat/completions", "/api/tags"), timeout=5)
-            if resp.status_code == 200:
-                print(f"[OK] Ollama server detected")
-                return True
-        except:
-            pass
-        
-        try:
-            # Try OpenAI-compatible check
-            resp = requests.get(self.server_url.replace("/v1/chat/completions", "/health"), timeout=5)
-            if resp.status_code == 200:
-                print(f"[OK] llama.cpp server detected")
-                return True
-        except:
-            pass
-        
-        return False
-    
-    def classify(self, text: str) -> tuple[bool, str]:
-        """
-        Classify if text is useful memory.
-        Returns: (is_useful, reason)
-        """
         messages = [
-            {"role": "system", "content": self.system_prompt},
-            {"role": "user", "content": f"Text:\n{text[:2000]}"}  # Limit input
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": f"Classify this text:\n{text[:1500]}"}
         ]
         
         payload = {
-            "model": self.model,
+            "model": self.model or "local-model",
             "messages": messages,
-            "max_tokens": 256,
+            "max_tokens": 128,
             "temperature": 0.1,
             "stream": False
         }
         
         try:
-            resp = requests.post(self.server_url, json=payload, timeout=30)
+            resp = requests.post(self.chat_url, json=payload, timeout=30)
             resp.raise_for_status()
             data = resp.json()
             
-            content = data.get("choices", [{}])[0].get("message", {}).get("content", "")
+            content = data["choices"][0]["message"]["content"]
             
+            # Parse decision
             is_useful = "USEFUL" in content.upper() and "DISCARD" not in content.upper()
             
             # Extract reason
             reason = ""
             if "REASON:" in content:
                 reason = content.split("REASON:", 1)[1].strip()
+            elif "DECISION:" in content:
+                reason = content.split("DECISION:", 1)[1].strip()
             
             return is_useful, reason
             
         except Exception as e:
             print(f"[WARN] Classification failed: {e}")
             # Default to storing if classifier fails
-            return True, "classification_error"
+            return True, "classifier_error"
 
 
 # Initialize classifier
-classifier = MemoryClassifier(CLASSIFIER_URL, MODEL_NAME)
+classifier = LMStudioClassifier(LM_STUDIO_URL)
 
-if not classifier.check_server():
-    print("[ERROR] Classifier server not responding!")
-    print(f"        Checked: {CLASSIFIER_URL}")
+if not classifier.check_connection():
     print()
-    print("Please start your GGUF server:")
-    print()
-    print("Option 1 - Ollama:")
-    print("  1. Create a Modelfile:")
-    print("     FROM ./LFM2-350M-Q8_0.gguf")
-    print("     PARAMETER temperature 0.1")
-    print("")
-    print("  2. ollama create lfm2-classifier -f Modelfile")
-    print("  3. ollama run lfm2-classifier")
-    print()
-    print("Option 2 - llama.cpp:")
-    print("  ./llama-server -m LFM2-350M-Q8_0.gguf --port 8080")
+    print("Please check:")
+    print("  1. LM Studio is running")
+    print("  2. Model is loaded")
+    print("  3. API server is started (click 'Start Server' in LM Studio)")
     print()
     sys.exit(1)
 
-print("[OK] Classifier connected")
+print()
 
 
 # ============================================================================
-# Embedding Model (same as before)
+# Embedding Model (Gemma - for actual embeddings)
 # ============================================================================
 
 MODELS_DIR = Path(os.getenv("MODELS_DIR", "./models"))
 
-class LocalEmbedder:
+class GemmaEmbedder:
+    """Google Embedding Gemma for vector embeddings."""
+    
     def __init__(self):
         self.model = None
         self.tokenizer = None
@@ -176,27 +167,33 @@ class LocalEmbedder:
             import torch
             if torch.cuda.is_available():
                 self.device = "cuda"
+                print(f"[OK] Using CUDA for embeddings")
         except:
             pass
     
-    def load(self):
+    def load(self) -> bool:
         from transformers import AutoTokenizer, AutoModel
         import torch
         
         path = MODELS_DIR / "embeddinggemma-300m-f8"
         if not path.exists():
-            print(f"[ERROR] Embedding model not found: {path}")
+            print(f"[WARN] Gemma embedder not found at {path}")
+            print(f"       Embeddings will not work!")
             return False
         
-        print("[INFO] Loading embedding model...")
-        self.tokenizer = AutoTokenizer.from_pretrained(path, trust_remote_code=True, local_files_only=True)
+        print("[INFO] Loading Gemma embedding model...")
+        self.tokenizer = AutoTokenizer.from_pretrained(
+            path, trust_remote_code=True, local_files_only=True
+        )
         self.model = AutoModel.from_pretrained(
             path, trust_remote_code=True, local_files_only=True,
-            torch_dtype=torch.float16, device_map="auto"
+            torch_dtype=torch.float16 if self.device == "cuda" else torch.float32,
+            device_map="auto" if self.device == "cuda" else None
         )
-        self.model.to(self.device)
+        if self.device == "cpu":
+            self.model.to(self.device)
         self.model.eval()
-        print("[OK] Embedding model loaded")
+        print("[OK] Embedding model ready")
         return True
     
     def embed(self, texts: List[str]) -> List[List[float]]:
@@ -208,10 +205,12 @@ class LocalEmbedder:
         
         embeddings = []
         with torch.no_grad():
-            for i in range(0, len(texts), 8):
-                batch = texts[i:i + 8]
-                encoded = self.tokenizer(batch, padding=True, truncation=True,
-                                         return_tensors="pt", max_length=8192)
+            for i in range(0, len(texts), 4):  # Small batches
+                batch = texts[i:i + 4]
+                encoded = self.tokenizer(
+                    batch, padding=True, truncation=True,
+                    return_tensors="pt", max_length=8192
+                )
                 encoded = {k: v.to(self.device) for k, v in encoded.items()}
                 
                 output = self.model(**encoded)
@@ -223,11 +222,11 @@ class LocalEmbedder:
         return embeddings
 
 
-embedder = LocalEmbedder()
+embedder = GemmaEmbedder()
 
 
 # ============================================================================
-# Mem0 Setup with Filtering
+# Mem0 with Pre-Filtering
 # ============================================================================
 
 try:
@@ -235,13 +234,12 @@ try:
     HAS_MEM0 = True
 except ImportError:
     print("[ERROR] mem0ai not installed. Run: pip install mem0ai")
-    HAS_MEM0 = False
     sys.exit(1)
 
 
-class ClassifyingMemoryStore:
+class FilteringMemoryStore:
     """
-    Mem0 wrapper that filters memories through GGUF classifier.
+    Mem0 wrapper that classifies with LM Studio BEFORE embedding.
     Only useful memories get embedded and stored.
     """
     
@@ -250,38 +248,50 @@ class ClassifyingMemoryStore:
         self.stats = {"stored": 0, "discarded": 0}
     
     def add(self, messages, user_id="default_user", agent_id=None, metadata=None, **kwargs):
-        """Add memory with classification filter."""
-        # Extract text from messages
+        """Add memory with LM Studio classification filter."""
+        # Extract text
         if isinstance(messages, list):
             text = " ".join([m.get("content", "") for m in messages if isinstance(m, dict)])
         else:
             text = str(messages)
         
-        print(f"\n[INPUT] {text[:100]}...")
+        # Skip empty
+        if not text.strip():
+            return {"id": "empty", "filtered": True}
         
-        # Classify
+        print(f"\n[CLASSIFY] {text[:100]}...")
+        
+        # Classify with LM Studio
         is_useful, reason = classifier.classify(text)
         
         if not is_useful:
             self.stats["discarded"] += 1
-            print(f"[DISCARD] ({self.stats['discarded']} total) - {reason}")
+            print(f"[DISCARD] ({self.stats['discarded']} total) {reason}")
             return {
-                "id": f"discarded_{uuid.uuid4().hex[:8]}",
+                "id": f"discarded_{int(time.time())}",
                 "filtered": True,
                 "reason": reason
             }
         
-        # It's useful - proceed with embedding
+        # Useful - proceed to embed and store
         self.stats["stored"] += 1
-        print(f"[STORE] ({self.stats['stored']} total) - {reason}")
+        print(f"[STORE] ({self.stats['stored']} total) {reason}")
         
-        # Add to Mem0 (skip infer since we classified)
+        # Add classification metadata
+        enriched_metadata = {
+            **(metadata or {}),
+            "classified": True,
+            "classifier": "lmstudio",
+            "classification_reason": reason
+        }
+        
+        # Store in Mem0 (skip infer since we classified)
         return self.memory.add(
             messages=messages,
             user_id=user_id,
             agent_id=agent_id,
-            metadata={**(metadata or {}), "classified": True, "classifier_reason": reason},
-            infer=False
+            metadata=enriched_metadata,
+            infer=False  # We already did classification
         )
     
     def search(self, **kwargs):
@@ -298,39 +308,54 @@ class ClassifyingMemoryStore:
 
 
 # Configure Mem0
-print()
 print("Configuring Mem0...")
 
-embedder.load()
+# Load embedding model
+has_embedder = embedder.load()
 
 config = {
     "vector_store": {
         "provider": "qdrant",
         "config": {
-            "collection_name": "filtered_memories",
+            "collection_name": "lmstudio_filtered_memories",
             "embedding_model_dims": 768,
             "path": "./qdrant_storage",
+        }
+    },
+    "embedder": {
+        "provider": "openai",
+        "config": {
+            "model": "embedding-gemma",
+            "api_key": "local",
+            "openai_base_url": f"http://{HOST}:{PORT}/v1",
+        }
+    } if has_embedder else {
+        "provider": "openai",  # Will use our endpoint
+        "config": {
+            "model": "local",
+            "api_key": "local",
+            "openai_base_url": f"http://{HOST}:{PORT}/v1",
         }
     },
     "llm": {
         "provider": "openai",
         "config": {
-            "model": MODEL_NAME,
+            "model": classifier.model or "local-model",
             "api_key": "not-needed",
-            "openai_base_url": CLASSIFIER_URL.replace("/chat/completions", ""),
+            "openai_base_url": LM_STUDIO_URL,
+            "temperature": 0.1,
+            "max_tokens": 128,
         }
     },
 }
 
 try:
     base_memory = Memory.from_config(config_dict=config)
-    memory = ClassifyingMemoryStore(base_memory)
-    print("[OK] Mem0 initialized with GGUF classifier!")
+    memory = FilteringMemoryStore(base_memory)
+    print("[OK] Mem0 initialized with LM Studio classifier!")
     print()
-    print("How it works:")
-    print("  1. Incoming text → GGUF classifier (LFM2-350M)")
-    print("  2. Classifier decides: USEFUL or DISCARD")
-    print("  3. Only USEFUL memories get embedded & stored")
+    print("Flow: Text -> LM Studio (classify) -> [USEFUL] -> Embed -> Store")
+    print("                         ↓[DISCARD]  (no embedding created)")
     print()
 except Exception as e:
     print(f"[ERROR] Failed to initialize Mem0: {e}")
@@ -340,11 +365,12 @@ except Exception as e:
 
 
 # ============================================================================
-# HTTP Server (OpenAI-compatible for Go app)
+# HTTP Server (API for Go app)
 # ============================================================================
 
 class Handler(BaseHTTPRequestHandler):
-    # Allowed origins for CORS
+    
+    # Allowed origins for CORS - configure based on your deployment
     ALLOWED_ORIGINS = [
         "http://localhost:3000",
         "http://localhost:8080",
@@ -356,14 +382,17 @@ class Handler(BaseHTTPRequestHandler):
         print(f"[{datetime.now().strftime('%H:%M:%S')}] {format % args}")
     
     def _get_origin(self):
+        """Get the Origin header from the request."""
         return self.headers.get('Origin', '')
     
     def _is_allowed_origin(self, origin):
+        """Check if the origin is in the allowed list."""
         if not origin:
             return True
         for allowed in self.ALLOWED_ORIGINS:
             if allowed.endswith('/*'):
-                if origin.startswith(allowed[:-1]):
+                prefix = allowed[:-1]
+                if origin.startswith(prefix):
                     return True
             elif origin == allowed:
                 return True
@@ -396,15 +425,18 @@ class Handler(BaseHTTPRequestHandler):
         path = parsed.path
         query = parse_qs(parsed.query)
         
+        # Health check
         if path == "/health":
             self.send_json({
                 "status": "ok",
-                "classifier_url": CLASSIFIER_URL,
-                "model": MODEL_NAME,
+                "lm_studio": LM_STUDIO_URL,
+                "classifier": "lmstudio",
+                "classifier_model": classifier.model,
                 "stats": memory.get_stats() if memory else {},
             })
             return
         
+        # List memories
         if path == "/v1/memories/":
             try:
                 user_id = query.get("user_id", ["default_user"])[0]
@@ -412,6 +444,7 @@ class Handler(BaseHTTPRequestHandler):
                 results = memory.get_all(user_id=user_id, limit=limit)
                 self.send_json(results if isinstance(results, list) else [])
             except Exception as e:
+                print(f"[ERROR] Get memories: {e}")
                 self.send_json({"error": str(e)}, 500)
             return
         
@@ -425,7 +458,7 @@ class Handler(BaseHTTPRequestHandler):
         body = self.rfile.read(content_length).decode()
         data = json.loads(body) if body else {}
         
-        # Embeddings
+        # Embeddings endpoint (for Mem0)
         if path == "/v1/embeddings":
             try:
                 texts = data.get("input", [])
@@ -443,10 +476,11 @@ class Handler(BaseHTTPRequestHandler):
                     "model": "embedding-gemma",
                 })
             except Exception as e:
+                print(f"[ERROR] Embeddings: {e}")
                 self.send_json({"error": str(e)}, 500)
             return
         
-        # Add memory WITH CLASSIFICATION
+        # Add memory WITH LM STUDIO CLASSIFICATION
         if path == "/v1/memories/":
             try:
                 messages = data.get("messages", [])
@@ -471,17 +505,18 @@ class Handler(BaseHTTPRequestHandler):
                 else:
                     self.send_json({
                         **result,
+                        "status": "stored",
                         "stats": memory.get_stats()
                     }, 201)
                     
             except Exception as e:
-                print(f"[ERROR] Add memory failed: {e}")
+                print(f"[ERROR] Add memory: {e}")
                 import traceback
                 traceback.print_exc()
                 self.send_json({"error": str(e)}, 500)
             return
         
-        # Search
+        # Search memories
         if path == "/v1/memories/search/":
             try:
                 query = data.get("query", "")
@@ -491,6 +526,7 @@ class Handler(BaseHTTPRequestHandler):
                 results = memory.search(query=query, user_id=user_id, limit=limit)
                 self.send_json({"results": results if isinstance(results, list) else []})
             except Exception as e:
+                print(f"[ERROR] Search: {e}")
                 self.send_json({"error": str(e)}, 500)
             return
         
@@ -506,12 +542,14 @@ class Handler(BaseHTTPRequestHandler):
 
 def main():
     print("-" * 70)
-    print("Server endpoints:")
+    print("Server running:")
     print(f"  Health:  GET  http://{HOST}:{PORT}/health")
     print(f"  Add:     POST http://{HOST}:{PORT}/v1/memories/")
     print(f"  Search:  POST http://{HOST}:{PORT}/v1/memories/search/")
     print(f"  Get All: GET  http://{HOST}:{PORT}/v1/memories/")
     print("-" * 70)
+    print()
+    print("Your Go app should connect to: http://localhost:8000")
     print()
     print("Press Ctrl+C to stop")
     print()
@@ -521,8 +559,9 @@ def main():
     try:
         server.serve_forever()
     except KeyboardInterrupt:
-        print("\nShutting down...")
+        print("\n\n[INFO] Shutting down...")
         server.shutdown()
+        print(f"Final stats: {memory.get_stats()}")
 
 
 if __name__ == "__main__":

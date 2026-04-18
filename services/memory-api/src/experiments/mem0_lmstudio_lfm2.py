@@ -17,7 +17,7 @@ Environment Variables:
 - MEM0_PORT: Server port (default: 8000)
 
 Usage:
-    cd python/src && python mem0_lmstudio_lfm2.py
+    cd services/memory-api/src && python experiments/mem0_lmstudio_lfm2.py
 """
 
 import os

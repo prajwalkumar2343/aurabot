@@ -19,7 +19,7 @@ APP_BUNDLE="${APP_NAME}.app"
 
 # Check directory
 if [ ! -f "Package.swift" ]; then
-    echo -e "${RED}Error: Run this from aurabot-swift directory${NC}"
+    echo -e "${RED}Error: Run this from apps/macos directory${NC}"
     exit 1
 fi
 
