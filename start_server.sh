@@ -1,11 +1,11 @@
 #!/bin/bash
-# Start Mem0 Server with OpenRouter-backed models
+# Start AuraBot memory server with OpenRouter-backed models
 
 ROOT_DIR="$(cd "$(dirname "$0")" && pwd)"
 cd "$ROOT_DIR"
 
 echo "================================"
-echo "Starting Mem0 Server"
+echo "Starting AuraBot Memory Server"
 echo "================================"
 echo
 
@@ -20,6 +20,6 @@ fi
 echo "Checking configuration..."
 echo
 
-# Start the main Mem0 server
-echo "Starting Mem0 server..."
+# Start the main memory server
+echo "Starting memory server..."
 python3 services/memory-api/src/main.py
