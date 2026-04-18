@@ -17,7 +17,7 @@ from pathlib import Path
 
 
 def start_server():
-    """Start the Mem0 server."""
+    """Start the memory server."""
     server_script = (
         Path(__file__).parent / "services" / "memory-api" / "src" / "main.py"
     )
@@ -28,7 +28,7 @@ def start_server():
 
     print()
     print("=" * 70)
-    print("  Starting Mem0 Server")
+    print("  Starting AuraBot Memory Server")
     print("=" * 70)
     print()
 
@@ -44,7 +44,7 @@ def main():
     setup_only = "--setup-only" in args
     if setup_only:
         print("[INFO] No local model setup is required.")
-        print("       Configure OPENROUTER_API_KEY or save it in ~/.aurabot/config.json")
+        print("       Configure OPENROUTER_API_KEY and DATABASE_URL before starting.")
         return 0
 
     return start_server()
