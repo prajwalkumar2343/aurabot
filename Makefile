@@ -44,7 +44,7 @@ deps-py:
 test-py:
 	cd $(PYTHON_DIR) && $(PYTHON) -m unittest discover -s tests -v
 
-# Run Python server (Mem0)
+# Run Python memory server
 run-server:
 	python start.py
 
