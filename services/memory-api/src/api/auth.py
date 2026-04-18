@@ -5,11 +5,11 @@ Authentication helpers for HTTP handlers.
 import hmac
 from typing import Mapping
 
-from config import MEM0_API_KEY
+from config import MEMORY_API_KEY
 
 def expected_api_key() -> str:
     """Return the configured API key for protected API routes."""
-    return MEM0_API_KEY.strip()
+    return MEMORY_API_KEY.strip()
 
 
 def requires_auth(path: str) -> bool:
