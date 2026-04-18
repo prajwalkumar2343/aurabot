@@ -4,8 +4,10 @@
 
 BINARY_NAME=AuraBot
 BUILD_DIR=build
-SWIFT_DIR=aurabot-swift
-PYTHON_DIR=python
+SWIFT_DIR=apps/macos
+PYTHON_DIR=services/memory-api
+PYTHON ?= python3
+PIP ?= pip3
 
 # ========== Swift/macOS Commands ==========
 
@@ -36,19 +38,19 @@ clean-swift:
 
 # Install Python dependencies
 deps-py:
-	pip install -r $(PYTHON_DIR)/requirements.txt
+	$(PIP) install -r $(PYTHON_DIR)/requirements.txt
 
 # Run Python tests
 test-py:
-	cd $(PYTHON_DIR) && python -m pytest tests/ -v
+	cd $(PYTHON_DIR) && $(PYTHON) -m unittest discover -s tests -v
 
-# Run Python server (Mem0)
+# Run Python memory server
 run-server:
 	python start.py
 
 # Run local model server
 run-local:
-	cd $(PYTHON_DIR)/src && python local_model_server.py
+	cd $(PYTHON_DIR)/src && $(PYTHON) local_server.py
 
 # ========== General Commands ==========
 

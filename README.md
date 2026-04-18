@@ -16,14 +16,25 @@ Screen Capture (every 30s) → Vision AI Analysis → Vector Storage → Memory 
 
 ### Architecture
 
-- **macOS App**: Handles screen capture and user interaction
-- **Python Backend**: Mem0 server with vector storage (Qdrant)
+- **macOS App**: `apps/macos` handles screen capture and user interaction
+- **Python Backend**: `services/memory-api` provides the memory API with Postgres/pgvector storage
 - **LLM Integration**: OpenRouter for vision and chat capabilities
+
+### Repository Layout
+
+```text
+apps/macos/             # SwiftUI macOS app
+services/memory-api/    # Python memory API service
+tools/                  # Development and demo utilities
+config/                 # Example configuration
+docs/                   # Project documentation
+```
 
 ## Prerequisites
 
 - macOS 14.0+ (Sonoma)
 - OpenRouter API key ([get one here](https://openrouter.ai/settings/keys))
+- Postgres database with pgvector available
 - Screen Recording permission (prompted on first launch)
 
 ## Getting Started
@@ -39,13 +50,13 @@ cd aurabot
 
 ```bash
 cp .env.example .env
-# Add your OPENROUTER_API_KEY to .env
+# Add OPENROUTER_API_KEY and DATABASE_URL to .env
 ```
 
 ### 3. Install Dependencies
 
 ```bash
-pip install -r python/requirements.txt
+pip install -r services/memory-api/requirements.txt
 ```
 
 ### 4. Start the Backend
@@ -54,12 +65,12 @@ pip install -r python/requirements.txt
 python start.py
 ```
 
-This will automatically download required AI models and start the Mem0 server on port 8000.
+This starts the memory API server on port 8000.
 
 ### 5. Run the App
 
 ```bash
-cd aurabot-swift && swift run AuraBot
+cd apps/macos && swift run AuraBot
 ```
 
 Or download a pre-built release from GitHub Releases and run `python start.py` separately.
@@ -77,7 +88,8 @@ Key environment variables (see `.env.example`):
 | Variable | Description |
 |----------|-------------|
 | `OPENROUTER_API_KEY` | Your OpenRouter API key (required) |
-| `MEM0_PORT` | Backend server port (default: 8000) |
+| `DATABASE_URL` | Postgres connection string for the memory store |
+| `AURABOT_MEMORY_PORT` | Backend server port (default: 8000) |
 
 Capture settings can be adjusted in `~/.aurabot/config.json` after first launch.
 
