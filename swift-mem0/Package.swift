@@ -16,5 +16,9 @@ let package = Package(
             name: "Mem0",
             dependencies: []
         ),
+        .testTarget(
+            name: "Mem0Tests",
+            dependencies: ["Mem0"]
+        ),
     ]
 )

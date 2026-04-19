@@ -24,7 +24,7 @@ jobs:
         run: python -m compileall -q services/memory-api/src tools start.py
 
   macos-app:
-    name: macOS App Build
+    name: macOS App
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
@@ -33,12 +33,20 @@ jobs:
         run: swift build
         working-directory: apps/macos
 
+      - name: Run AuraBot tests
+        run: swift test
+        working-directory: apps/macos
+
   swift-mem0:
-    name: Swift Mem0 Build
+    name: Swift Mem0
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
 
       - name: Build Mem0
         run: swift build
+        working-directory: swift-mem0
+
+      - name: Run Mem0 tests
+        run: swift test
         working-directory: swift-mem0

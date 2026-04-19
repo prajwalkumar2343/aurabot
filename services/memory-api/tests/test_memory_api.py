@@ -4,8 +4,10 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from api.memoryMixin import MemoryMixin
+import api.auth as auth
+from api.auth import is_authorized
 from api.handlers import MemoryHandler
+from api.memoryMixin import MemoryMixin
 
 
 class FakeMemoryStore:
@@ -204,6 +206,65 @@ class MemoryMixinTests(unittest.TestCase):
 
 
 class HandlerRouteTests(unittest.TestCase):
+    def test_get_route_clamps_memory_limit(self):
+        handler = MemoryHandler.__new__(MemoryHandler)
+        handler.path = "/v1/memories/?user_id=user-1&limit=100000"
+        calls = []
+
+        handler.require_authorization = lambda path=None: True
+        handler.get_memories = lambda user_id, agent_id, limit: calls.append(
+            (user_id, agent_id, limit)
+        )
+        handler.send_json_response = lambda data, status=200: None
+
+        MemoryHandler.do_GET(handler)
+
+        self.assertEqual(calls, [("user-1", None, 100)])
+
+    def test_add_memory_route_rejects_missing_user_id(self):
+        handler = MemoryHandler.__new__(MemoryHandler)
+        handler.path = "/v1/memories/"
+        handler.require_authorization = lambda path=None: True
+        handler.parse_json_body = lambda: {
+            "messages": [{"role": "user", "content": "hello"}]
+        }
+        handler.response = None
+        handler.status = None
+        handler.add_memory = lambda *args, **kwargs: self.fail("add_memory should not run")
+        handler.send_json_response = lambda data, status=200: setattr(
+            handler, "response", data
+        ) or setattr(handler, "status", status)
+
+        MemoryHandler.do_POST(handler)
+
+        self.assertEqual(handler.status, 400)
+        self.assertEqual(
+            handler.response["error"],
+            "Missing 'messages' or 'user_id' in request body",
+        )
+
+    def test_search_route_rejects_oversized_query(self):
+        handler = MemoryHandler.__new__(MemoryHandler)
+        handler.path = "/v1/memories/search/"
+        handler.require_authorization = lambda path=None: True
+        handler.parse_json_body = lambda: {"user_id": "user-1", "query": "x" * 4001}
+        handler.response = None
+        handler.status = None
+        handler.search_memories = lambda *args, **kwargs: self.fail(
+            "search_memories should not run"
+        )
+        handler.send_json_response = lambda data, status=200: setattr(
+            handler, "response", data
+        ) or setattr(handler, "status", status)
+
+        MemoryHandler.do_POST(handler)
+
+        self.assertEqual(handler.status, 413)
+        self.assertEqual(
+            handler.response["error"],
+            "Query string exceeds max length of 4000 characters",
+        )
+
     def test_delete_route_strips_trailing_slash_before_dispatch(self):
         handler = MemoryHandler.__new__(MemoryHandler)
         handler.path = "/v1/memories/mem-9/"
@@ -216,6 +277,30 @@ class HandlerRouteTests(unittest.TestCase):
         MemoryHandler.do_DELETE(handler)
 
         self.assertEqual(deleted_ids, ["mem-9"])
+
+
+class AuthTests(unittest.TestCase):
+    def test_missing_api_key_denies_by_default(self):
+        original_key = auth.MEMORY_API_KEY
+        original_allow = auth.ALLOW_UNAUTHENTICATED_MEMORY_API
+        try:
+            auth.MEMORY_API_KEY = ""
+            auth.ALLOW_UNAUTHENTICATED_MEMORY_API = False
+
+            self.assertFalse(is_authorized({}))
+        finally:
+            auth.MEMORY_API_KEY = original_key
+            auth.ALLOW_UNAUTHENTICATED_MEMORY_API = original_allow
+
+    def test_valid_bearer_token_authorizes(self):
+        original_key = auth.MEMORY_API_KEY
+        try:
+            auth.MEMORY_API_KEY = "secret"
+
+            self.assertTrue(is_authorized({"Authorization": "Bearer secret"}))
+            self.assertFalse(is_authorized({"Authorization": "Bearer wrong"}))
+        finally:
+            auth.MEMORY_API_KEY = original_key
 
 
 if __name__ == "__main__":
