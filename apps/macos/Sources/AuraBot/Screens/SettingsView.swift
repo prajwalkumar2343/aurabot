@@ -14,6 +14,7 @@ struct SettingsView: View {
     @State private var memoryAPIKey = ""
     @State private var memoryUserID = "default_user"
     @State private var memoryCollection = "screen_memories_v3"
+    @State private var browserExtensionAPIKey = ""
     @State private var showSavedToast = false
     @State private var appearAnimation = false
     @State private var isSaving = false
@@ -44,7 +45,8 @@ struct SettingsView: View {
                     memoryURL: $memoryURL,
                     memoryAPIKey: $memoryAPIKey,
                     memoryUserID: $memoryUserID,
-                    memoryCollection: $memoryCollection
+                    memoryCollection: $memoryCollection,
+                    browserExtensionAPIKey: $browserExtensionAPIKey
                 )
                 .opacity(appearAnimation ? 1 : 0)
                 .offset(y: appearAnimation ? 0 : 20)
@@ -95,6 +97,7 @@ struct SettingsView: View {
         memoryAPIKey = config.memory.apiKey
         memoryUserID = config.memory.userID
         memoryCollection = config.memory.collectionName
+        browserExtensionAPIKey = config.browserExtension.apiKey
     }
 
     private func saveSettings() {
@@ -113,20 +116,28 @@ struct SettingsView: View {
             updatedConfig.memory.apiKey = memoryAPIKey.trimmingCharacters(in: .whitespacesAndNewlines)
             updatedConfig.memory.userID = memoryUserID.trimmingCharacters(in: .whitespacesAndNewlines)
             updatedConfig.memory.collectionName = memoryCollection.trimmingCharacters(in: .whitespacesAndNewlines)
+            updatedConfig.browserExtension.apiKey = browserExtensionAPIKey.trimmingCharacters(in: .whitespacesAndNewlines)
 
-            await service.saveConfiguration(updatedConfig)
+            do {
+                try await service.saveConfiguration(updatedConfig)
 
-            await MainActor.run {
-                isSaving = false
-                withAnimation {
-                    showSavedToast = true
-                }
-
-                DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+                await MainActor.run {
+                    isSaving = false
                     withAnimation {
-                        showSavedToast = false
+                        showSavedToast = true
+                    }
+
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+                        withAnimation {
+                            showSavedToast = false
+                        }
                     }
                 }
+            } catch {
+                await MainActor.run {
+                    isSaving = false
+                }
+                print("Failed to save configuration: \(error)")
             }
         }
     }
@@ -263,6 +274,7 @@ struct AISettingsSection: View {
     @Binding var memoryAPIKey: String
     @Binding var memoryUserID: String
     @Binding var memoryCollection: String
+    @Binding var browserExtensionAPIKey: String
     
     var body: some View {
         SettingsSection(title: "AI & Memory", icon: "brain.head.profile") {
@@ -323,6 +335,17 @@ struct AISettingsSection: View {
                     placeholder: "Optional bearer token",
                     text: $memoryAPIKey,
                     icon: "lock.shield",
+                    isSecure: true
+                )
+
+                Divider()
+                    .background(Colors.glassBorder)
+
+                CustomTextField(
+                    title: "Browser Extension API Key",
+                    placeholder: "Required for extension context updates",
+                    text: $browserExtensionAPIKey,
+                    icon: "puzzlepiece.extension",
                     isSecure: true
                 )
 

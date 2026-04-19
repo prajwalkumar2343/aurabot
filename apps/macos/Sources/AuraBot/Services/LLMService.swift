@@ -62,7 +62,7 @@ actor LLMService {
         ]
         
         let requestBody: [String: Any] = [
-            "model": config.model,
+            "model": config.openRouterChatModel,
             "messages": messages,
             "max_tokens": config.maxTokens,
             "temperature": config.temperature
@@ -94,7 +94,7 @@ actor LLMService {
         ]
         
         let requestBody: [String: Any] = [
-            "model": config.model,
+            "model": config.openRouterChatModel,
             "messages": messages,
             "max_tokens": config.maxTokens,
             "temperature": 0.5
@@ -130,6 +130,9 @@ actor LLMService {
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        if !config.openRouterAPIKey.isEmpty {
+            request.setValue("Bearer \(config.openRouterAPIKey)", forHTTPHeaderField: "Authorization")
+        }
         
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
         
