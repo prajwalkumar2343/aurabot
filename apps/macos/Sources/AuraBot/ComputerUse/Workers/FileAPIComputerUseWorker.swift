@@ -39,6 +39,7 @@ struct FileAPIComputerUseWorker: ComputerUseWorker {
     }
 
     private func moveFiles(_ request: ComputerUseWorkerRequest) -> ComputerUseWorkerResult {
+        let fileManager = FileManager.default
         let sources = sourcePaths(from: request.parameters)
         guard !sources.isEmpty else {
             return failed(request, summary: "No source paths were provided for file move.")
@@ -53,6 +54,20 @@ struct FileAPIComputerUseWorker: ComputerUseWorker {
         metadata["source_count"] = String(sources.count)
         metadata["destination_path"] = destinationPath
 
+        let operations: [MoveOperation]
+        do {
+            operations = try validatedMoveOperations(
+                sources: sources,
+                destinationPath: destinationPath,
+                fileManager: fileManager
+            )
+            metadata["planned_destination_paths"] = operations
+                .map { $0.destination.path }
+                .joined(separator: "\n")
+        } catch {
+            return failed(request, summary: error.localizedDescription)
+        }
+
         let dryRun = request.parameters["dry_run"]?.lowercased() != "false"
         if dryRun {
             metadata["dry_run"] = "true"
@@ -65,17 +80,9 @@ struct FileAPIComputerUseWorker: ComputerUseWorker {
             )
         }
 
-        let fileManager = FileManager.default
-        guard fileManager.fileExists(atPath: destinationPath, isDirectory: nil) else {
-            return failed(request, summary: "Destination does not exist: \(destinationPath)")
-        }
-
         do {
-            for source in sources {
-                let sourceURL = URL(fileURLWithPath: source)
-                let destinationURL = URL(fileURLWithPath: destinationPath)
-                    .appendingPathComponent(sourceURL.lastPathComponent)
-                try fileManager.moveItem(at: sourceURL, to: destinationURL)
+            for operation in operations {
+                try fileManager.moveItem(at: operation.source, to: operation.destination)
             }
 
             metadata["dry_run"] = "false"
@@ -88,6 +95,44 @@ struct FileAPIComputerUseWorker: ComputerUseWorker {
             )
         } catch {
             return failed(request, summary: "Failed to move files: \(error.localizedDescription)")
+        }
+    }
+
+    private func validatedMoveOperations(
+        sources: [String],
+        destinationPath: String,
+        fileManager: FileManager
+    ) throws -> [MoveOperation] {
+        var isDestinationDirectory = ObjCBool(false)
+        guard fileManager.fileExists(atPath: destinationPath, isDirectory: &isDestinationDirectory) else {
+            throw FileAPIWorkerError.destinationMissing(destinationPath)
+        }
+
+        guard isDestinationDirectory.boolValue else {
+            throw FileAPIWorkerError.destinationNotDirectory(destinationPath)
+        }
+
+        let destinationDirectory = URL(fileURLWithPath: destinationPath, isDirectory: true)
+        var plannedDestinations = Set<String>()
+
+        return try sources.map { sourcePath in
+            guard fileManager.fileExists(atPath: sourcePath) else {
+                throw FileAPIWorkerError.sourceMissing(sourcePath)
+            }
+
+            let sourceURL = URL(fileURLWithPath: sourcePath)
+            let destinationURL = destinationDirectory.appendingPathComponent(sourceURL.lastPathComponent)
+            let destinationFilePath = destinationURL.path
+
+            guard plannedDestinations.insert(destinationFilePath).inserted else {
+                throw FileAPIWorkerError.duplicateDestination(destinationFilePath)
+            }
+
+            guard !fileManager.fileExists(atPath: destinationFilePath) else {
+                throw FileAPIWorkerError.destinationExists(destinationFilePath)
+            }
+
+            return MoveOperation(source: sourceURL, destination: destinationURL)
         }
     }
 
@@ -143,5 +188,33 @@ struct FileAPIComputerUseWorker: ComputerUseWorker {
             "action": request.plan.actionName,
             "worker": kind.rawValue
         ]
+    }
+}
+
+private struct MoveOperation {
+    let source: URL
+    let destination: URL
+}
+
+private enum FileAPIWorkerError: LocalizedError {
+    case destinationMissing(String)
+    case destinationNotDirectory(String)
+    case sourceMissing(String)
+    case destinationExists(String)
+    case duplicateDestination(String)
+
+    var errorDescription: String? {
+        switch self {
+        case .destinationMissing(let path):
+            return "Destination does not exist: \(path)"
+        case .destinationNotDirectory(let path):
+            return "Destination is not a directory: \(path)"
+        case .sourceMissing(let path):
+            return "Source does not exist: \(path)"
+        case .destinationExists(let path):
+            return "Destination file already exists: \(path)"
+        case .duplicateDestination(let path):
+            return "Multiple sources resolve to the same destination: \(path)"
+        }
     }
 }

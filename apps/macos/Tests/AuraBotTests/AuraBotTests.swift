@@ -236,6 +236,11 @@ final class AuraBotCoreTests: XCTestCase {
             )
         )
         let worker = FileAPIComputerUseWorker()
+        let fixture = try makeTemporaryMoveFixture(fileName: "dry-run-note.txt")
+        defer { try? FileManager.default.removeItem(at: fixture.root) }
+
+        let plannedDestination = fixture.destinationDirectory
+            .appendingPathComponent(fixture.sourceFile.lastPathComponent)
 
         let result = await worker.execute(
             ComputerUseWorkerRequest(
@@ -244,15 +249,59 @@ final class AuraBotCoreTests: XCTestCase {
                 parameters: [
                     "confirmed": "true",
                     "dry_run": "true",
-                    "source_paths": "/tmp/example-a\n/tmp/example-b",
-                    "destination_path": "/tmp"
+                    "source_path": fixture.sourceFile.path,
+                    "destination_path": fixture.destinationDirectory.path
                 ]
             )
         )
 
         XCTAssertEqual(result.status, .success)
         XCTAssertEqual(result.metadata["dry_run"], "true")
-        XCTAssertEqual(result.metadata["source_count"], "2")
+        XCTAssertEqual(result.metadata["source_count"], "1")
+        XCTAssertTrue(FileManager.default.fileExists(atPath: fixture.sourceFile.path))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: plannedDestination.path))
+    }
+
+    func testFileAPIMoveFilesMovesTemporaryFileWhenConfirmed() async throws {
+        let router = try ComputerUseCapabilityRouter.bundled()
+        let plan = try XCTUnwrap(
+            router.plan(
+                for: ComputerUseToolSelection(
+                    skillID: "finder",
+                    actionName: "move_files",
+                    confidence: 0.9,
+                    reasons: ["test_tool_selection"]
+                )
+            )
+        )
+        let worker = FileAPIComputerUseWorker()
+        let fixture = try makeTemporaryMoveFixture(fileName: "confirmed-note.txt")
+        defer { try? FileManager.default.removeItem(at: fixture.root) }
+
+        let movedFile = fixture.destinationDirectory
+            .appendingPathComponent(fixture.sourceFile.lastPathComponent)
+        let encodedSourcePaths = try XCTUnwrap(
+            String(data: JSONEncoder().encode([fixture.sourceFile.path]), encoding: .utf8)
+        )
+
+        let result = await worker.execute(
+            ComputerUseWorkerRequest(
+                plan: plan,
+                command: "move files",
+                parameters: [
+                    "confirmed": "true",
+                    "dry_run": "false",
+                    "source_paths_json": encodedSourcePaths,
+                    "destination_path": fixture.destinationDirectory.path
+                ]
+            )
+        )
+
+        XCTAssertEqual(result.status, .success)
+        XCTAssertEqual(result.metadata["dry_run"], "false")
+        XCTAssertFalse(FileManager.default.fileExists(atPath: fixture.sourceFile.path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: movedFile.path))
+        XCTAssertEqual(try String(contentsOf: movedFile, encoding: .utf8), "fixture")
     }
 
     func testToolSchemaBuilderRoundTripsToolSelection() throws {
@@ -277,5 +326,22 @@ final class AuraBotCoreTests: XCTestCase {
         XCTAssertEqual(selection.actionName, "move_files")
         XCTAssertEqual(selection.confidence, 0.93)
         XCTAssertTrue(selection.reasons.contains("openrouter_tool_call"))
+    }
+
+    private func makeTemporaryMoveFixture(
+        fileName: String
+    ) throws -> (root: URL, sourceFile: URL, destinationDirectory: URL) {
+        let fileManager = FileManager.default
+        let root = fileManager.temporaryDirectory
+            .appendingPathComponent("aurabot-computeruse-\(UUID().uuidString)", isDirectory: true)
+        let sourceDirectory = root.appendingPathComponent("source", isDirectory: true)
+        let destinationDirectory = root.appendingPathComponent("destination", isDirectory: true)
+        let sourceFile = sourceDirectory.appendingPathComponent(fileName)
+
+        try fileManager.createDirectory(at: sourceDirectory, withIntermediateDirectories: true)
+        try fileManager.createDirectory(at: destinationDirectory, withIntermediateDirectories: true)
+        try "fixture".write(to: sourceFile, atomically: true, encoding: .utf8)
+
+        return (root, sourceFile, destinationDirectory)
     }
 }
