@@ -76,13 +76,24 @@ struct ComputerUseWorkerRegistry: Sendable {
         )
     }
 
-    static func localDefault() -> ComputerUseWorkerRegistry {
+    static func localDefault(
+        browserContextProvider: (any BrowserContextProviding)? = nil
+    ) -> ComputerUseWorkerRegistry {
         var workers: [any ComputerUseWorker] = ComputerUseWorkerKind.allCases.map {
             DryRunComputerUseWorker(kind: $0)
         }
 
-        workers.removeAll { $0.kind == .appleEvents || $0.kind == .fileAPI }
+        workers.removeAll {
+            $0.kind == .appleEvents ||
+                $0.kind == .browserExtension ||
+                $0.kind == .fileAPI
+        }
         workers.append(AppleEventsComputerUseWorker())
+        workers.append(
+            BrowserExtensionComputerUseWorker(
+                contextProvider: browserContextProvider ?? EmptyBrowserContextProvider()
+            )
+        )
         workers.append(FileAPIComputerUseWorker())
 
         return ComputerUseWorkerRegistry(workers: workers)
