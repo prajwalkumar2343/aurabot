@@ -23,6 +23,9 @@ let package = Package(
                 .product(name: "Alamofire", package: "Alamofire"),
                 .product(name: "KeyboardShortcuts", package: "KeyboardShortcuts"),
             ],
+            resources: [
+                .copy("Resources/ComputerUseSkills")
+            ],
             swiftSettings: [
                 .enableExperimentalFeature("StrictConcurrency")
             ]

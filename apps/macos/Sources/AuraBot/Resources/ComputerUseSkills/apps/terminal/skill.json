@@ -1,0 +1,35 @@
+{
+  "id": "terminal",
+  "app_name": "Terminal",
+  "category": "terminal",
+  "bundle_ids": ["com.apple.Terminal", "com.googlecode.iterm2", "dev.warp.Warp", "net.kovidgoyal.kitty", "org.alacritty"],
+  "domains": [],
+  "aliases": ["terminal", "iterm", "warp", "shell", "command line"],
+  "priority": 85,
+  "actions": [
+    {
+      "name": "run_command",
+      "description": "Run a shell command in an isolated background worker.",
+      "intents": ["run command", "execute command", "run tests", "build project", "check status"],
+      "preferred_worker": "native_command",
+      "fallback_workers": [],
+      "parallel_safe": true,
+      "requires_focus": "never",
+      "requires_confirmation": false,
+      "destructive": false,
+      "permissions": []
+    },
+    {
+      "name": "inspect_terminal",
+      "description": "Inspect visible terminal context without typing into it.",
+      "intents": ["terminal context", "what happened in terminal", "inspect terminal"],
+      "preferred_worker": "accessibility",
+      "fallback_workers": ["screen_observation"],
+      "parallel_safe": true,
+      "requires_focus": "never",
+      "requires_confirmation": false,
+      "destructive": false,
+      "permissions": ["accessibility"]
+    }
+  ]
+}
