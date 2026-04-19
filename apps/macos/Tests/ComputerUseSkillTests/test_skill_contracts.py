@@ -138,6 +138,7 @@ class ComputerUseSkillContractTests(unittest.TestCase):
         expected_files = [
             COMPUTER_USE_ROOT / "Safety" / "ConfirmationPolicy.swift",
             COMPUTER_USE_ROOT / "Workers" / "AppleEventsComputerUseWorker.swift",
+            COMPUTER_USE_ROOT / "Workers" / "BrowserExtensionComputerUseWorker.swift",
             COMPUTER_USE_ROOT / "Workers" / "FileAPIComputerUseWorker.swift",
         ]
 
@@ -145,9 +146,39 @@ class ComputerUseSkillContractTests(unittest.TestCase):
             self.assertTrue(path.exists(), f"Missing worker file: {path}")
 
         registry_source = (COMPUTER_USE_ROOT / "Workers" / "ComputerUseWorker.swift").read_text()
-        self.assertIn("static func localDefault()", registry_source)
+        self.assertIn("static func localDefault(", registry_source)
+        self.assertIn("browserContextProvider", registry_source)
         self.assertIn("AppleEventsComputerUseWorker()", registry_source)
+        self.assertIn("BrowserExtensionComputerUseWorker(", registry_source)
         self.assertIn("FileAPIComputerUseWorker()", registry_source)
+
+    def test_browser_worker_slice_uses_extension_context_and_fallbacks(self):
+        source = (
+            COMPUTER_USE_ROOT
+            / "Workers"
+            / "BrowserExtensionComputerUseWorker.swift"
+        ).read_text()
+
+        self.assertIn("protocol BrowserContextProviding", source)
+        self.assertIn("context.source == .extensionData", source)
+        self.assertIn("browser_extension_context_unavailable", source)
+        self.assertIn("fallback_workers", source)
+        self.assertIn("com.google.Chrome", source)
+
+    def test_safari_current_page_has_mockable_apple_events_metadata(self):
+        source = (COMPUTER_USE_ROOT / "Workers" / "AppleEventsComputerUseWorker.swift").read_text()
+        test_source = (
+            Path(__file__).resolve().parents[1]
+            / "AuraBotTests"
+            / "AuraBotTests.swift"
+        ).read_text()
+
+        self.assertIn("protocol AppleScriptRunning", source)
+        self.assertIn("StaticAppleScriptRunner", source)
+        self.assertIn('metadata["url"]', source)
+        self.assertIn('metadata["title"]', source)
+        self.assertIn('metadata["page_id"]', source)
+        self.assertIn("testSafariAppleEventsWorkerParsesMockedCurrentPage", test_source)
 
     def test_file_worker_blocks_delete_until_confirmation_ui_exists(self):
         source = (COMPUTER_USE_ROOT / "Workers" / "FileAPIComputerUseWorker.swift").read_text()
