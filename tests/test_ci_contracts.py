@@ -31,6 +31,13 @@ class GitHubActionsContractTests(unittest.TestCase):
         self.assertIn("Run repository contract tests", self.workflow)
         self.assertIn("python -m unittest discover tests", self.workflow)
 
+    def test_secret_scan_runs_gitleaks_against_full_history(self):
+        self.assertIn("secret-scan:", self.workflow)
+        self.assertIn("name: Secret Scan", self.workflow)
+        self.assertIn("uses: gitleaks/gitleaks-action@v2", self.workflow)
+        self.assertIn("fetch-depth: 0", self.workflow)
+        self.assertIn("GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}", self.workflow)
+
     def test_python_ci_runs_memory_api_and_skill_contract_suites(self):
         self.assertIn(
             "python -m unittest discover services/memory-api/tests",
@@ -53,10 +60,17 @@ class GitHubActionsContractTests(unittest.TestCase):
 
     def test_actions_are_pinned_to_major_versions(self):
         uses_lines = re.findall(r"uses: ([^\s]+)", self.workflow)
+        allowed_patterns = [
+            r"^actions/[A-Za-z0-9_-]+@v[0-9]+$",
+            r"^gitleaks/gitleaks-action@v[0-9]+$",
+        ]
 
-        self.assertGreaterEqual(len(uses_lines), 3)
+        self.assertGreaterEqual(len(uses_lines), 4)
         for action in uses_lines:
-            self.assertRegex(action, r"^actions/[A-Za-z0-9_-]+@v[0-9]+$")
+            self.assertTrue(
+                any(re.match(pattern, action) for pattern in allowed_patterns),
+                f"{action} must be pinned to an allowed major version",
+            )
 
     def test_workflow_does_not_install_unreviewed_remote_scripts(self):
         forbidden_patterns = [
