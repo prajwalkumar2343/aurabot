@@ -11,6 +11,7 @@ SKILL_ROOT = (
     / "ComputerUseSkills"
     / "apps"
 )
+COMPUTER_USE_ROOT = Path(__file__).resolve().parents[2] / "Sources" / "AuraBot" / "ComputerUse"
 
 
 class ComputerUseSkillContractTests(unittest.TestCase):
@@ -132,6 +133,27 @@ class ComputerUseSkillContractTests(unittest.TestCase):
         for name in tool_names:
             self.assertRegex(name, r"^[A-Za-z0-9_]+$")
             self.assertLessEqual(len(name), 64)
+
+    def test_real_worker_slice_exists_for_safe_local_paths(self):
+        expected_files = [
+            COMPUTER_USE_ROOT / "Safety" / "ConfirmationPolicy.swift",
+            COMPUTER_USE_ROOT / "Workers" / "AppleEventsComputerUseWorker.swift",
+            COMPUTER_USE_ROOT / "Workers" / "FileAPIComputerUseWorker.swift",
+        ]
+
+        for path in expected_files:
+            self.assertTrue(path.exists(), f"Missing worker file: {path}")
+
+        registry_source = (COMPUTER_USE_ROOT / "Workers" / "ComputerUseWorker.swift").read_text()
+        self.assertIn("static func localDefault()", registry_source)
+        self.assertIn("AppleEventsComputerUseWorker()", registry_source)
+        self.assertIn("FileAPIComputerUseWorker()", registry_source)
+
+    def test_file_worker_blocks_delete_until_confirmation_ui_exists(self):
+        source = (COMPUTER_USE_ROOT / "Workers" / "FileAPIComputerUseWorker.swift").read_text()
+
+        self.assertIn("Delete is intentionally blocked", source)
+        self.assertNotIn("removeItem", source)
 
     def test_bundle_ids_and_domains_do_not_overlap_between_specific_skills(self):
         seen_bundle_ids = {}

@@ -76,6 +76,18 @@ struct ComputerUseWorkerRegistry: Sendable {
         )
     }
 
+    static func localDefault() -> ComputerUseWorkerRegistry {
+        var workers: [any ComputerUseWorker] = ComputerUseWorkerKind.allCases.map {
+            DryRunComputerUseWorker(kind: $0)
+        }
+
+        workers.removeAll { $0.kind == .appleEvents || $0.kind == .fileAPI }
+        workers.append(AppleEventsComputerUseWorker())
+        workers.append(FileAPIComputerUseWorker())
+
+        return ComputerUseWorkerRegistry(workers: workers)
+    }
+
     func worker(for kind: ComputerUseWorkerKind) -> (any ComputerUseWorker)? {
         workers[kind]
     }

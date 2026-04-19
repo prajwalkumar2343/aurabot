@@ -184,6 +184,77 @@ final class AuraBotCoreTests: XCTestCase {
         XCTAssertEqual(result.metadata["skill_id"], "chrome")
     }
 
+    func testLocalWorkerRegistryUsesRealWorkersForSafeLocalPaths() throws {
+        let registry = ComputerUseWorkerRegistry.localDefault()
+
+        let appleEventsWorker = try XCTUnwrap(registry.worker(for: .appleEvents))
+        let fileAPIWorker = try XCTUnwrap(registry.worker(for: .fileAPI))
+
+        XCTAssertTrue(appleEventsWorker is AppleEventsComputerUseWorker)
+        XCTAssertTrue(fileAPIWorker is FileAPIComputerUseWorker)
+    }
+
+    func testFileAPIMoveFilesRequiresConfirmationBeforeDryRun() async throws {
+        let router = try ComputerUseCapabilityRouter.bundled()
+        let plan = try XCTUnwrap(
+            router.plan(
+                for: ComputerUseToolSelection(
+                    skillID: "finder",
+                    actionName: "move_files",
+                    confidence: 0.9,
+                    reasons: ["test_tool_selection"]
+                )
+            )
+        )
+        let worker = FileAPIComputerUseWorker()
+
+        let result = await worker.execute(
+            ComputerUseWorkerRequest(
+                plan: plan,
+                command: "move files",
+                parameters: [
+                    "source_paths": "/tmp/example-a\n/tmp/example-b",
+                    "destination_path": "/tmp"
+                ]
+            )
+        )
+
+        XCTAssertEqual(result.status, .requiresConfirmation)
+        XCTAssertTrue(result.requiresConfirmation)
+    }
+
+    func testFileAPIMoveFilesDryRunDoesNotMutateFilesystem() async throws {
+        let router = try ComputerUseCapabilityRouter.bundled()
+        let plan = try XCTUnwrap(
+            router.plan(
+                for: ComputerUseToolSelection(
+                    skillID: "finder",
+                    actionName: "move_files",
+                    confidence: 0.9,
+                    reasons: ["test_tool_selection"]
+                )
+            )
+        )
+        let worker = FileAPIComputerUseWorker()
+
+        let result = await worker.execute(
+            ComputerUseWorkerRequest(
+                plan: plan,
+                command: "move files",
+                parameters: [
+                    "confirmed": "true",
+                    "dry_run": "true",
+                    "source_paths": "/tmp/example-a\n/tmp/example-b",
+                    "destination_path": "/tmp"
+                ]
+            )
+        )
+
+        XCTAssertEqual(result.status, .success)
+        XCTAssertEqual(result.metadata["dry_run"], "true")
+        XCTAssertEqual(result.metadata["source_count"], "2")
+    }
+
     func testToolSchemaBuilderRoundTripsToolSelection() throws {
         let skills = try AppSkillLoader().loadBundledSkills()
         let builder = ComputerUseToolSchemaBuilder()
