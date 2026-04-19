@@ -3,10 +3,25 @@ name: CI
 on:
   pull_request:
   push:
-    branches:
-      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
 
 jobs:
+  repository-contracts:
+    name: Repository Contracts
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Run repository contract tests
+        run: python -m unittest discover tests
+
   python-memory-api:
     name: Python Memory API
     runs-on: ubuntu-latest
@@ -19,6 +34,9 @@ jobs:
 
       - name: Run unit tests
         run: python -m unittest discover services/memory-api/tests
+
+      - name: Run computer-use skill contract tests
+        run: python -m unittest discover apps/macos/Tests/ComputerUseSkillTests
 
       - name: Compile Python sources
         run: python -m compileall -q services/memory-api/src tools start.py
