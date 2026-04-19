@@ -155,6 +155,19 @@ class ComputerUseSkillContractTests(unittest.TestCase):
         self.assertIn("Delete is intentionally blocked", source)
         self.assertNotIn("removeItem", source)
 
+    def test_finder_move_has_temp_file_operation_coverage(self):
+        source = (
+            Path(__file__).resolve().parents[1]
+            / "AuraBotTests"
+            / "AuraBotTests.swift"
+        ).read_text()
+
+        self.assertIn("testFileAPIMoveFilesDryRunDoesNotMutateFilesystem", source)
+        self.assertIn("testFileAPIMoveFilesMovesTemporaryFileWhenConfirmed", source)
+        self.assertIn("makeTemporaryMoveFixture", source)
+        self.assertIn('"dry_run": "false"', source)
+        self.assertIn("XCTAssertFalse(FileManager.default.fileExists", source)
+
     def test_bundle_ids_and_domains_do_not_overlap_between_specific_skills(self):
         seen_bundle_ids = {}
         seen_domains = {}
