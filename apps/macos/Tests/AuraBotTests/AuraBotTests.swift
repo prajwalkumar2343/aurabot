@@ -62,4 +62,220 @@ final class AuraBotCoreTests: XCTestCase {
         XCTAssertTrue(config.allowedOrigins.contains("chrome-extension://"))
         XCTAssertTrue(config.allowedOrigins.contains("http://127.0.0.1:"))
     }
+
+    func testBundledComputerUseSkillsLoad() throws {
+        let skills = try AppSkillLoader().loadBundledSkills()
+        let skillIDs = Set(skills.map(\.id))
+
+        XCTAssertTrue(skillIDs.contains("finder"))
+        XCTAssertTrue(skillIDs.contains("safari"))
+        XCTAssertTrue(skillIDs.contains("chrome"))
+        XCTAssertTrue(skillIDs.contains("terminal"))
+        XCTAssertTrue(skillIDs.contains("generic-native-app"))
+    }
+
+    func testFinderMoveToolSelectionBuildsFileAPIPlanWithConfirmation() throws {
+        let router = try ComputerUseCapabilityRouter.bundled()
+
+        let plan = try XCTUnwrap(
+            router.plan(
+                for: ComputerUseToolSelection(
+                    skillID: "finder",
+                    actionName: "move_files",
+                    confidence: 0.91,
+                    reasons: ["test_tool_selection"]
+                )
+            )
+        )
+
+        XCTAssertEqual(plan.skillID, "finder")
+        XCTAssertEqual(plan.actionName, "move_files")
+        XCTAssertEqual(plan.worker, .fileAPI)
+        XCTAssertTrue(plan.parallelSafe)
+        XCTAssertFalse(plan.requiresForegroundLock)
+        XCTAssertTrue(plan.requiresConfirmation)
+        XCTAssertFalse(plan.destructive)
+    }
+
+    func testChromeToolSelectionPrefersBrowserExtension() throws {
+        let router = try ComputerUseCapabilityRouter.bundled()
+
+        let plan = try XCTUnwrap(
+            router.plan(
+                for: ComputerUseToolSelection(
+                    skillID: "chrome",
+                    actionName: "extract_page_context",
+                    confidence: 0.88,
+                    reasons: ["test_tool_selection"]
+                )
+            )
+        )
+
+        XCTAssertEqual(plan.skillID, "chrome")
+        XCTAssertEqual(plan.actionName, "extract_page_context")
+        XCTAssertEqual(plan.worker, .browserExtension)
+        XCTAssertTrue(plan.parallelSafe)
+        XCTAssertFalse(plan.requiresConfirmation)
+    }
+
+    func testUnknownAppRoutesToGenericAccessibilityInspection() throws {
+        let router = try ComputerUseCapabilityRouter.bundled()
+
+        let plan = try XCTUnwrap(
+            router.fallbackPlan(
+                for: ComputerUseCommandContext(
+                    command: "figure out what controls are available",
+                    activeAppName: "UnknownApp",
+                    bundleIdentifier: "com.example.Unknown"
+                )
+            )
+        )
+
+        XCTAssertEqual(plan.skillID, "generic-native-app")
+        XCTAssertEqual(plan.actionName, "inspect_ui")
+        XCTAssertEqual(plan.worker, .accessibility)
+        XCTAssertTrue(plan.parallelSafe)
+        XCTAssertFalse(plan.requiresConfirmation)
+    }
+
+    func testDestructiveFinderCommandAlwaysRequiresConfirmation() throws {
+        let router = try ComputerUseCapabilityRouter.bundled()
+
+        let plan = try XCTUnwrap(
+            router.plan(
+                for: ComputerUseToolSelection(
+                    skillID: "finder",
+                    actionName: "delete_files",
+                    confidence: 0.95,
+                    reasons: ["test_tool_selection"]
+                )
+            )
+        )
+
+        XCTAssertEqual(plan.skillID, "finder")
+        XCTAssertEqual(plan.actionName, "delete_files")
+        XCTAssertTrue(plan.destructive)
+        XCTAssertTrue(plan.requiresConfirmation)
+        XCTAssertFalse(plan.parallelSafe)
+    }
+
+    func testDryRunWorkerRegistryResolvesRoutedWorker() async throws {
+        let router = try ComputerUseCapabilityRouter.bundled()
+        let plan = try XCTUnwrap(
+            router.plan(
+                for: ComputerUseToolSelection(
+                    skillID: "chrome",
+                    actionName: "extract_page_context",
+                    confidence: 0.88,
+                    reasons: ["test_tool_selection"]
+                )
+            )
+        )
+        let registry = ComputerUseWorkerRegistry.dryRunDefault()
+        let worker = try XCTUnwrap(registry.worker(for: plan))
+
+        let result = await worker.execute(
+            ComputerUseWorkerRequest(plan: plan, command: "summarize this page")
+        )
+
+        XCTAssertEqual(result.worker, .browserExtension)
+        XCTAssertEqual(result.status, .skipped)
+        XCTAssertFalse(result.requiresConfirmation)
+        XCTAssertEqual(result.metadata["skill_id"], "chrome")
+    }
+
+    func testLocalWorkerRegistryUsesRealWorkersForSafeLocalPaths() throws {
+        let registry = ComputerUseWorkerRegistry.localDefault()
+
+        let appleEventsWorker = try XCTUnwrap(registry.worker(for: .appleEvents))
+        let fileAPIWorker = try XCTUnwrap(registry.worker(for: .fileAPI))
+
+        XCTAssertTrue(appleEventsWorker is AppleEventsComputerUseWorker)
+        XCTAssertTrue(fileAPIWorker is FileAPIComputerUseWorker)
+    }
+
+    func testFileAPIMoveFilesRequiresConfirmationBeforeDryRun() async throws {
+        let router = try ComputerUseCapabilityRouter.bundled()
+        let plan = try XCTUnwrap(
+            router.plan(
+                for: ComputerUseToolSelection(
+                    skillID: "finder",
+                    actionName: "move_files",
+                    confidence: 0.9,
+                    reasons: ["test_tool_selection"]
+                )
+            )
+        )
+        let worker = FileAPIComputerUseWorker()
+
+        let result = await worker.execute(
+            ComputerUseWorkerRequest(
+                plan: plan,
+                command: "move files",
+                parameters: [
+                    "source_paths": "/tmp/example-a\n/tmp/example-b",
+                    "destination_path": "/tmp"
+                ]
+            )
+        )
+
+        XCTAssertEqual(result.status, .requiresConfirmation)
+        XCTAssertTrue(result.requiresConfirmation)
+    }
+
+    func testFileAPIMoveFilesDryRunDoesNotMutateFilesystem() async throws {
+        let router = try ComputerUseCapabilityRouter.bundled()
+        let plan = try XCTUnwrap(
+            router.plan(
+                for: ComputerUseToolSelection(
+                    skillID: "finder",
+                    actionName: "move_files",
+                    confidence: 0.9,
+                    reasons: ["test_tool_selection"]
+                )
+            )
+        )
+        let worker = FileAPIComputerUseWorker()
+
+        let result = await worker.execute(
+            ComputerUseWorkerRequest(
+                plan: plan,
+                command: "move files",
+                parameters: [
+                    "confirmed": "true",
+                    "dry_run": "true",
+                    "source_paths": "/tmp/example-a\n/tmp/example-b",
+                    "destination_path": "/tmp"
+                ]
+            )
+        )
+
+        XCTAssertEqual(result.status, .success)
+        XCTAssertEqual(result.metadata["dry_run"], "true")
+        XCTAssertEqual(result.metadata["source_count"], "2")
+    }
+
+    func testToolSchemaBuilderRoundTripsToolSelection() throws {
+        let skills = try AppSkillLoader().loadBundledSkills()
+        let builder = ComputerUseToolSchemaBuilder()
+        let tools = builder.buildTools(from: skills)
+
+        XCTAssertTrue(tools.contains(where: { $0.name == "finder__move_files" }))
+        XCTAssertTrue(tools.contains(where: { $0.name == "chrome__extract_page_context" }))
+
+        let selection = try XCTUnwrap(
+            builder.selection(
+                from: "finder__move_files",
+                arguments: [
+                    "reason": "User asked to move Finder selection",
+                    "confidence": 0.93
+                ]
+            )
+        )
+
+        XCTAssertEqual(selection.skillID, "finder")
+        XCTAssertEqual(selection.actionName, "move_files")
+        XCTAssertEqual(selection.confidence, 0.93)
+        XCTAssertTrue(selection.reasons.contains("openrouter_tool_call"))
+    }
 }

@@ -1,0 +1,35 @@
+{
+  "id": "safari",
+  "app_name": "Safari",
+  "category": "browser",
+  "bundle_ids": ["com.apple.Safari"],
+  "domains": [],
+  "aliases": ["safari", "browser", "webpage", "web page"],
+  "priority": 90,
+  "actions": [
+    {
+      "name": "get_current_page",
+      "description": "Read the active Safari tab URL and title.",
+      "intents": ["current page", "active tab", "page url", "this webpage", "summarize this page"],
+      "preferred_worker": "apple_events",
+      "fallback_workers": ["accessibility", "screen_observation"],
+      "parallel_safe": true,
+      "requires_focus": "never",
+      "requires_confirmation": false,
+      "destructive": false,
+      "permissions": ["automation"]
+    },
+    {
+      "name": "open_url",
+      "description": "Open a URL in Safari.",
+      "intents": ["open url", "open website", "open link", "go to"],
+      "preferred_worker": "apple_events",
+      "fallback_workers": ["foreground_input"],
+      "parallel_safe": true,
+      "requires_focus": "app_dependent",
+      "requires_confirmation": false,
+      "destructive": false,
+      "permissions": ["automation"]
+    }
+  ]
+}
