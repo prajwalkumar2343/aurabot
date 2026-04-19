@@ -26,6 +26,10 @@ let package = Package(
             swiftSettings: [
                 .enableExperimentalFeature("StrictConcurrency")
             ]
+        ),
+        .testTarget(
+            name: "AuraBotTests",
+            dependencies: ["AuraBot"]
         )
     ]
 )

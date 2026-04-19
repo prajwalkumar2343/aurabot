@@ -70,6 +70,7 @@ node_modules/
 
 # Swift/macOS
 apps/macos/.build/
+swift-mem0/.build/
 apps/macos/*.zip
 apps/macos/*.app/
 apps/macos/Package.resolved
