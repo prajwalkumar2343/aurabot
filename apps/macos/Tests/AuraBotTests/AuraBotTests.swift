@@ -118,6 +118,130 @@ final class AuraBotCoreTests: XCTestCase {
         XCTAssertFalse(plan.requiresConfirmation)
     }
 
+    func testSafariCurrentPageToolSelectionPrefersAppleEvents() throws {
+        let router = try ComputerUseCapabilityRouter.bundled()
+
+        let plan = try XCTUnwrap(
+            router.plan(
+                for: ComputerUseToolSelection(
+                    skillID: "safari",
+                    actionName: "get_current_page",
+                    confidence: 0.86,
+                    reasons: ["test_tool_selection"]
+                )
+            )
+        )
+
+        XCTAssertEqual(plan.skillID, "safari")
+        XCTAssertEqual(plan.actionName, "get_current_page")
+        XCTAssertEqual(plan.worker, .appleEvents)
+        XCTAssertTrue(plan.parallelSafe)
+        XCTAssertFalse(plan.requiresConfirmation)
+    }
+
+    func testBrowserExtensionWorkerExtractsMockedChromeContext() async throws {
+        let router = try ComputerUseCapabilityRouter.bundled()
+        let plan = try XCTUnwrap(
+            router.plan(
+                for: ComputerUseToolSelection(
+                    skillID: "chrome",
+                    actionName: "extract_page_context",
+                    confidence: 0.88,
+                    reasons: ["test_tool_selection"]
+                )
+            )
+        )
+        let worker = BrowserExtensionComputerUseWorker(
+            contextProvider: StaticBrowserContextProvider(
+                context: makeBrowserContext(
+                    source: .extensionData,
+                    browser: "Google Chrome",
+                    bundleIdentifier: "com.google.Chrome",
+                    url: "https://example.com/docs",
+                    title: "Example Docs"
+                )
+            )
+        )
+
+        let result = await worker.execute(
+            ComputerUseWorkerRequest(plan: plan, command: "summarize this page")
+        )
+
+        XCTAssertEqual(result.status, .success)
+        XCTAssertEqual(result.worker, .browserExtension)
+        XCTAssertEqual(result.metadata["source"], "extension")
+        XCTAssertEqual(result.metadata["browser"], "Google Chrome")
+        XCTAssertEqual(result.metadata["url"], "https://example.com/docs")
+        XCTAssertEqual(result.metadata["title"], "Example Docs")
+        XCTAssertEqual(result.metadata["page_id"], "example.com/docs")
+    }
+
+    func testBrowserExtensionWorkerFallsBackWhenExtensionContextIsUnavailable() async throws {
+        let router = try ComputerUseCapabilityRouter.bundled()
+        let plan = try XCTUnwrap(
+            router.plan(
+                for: ComputerUseToolSelection(
+                    skillID: "chrome",
+                    actionName: "extract_page_context",
+                    confidence: 0.88,
+                    reasons: ["test_tool_selection"]
+                )
+            )
+        )
+        let worker = BrowserExtensionComputerUseWorker(
+            contextProvider: StaticBrowserContextProvider(
+                context: makeBrowserContext(
+                    source: .automation,
+                    browser: "Google Chrome",
+                    bundleIdentifier: "com.google.Chrome",
+                    url: "https://example.com/docs",
+                    title: "Example Docs"
+                )
+            )
+        )
+
+        let result = await worker.execute(
+            ComputerUseWorkerRequest(plan: plan, command: "summarize this page")
+        )
+
+        XCTAssertEqual(result.status, .unavailable)
+        XCTAssertEqual(result.metadata["reason"], "browser_extension_context_unavailable")
+        XCTAssertEqual(result.metadata["fallback_workers"], "browser_devtools,apple_events,accessibility")
+    }
+
+    func testSafariAppleEventsWorkerParsesMockedCurrentPage() async throws {
+        let router = try ComputerUseCapabilityRouter.bundled()
+        let plan = try XCTUnwrap(
+            router.plan(
+                for: ComputerUseToolSelection(
+                    skillID: "safari",
+                    actionName: "get_current_page",
+                    confidence: 0.86,
+                    reasons: ["test_tool_selection"]
+                )
+            )
+        )
+        let worker = AppleEventsComputerUseWorker(
+            runner: StaticAppleScriptRunner(
+                result: AppleScriptRunResult(
+                    terminationStatus: 0,
+                    output: "https://apple.com/safari\nSafari Browser",
+                    errorOutput: ""
+                )
+            )
+        )
+
+        let result = await worker.execute(
+            ComputerUseWorkerRequest(plan: plan, command: "what page is open")
+        )
+
+        XCTAssertEqual(result.status, .success)
+        XCTAssertEqual(result.worker, .appleEvents)
+        XCTAssertEqual(result.metadata["url"], "https://apple.com/safari")
+        XCTAssertEqual(result.metadata["title"], "Safari Browser")
+        XCTAssertEqual(result.metadata["page_id"], "apple.com/safari")
+    }
+
     func testUnknownAppRoutesToGenericAccessibilityInspection() throws {
         let router = try ComputerUseCapabilityRouter.bundled()
 
@@ -188,9 +312,11 @@ final class AuraBotCoreTests: XCTestCase {
         let registry = ComputerUseWorkerRegistry.localDefault()
 
         let appleEventsWorker = try XCTUnwrap(registry.worker(for: .appleEvents))
+        let browserExtensionWorker = try XCTUnwrap(registry.worker(for: .browserExtension))
         let fileAPIWorker = try XCTUnwrap(registry.worker(for: .fileAPI))
 
         XCTAssertTrue(appleEventsWorker is AppleEventsComputerUseWorker)
+        XCTAssertTrue(browserExtensionWorker is BrowserExtensionComputerUseWorker)
         XCTAssertTrue(fileAPIWorker is FileAPIComputerUseWorker)
     }
 
@@ -343,5 +469,31 @@ final class AuraBotCoreTests: XCTestCase {
         try "fixture".write(to: sourceFile, atomically: true, encoding: .utf8)
 
         return (root, sourceFile, destinationDirectory)
+    }
+
+    private func makeBrowserContext(
+        source: BrowserContextSource,
+        browser: String,
+        bundleIdentifier: String,
+        url: String,
+        title: String
+    ) -> BrowserContext {
+        let derived = BrowserContextService.deriveActivity(url: url, title: title)
+
+        return BrowserContext(
+            source: source,
+            browser: browser,
+            bundleIdentifier: bundleIdentifier,
+            url: url,
+            title: title,
+            activity: derived.activity,
+            pageID: derived.pageID,
+            mediaID: derived.mediaID,
+            mediaIsPlaying: derived.activity == .media,
+            scrollPercent: 42,
+            viewportSignature: "viewport-1",
+            noveltyScore: 0.2,
+            timestamp: Date(timeIntervalSince1970: 0)
+        )
     }
 }
