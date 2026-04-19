@@ -118,10 +118,33 @@ Config is stored at `~/.aurabot/config.json`:
     "model": "local-model"
   },
   "memory": {
-    "baseURL": "http://localhost:8000"
+    "baseURL": "http://localhost:8000",
+    "apiKey": "memory-api-token"
+  },
+  "extension": {
+    "apiKey": "browser-extension-token",
+    "allowedOrigins": [
+      "chrome-extension://",
+      "moz-extension://",
+      "safari-web-extension://",
+      "http://localhost:",
+      "http://127.0.0.1:"
+    ]
   }
 }
 ```
+
+### Browser Extension Context API
+
+The app listens on `127.0.0.1:7345` by default for browser context updates:
+
+```http
+POST /browser/context
+Authorization: Bearer browser-extension-token
+Content-Type: application/json
+```
+
+Extensions may also send `X-AuraBot-Extension-Key: browser-extension-token` instead of the bearer header. The token must match `extension.apiKey` in `~/.aurabot/config.json`; requests without a matching key are rejected. Origins must also match `extension.allowedOrigins`.
 
 ## License
 
