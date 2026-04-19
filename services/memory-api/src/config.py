@@ -51,8 +51,21 @@ def _config_value(env_key: str, default, config_path: str = ""):
     return default
 
 
+def _bool_config(env_key: str, default: bool) -> bool:
+    value = os.getenv(env_key)
+    if value in (None, ""):
+        return default
+    return value.strip().lower() in {"1", "true", "yes", "on"}
+
+
 HOST = os.getenv("AURABOT_MEMORY_HOST", "localhost")
 PORT = int(os.getenv("AURABOT_MEMORY_PORT", "8000"))
+MAX_REQUEST_BYTES = int(os.getenv("AURABOT_MEMORY_MAX_REQUEST_BYTES", "1048576"))
+MAX_RESPONSE_LIMIT = int(os.getenv("AURABOT_MEMORY_MAX_RESPONSE_LIMIT", "100"))
+MAX_EMBEDDING_INPUTS = int(os.getenv("AURABOT_MEMORY_MAX_EMBEDDING_INPUTS", "64"))
+MAX_TEXT_CHARS = int(os.getenv("AURABOT_MEMORY_MAX_TEXT_CHARS", "20000"))
+MAX_CHAT_MESSAGES = int(os.getenv("AURABOT_MEMORY_MAX_CHAT_MESSAGES", "32"))
+MAX_CHAT_TOKENS = int(os.getenv("AURABOT_MEMORY_MAX_CHAT_TOKENS", "2048"))
 MODELS_DIR = Path(os.getenv("MODELS_DIR", "./models"))
 DATABASE_URL = _config_value("DATABASE_URL", "", "memory.databaseURL")
 OPENROUTER_API_KEY = _config_value("OPENROUTER_API_KEY", "", "llm.openRouterAPIKey")
@@ -75,3 +88,6 @@ OPENROUTER_EMBEDDING_DIMENSIONS = int(
 )
 MEMORY_API_KEY = _config_value("AURABOT_MEMORY_API_KEY", "", "memory.apiKey")
 OPENAI_TIMEOUT = int(os.getenv("OPENAI_TIMEOUT", "60"))
+ALLOW_UNAUTHENTICATED_MEMORY_API = _bool_config(
+    "AURABOT_MEMORY_ALLOW_UNAUTHENTICATED", False
+)

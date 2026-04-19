@@ -6,6 +6,9 @@ Provides common memory endpoints: get_all, add, search, delete.
 import uuid
 from datetime import datetime
 
+from api.base_handler import RequestBodyError
+from config import MAX_TEXT_CHARS
+
 
 class MemoryMixin:
     """Mixin providing memory endpoint handlers."""
@@ -45,6 +48,9 @@ class MemoryMixin:
             content = " ".join(
                 [m.get("content", "") for m in messages if m.get("content")]
             )
+            if len(content) > MAX_TEXT_CHARS:
+                self.send_json_response({"error": "Memory content too large"}, 413)
+                return
 
             result = self.memory.add(
                 messages=messages,
@@ -62,6 +68,8 @@ class MemoryMixin:
                 "created_at": datetime.now().isoformat(),
             }
             self.send_json_response(response, 201)
+        except RequestBodyError as e:
+            self.send_json_response({"error": str(e)}, e.status)
         except Exception as e:
             self.send_json_response({"error": str(e)}, 500)
 
@@ -74,6 +82,9 @@ class MemoryMixin:
         try:
             data = self.parse_json_body()
             query = data.get("query", "")
+            if len(str(query)) > MAX_TEXT_CHARS:
+                self.send_json_response({"error": "Search query too large"}, 413)
+                return
 
             result = self.memory.search(
                 query=query, user_id=user_id, agent_id=agent_id, limit=limit
@@ -82,6 +93,8 @@ class MemoryMixin:
             results = result.get("results", []) if isinstance(result, dict) else result
             search_results = self._format_search_results(results, user_id)
             self.send_json_response({"results": search_results})
+        except RequestBodyError as e:
+            self.send_json_response({"error": str(e)}, e.status)
         except Exception as e:
             self.send_json_response({"error": str(e)}, 500)
 

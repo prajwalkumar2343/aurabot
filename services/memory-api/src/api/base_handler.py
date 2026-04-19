@@ -10,6 +10,15 @@ from urllib.parse import parse_qs, urlparse
 
 from api.auth import is_authorized, requires_auth
 from api.cors import get_cors_headers
+from config import MAX_REQUEST_BYTES
+
+
+class RequestBodyError(ValueError):
+    """Client request body could not be accepted."""
+
+    def __init__(self, message: str, status: int = 400):
+        super().__init__(message)
+        self.status = status
 
 RATE_LIMITS = {}
 MAX_REQUESTS_PER_MINUTE = 60
@@ -64,9 +73,19 @@ class BaseHandler(BaseHTTPRequestHandler):
         if hasattr(self, "_cached_json_body"):
             return self._cached_json_body
 
-        content_length = int(self.headers.get("Content-Length", 0))
-        body = self.rfile.read(content_length).decode() if content_length > 0 else ""
-        self._cached_json_body = json.loads(body) if body else {}
+        try:
+            content_length = int(self.headers.get("Content-Length", 0))
+        except ValueError as exc:
+            raise RequestBodyError("Invalid Content-Length") from exc
+
+        if content_length > MAX_REQUEST_BYTES:
+            raise RequestBodyError("Request body too large", 413)
+
+        body = self.rfile.read(content_length).decode("utf-8") if content_length > 0 else ""
+        try:
+            self._cached_json_body = json.loads(body) if body else {}
+        except json.JSONDecodeError as exc:
+            raise RequestBodyError("Invalid JSON body") from exc
         return self._cached_json_body
 
     def get_client_ip(self):
