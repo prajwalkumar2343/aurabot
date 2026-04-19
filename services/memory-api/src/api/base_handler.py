@@ -3,6 +3,7 @@ Base HTTP handler with CORS support.
 """
 
 import json
+import time
 from datetime import datetime
 from http.server import BaseHTTPRequestHandler
 from urllib.parse import parse_qs, urlparse
@@ -10,6 +11,8 @@ from urllib.parse import parse_qs, urlparse
 from api.auth import is_authorized, requires_auth
 from api.cors import get_cors_headers
 
+RATE_LIMITS = {}
+MAX_REQUESTS_PER_MINUTE = 60
 
 class BaseHandler(BaseHTTPRequestHandler):
     """Base HTTP handler with common CORS and response handling."""
@@ -73,11 +76,30 @@ class BaseHandler(BaseHTTPRequestHandler):
             return forwarded.split(",")[0].strip()
         return self.client_address[0]
 
+    def check_rate_limit(self) -> bool:
+        """Rate limit clients by IP using a simple rolling window."""
+        client_ip = self.get_client_ip()
+        current_time = time.time()
+
+        reqs = RATE_LIMITS.get(client_ip, [])
+        reqs = [req_time for req_time in reqs if current_time - req_time < 60]
+
+        if len(reqs) >= MAX_REQUESTS_PER_MINUTE:
+            self.send_json_response({"error": "Too Many Requests"}, 429)
+            return False
+
+        reqs.append(current_time)
+        RATE_LIMITS[client_ip] = reqs
+        return True
+
     def require_authorization(self, path: str = None) -> bool:
         """Require Authorization for protected routes when configured."""
         request_path = path or urlparse(self.path).path
         if not requires_auth(request_path):
             return True
+
+        if not self.check_rate_limit():
+            return False
 
         if is_authorized(self.headers):
             return True

@@ -1,6 +1,9 @@
 import os
 import json
 from pathlib import Path
+import logging
+
+logger = logging.getLogger(__name__)
 
 try:
     from dotenv import find_dotenv, load_dotenv
@@ -8,7 +11,7 @@ try:
     dotenv_path = find_dotenv(usecwd=True)
     if dotenv_path:
         load_dotenv(dotenv_path)
-        print(f"[INFO] Loaded environment from {dotenv_path}")
+        logger.debug("Loaded environment variables from .env file")
 except ImportError:
     pass
 
@@ -71,3 +74,4 @@ OPENROUTER_EMBEDDING_DIMENSIONS = int(
     _config_value("OPENROUTER_EMBEDDING_DIMENSIONS", "1536")
 )
 MEMORY_API_KEY = _config_value("AURABOT_MEMORY_API_KEY", "", "memory.apiKey")
+OPENAI_TIMEOUT = int(os.getenv("OPENAI_TIMEOUT", "60"))

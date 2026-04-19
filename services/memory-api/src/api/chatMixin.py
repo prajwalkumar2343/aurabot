@@ -28,6 +28,10 @@ class ChatMixin:
 
             response_text = self.model_manager.chat(messages, max_tokens=max_tokens)
 
+            prompt_text = " ".join([m.get("content", "") for m in messages if m.get("content")])
+            prompt_tokens = max(1, len(prompt_text) // 4)
+            completion_tokens = max(1, len(response_text) // 4)
+
             response = {
                 "id": f"chatcmpl-{int(time.time())}",
                 "object": "chat.completion",
@@ -41,9 +45,9 @@ class ChatMixin:
                     }
                 ],
                 "usage": {
-                    "prompt_tokens": 0,
-                    "completion_tokens": 0,
-                    "total_tokens": 0,
+                    "prompt_tokens": prompt_tokens,
+                    "completion_tokens": completion_tokens,
+                    "total_tokens": prompt_tokens + completion_tokens,
                 },
             }
             self.send_json_response(response)

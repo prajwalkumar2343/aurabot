@@ -61,11 +61,34 @@ class MemoryHandler(BaseHandler, MemoryMixin, EmbeddingsMixin, ChatMixin):
             return
 
         if path == "/v1/chat/completions":
+            data = self.parse_json_body()
+            messages = data.get("messages") if isinstance(data, dict) else None
+            if not isinstance(messages, list) or not messages:
+                self.send_json_response({"error": "Missing 'messages' in request body"}, 400)
+                return
+            for msg in messages:
+                if not isinstance(msg, dict):
+                    self.send_json_response({"error": "Each message must be an object"}, 400)
+                    return
+                if len(str(msg.get("content", ""))) > 32000:
+                    self.send_json_response({"error": "Message content exceeds max length of 32000 characters"}, 413)
+                    return
             self.chat_completions()
             return
 
         if path == "/v1/memories/":
             data = self.parse_json_body()
+            messages = data.get("messages") if isinstance(data, dict) else None
+            if not isinstance(data, dict) or not isinstance(messages, list) or not messages or "user_id" not in data:
+                self.send_json_response({"error": "Missing 'messages' or 'user_id' in request body"}, 400)
+                return
+            for msg in messages:
+                if not isinstance(msg, dict):
+                    self.send_json_response({"error": "Each message must be an object"}, 400)
+                    return
+                if len(str(msg.get("content", ""))) > 32000:
+                    self.send_json_response({"error": "Message content exceeds max length of 32000 characters"}, 413)
+                    return
             user_id = data.get("user_id", "default_user")
             agent_id = data.get("agent_id")
             metadata = data.get("metadata", {})
@@ -76,6 +99,12 @@ class MemoryHandler(BaseHandler, MemoryMixin, EmbeddingsMixin, ChatMixin):
 
         if path == "/v1/memories/search/":
             data = self.parse_json_body()
+            if not isinstance(data, dict) or "query" not in data or "user_id" not in data:
+                self.send_json_response({"error": "Missing 'query' or 'user_id' in request body"}, 400)
+                return
+            if len(str(data["query"])) > 4000:
+                self.send_json_response({"error": "Query string exceeds max length of 4000 characters"}, 413)
+                return
             user_id = data.get("user_id", "default_user")
             agent_id = data.get("agent_id")
             limit = data.get("limit", 10)
@@ -92,7 +121,11 @@ class MemoryHandler(BaseHandler, MemoryMixin, EmbeddingsMixin, ChatMixin):
             return
 
         if path.startswith("/v1/memories/"):
-            self.delete_memory(path.rstrip("/").split("/")[-1])
+            memory_id = path.rstrip("/").split("/")[-1]
+            if memory_id in ("memories", "v1", ""):
+                self.send_json_response({"error": "Missing memory ID in path"}, 400)
+                return
+            self.delete_memory(memory_id)
             return
 
         self.send_json_response({"error": "Not found"}, 404)

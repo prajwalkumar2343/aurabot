@@ -6,6 +6,7 @@ Works with OpenAI, Cerebras, Groq, and other OpenAI-compatible APIs.
 import os
 import requests
 from typing import List, Dict, Any, Optional
+from config import OPENAI_TIMEOUT
 
 
 class OpenAICompatibleClient:
@@ -38,7 +39,7 @@ class OpenAICompatibleClient:
         }
 
         try:
-            response = requests.post(url, headers=headers, json=payload, timeout=120)
+            response = requests.post(url, headers=headers, json=payload, timeout=OPENAI_TIMEOUT)
             response.raise_for_status()
             result = response.json()
             return result["choices"][0]["message"]["content"]
@@ -61,7 +62,7 @@ class OpenAICompatibleClient:
         }
 
         try:
-            response = requests.post(url, headers=headers, json=payload, timeout=30)
+            response = requests.post(url, headers=headers, json=payload, timeout=min(OPENAI_TIMEOUT, 30))
             response.raise_for_status()
             result = response.json()
             return [item["embedding"] for item in result["data"]]
