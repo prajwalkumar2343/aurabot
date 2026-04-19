@@ -89,9 +89,10 @@ Key environment variables (see `.env.example`):
 |----------|-------------|
 | `OPENROUTER_API_KEY` | Your OpenRouter API key (required) |
 | `DATABASE_URL` | Postgres connection string for the memory store |
+| `AURABOT_MEMORY_API_KEY` | Bearer token required for protected memory API routes |
 | `AURABOT_MEMORY_PORT` | Backend server port (default: 8000) |
 
-Capture settings can be adjusted in `~/.aurabot/config.json` after first launch.
+Capture settings and matching API keys can be adjusted in `~/.aurabot/config.json` after first launch.
 
 ## License
 

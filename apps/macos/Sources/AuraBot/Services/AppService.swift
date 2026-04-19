@@ -14,12 +14,12 @@ class AppService: ObservableObject {
     @Published var isBackendConnected: Bool = false
     @Published var captureInterval: Int = 30
     
-    let config: AppConfig
-    private let llmService: LLMService
-    private let memoryService: MemoryService
-    private let browserContextService: BrowserContextService
-    private let contextRouter: ContextRouter
-    private let browserExtensionServer: BrowserExtensionServer?
+    @Published private(set) var config: AppConfig
+    private var llmService: LLMService
+    private var memoryService: MemoryService
+    private var browserContextService: BrowserContextService
+    private var contextRouter: ContextRouter
+    private var browserExtensionServer: BrowserExtensionServer?
     private var captureService: ScreenCaptureService?
     
     private var contextProcessingTask: Task<Void, Never>?
@@ -34,7 +34,7 @@ class AppService: ObservableObject {
             browserContextService: browserContextService
         )
         self.browserExtensionServer = config.browserExtension.enabled
-            ? BrowserExtensionServer(port: config.browserExtension.port, browserContextService: browserContextService)
+            ? BrowserExtensionServer(config: config.browserExtension, browserContextService: browserContextService)
             : nil
         
         self.captureService = ScreenCaptureService(
@@ -113,10 +113,38 @@ class AppService: ObservableObject {
         return await (llm: llmHealth, memory: memoryHealth)
     }
     
-    func saveConfiguration(_ config: AppConfig) {
-        // Save config to file or update as needed
-        // For now, this is a placeholder
-        print("Configuration saved")
+    func saveConfiguration(_ newConfig: AppConfig) async throws {
+        let wasRunning = status == .running
+        if wasRunning {
+            stop()
+        }
+
+        try newConfig.save(to: AppConfig.defaultURL.path)
+        applyConfiguration(newConfig)
+
+        if wasRunning {
+            start()
+        }
+    }
+
+    private func applyConfiguration(_ newConfig: AppConfig) {
+        config = newConfig
+        llmService = LLMService(config: newConfig.llm)
+        memoryService = MemoryService(config: newConfig.memory)
+        browserContextService = BrowserContextService(config: newConfig.browserExtension)
+        contextRouter = ContextRouter(
+            captureConfig: newConfig.capture,
+            browserContextService: browserContextService
+        )
+        browserExtensionServer = newConfig.browserExtension.enabled
+            ? BrowserExtensionServer(config: newConfig.browserExtension, browserContextService: browserContextService)
+            : nil
+        captureService = ScreenCaptureService(
+            config: newConfig.capture,
+            browserContextService: browserContextService
+        )
+        captureEnabled = newConfig.capture.enabled
+        captureInterval = newConfig.capture.intervalSeconds
     }
     
     func enhance(text: String) async throws -> EnhancementResult {

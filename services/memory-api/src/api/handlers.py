@@ -6,11 +6,12 @@ Provides all endpoints: health, models, embeddings, chat, memories.
 from urllib.parse import urlparse
 import time
 
-from api.base_handler import BaseHandler
+from api.base_handler import BaseHandler, RequestBodyError
 from api.memoryMixin import MemoryMixin
 from api.embeddingsMixin import EmbeddingsMixin
 from api.chatMixin import ChatMixin
 from config import (
+    MAX_RESPONSE_LIMIT,
     OPENROUTER_BASE_URL,
     OPENROUTER_CHAT_MODEL,
     OPENROUTER_EMBEDDING_MODEL,
@@ -43,7 +44,7 @@ class MemoryHandler(BaseHandler, MemoryMixin, EmbeddingsMixin, ChatMixin):
         if path == "/v1/memories/":
             user_id = query.get("user_id", ["default_user"])[0]
             agent_id = query.get("agent_id", [""])[0] or None
-            limit = int(query.get("limit", ["10"])[0])
+            limit = self._bounded_limit(query.get("limit", ["10"])[0])
             self.get_memories(user_id, agent_id, limit)
             return
 
@@ -61,7 +62,9 @@ class MemoryHandler(BaseHandler, MemoryMixin, EmbeddingsMixin, ChatMixin):
             return
 
         if path == "/v1/chat/completions":
-            data = self.parse_json_body()
+            data = self._parse_or_respond()
+            if data is None:
+                return
             messages = data.get("messages") if isinstance(data, dict) else None
             if not isinstance(messages, list) or not messages:
                 self.send_json_response({"error": "Missing 'messages' in request body"}, 400)
@@ -77,7 +80,9 @@ class MemoryHandler(BaseHandler, MemoryMixin, EmbeddingsMixin, ChatMixin):
             return
 
         if path == "/v1/memories/":
-            data = self.parse_json_body()
+            data = self._parse_or_respond()
+            if data is None:
+                return
             messages = data.get("messages") if isinstance(data, dict) else None
             if not isinstance(data, dict) or not isinstance(messages, list) or not messages or "user_id" not in data:
                 self.send_json_response({"error": "Missing 'messages' or 'user_id' in request body"}, 400)
@@ -98,7 +103,9 @@ class MemoryHandler(BaseHandler, MemoryMixin, EmbeddingsMixin, ChatMixin):
             return
 
         if path == "/v1/memories/search/":
-            data = self.parse_json_body()
+            data = self._parse_or_respond()
+            if data is None:
+                return
             if not isinstance(data, dict) or "query" not in data or "user_id" not in data:
                 self.send_json_response({"error": "Missing 'query' or 'user_id' in request body"}, 400)
                 return
@@ -107,7 +114,7 @@ class MemoryHandler(BaseHandler, MemoryMixin, EmbeddingsMixin, ChatMixin):
                 return
             user_id = data.get("user_id", "default_user")
             agent_id = data.get("agent_id")
-            limit = data.get("limit", 10)
+            limit = self._bounded_limit(data.get("limit", 10))
             self.search_memories(user_id, agent_id, limit)
             return
 
@@ -168,3 +175,17 @@ class MemoryHandler(BaseHandler, MemoryMixin, EmbeddingsMixin, ChatMixin):
                 ],
             }
         )
+
+    def _bounded_limit(self, value, default: int = 10) -> int:
+        try:
+            limit = int(value)
+        except (TypeError, ValueError):
+            limit = default
+        return min(MAX_RESPONSE_LIMIT, max(1, limit))
+
+    def _parse_or_respond(self):
+        try:
+            return self.parse_json_body()
+        except RequestBodyError as exc:
+            self.send_json_response({"error": str(exc)}, exc.status)
+            return None

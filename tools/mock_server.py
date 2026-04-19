@@ -11,8 +11,8 @@ app = FastAPI(title="Aura Mock Server")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
+    allow_origins=["http://localhost:3000", "http://localhost:7345"],
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -97,4 +97,4 @@ if __name__ == "__main__":
     print("=" * 60)
     print("\nServer running at: http://localhost:8000")
     print("The UI should now connect successfully!\n")
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run(app, host="127.0.0.1", port=8000)
