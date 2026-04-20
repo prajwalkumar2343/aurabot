@@ -136,8 +136,17 @@ class ComputerUseSkillContractTests(unittest.TestCase):
 
     def test_real_worker_slice_exists_for_safe_local_paths(self):
         expected_files = [
+            COMPUTER_USE_ROOT / "Accessibility" / "AccessibilityElementSnapshot.swift",
+            COMPUTER_USE_ROOT / "Accessibility" / "AccessibilityPermission.swift",
+            COMPUTER_USE_ROOT / "Accessibility" / "AccessibilitySnapshotNormalizer.swift",
+            COMPUTER_USE_ROOT / "Accessibility" / "AccessibilityTreeReader.swift",
+            COMPUTER_USE_ROOT / "Core" / "ComputerUseExecutionCoordinator.swift",
+            COMPUTER_USE_ROOT / "Safety" / "ComputerUseAuditLog.swift",
             COMPUTER_USE_ROOT / "Safety" / "ConfirmationPolicy.swift",
+            COMPUTER_USE_ROOT / "Safety" / "ForegroundInteractionLock.swift",
+            COMPUTER_USE_ROOT / "Workers" / "AccessibilityComputerUseWorker.swift",
             COMPUTER_USE_ROOT / "Workers" / "AppleEventsComputerUseWorker.swift",
+            COMPUTER_USE_ROOT / "Workers" / "BrowserExtensionComputerUseWorker.swift",
             COMPUTER_USE_ROOT / "Workers" / "FileAPIComputerUseWorker.swift",
         ]
 
@@ -145,9 +154,115 @@ class ComputerUseSkillContractTests(unittest.TestCase):
             self.assertTrue(path.exists(), f"Missing worker file: {path}")
 
         registry_source = (COMPUTER_USE_ROOT / "Workers" / "ComputerUseWorker.swift").read_text()
-        self.assertIn("static func localDefault()", registry_source)
+        self.assertIn("static func localDefault(", registry_source)
+        self.assertIn("accessibilityPermissionChecker", registry_source)
+        self.assertIn("accessibilityTreeReader", registry_source)
+        self.assertIn("AccessibilityComputerUseWorker(", registry_source)
+        self.assertIn("browserContextProvider", registry_source)
         self.assertIn("AppleEventsComputerUseWorker()", registry_source)
+        self.assertIn("BrowserExtensionComputerUseWorker(", registry_source)
         self.assertIn("FileAPIComputerUseWorker()", registry_source)
+
+    def test_safety_slice_blocks_audits_and_serializes_unsafe_work(self):
+        coordinator_source = (
+            COMPUTER_USE_ROOT
+            / "Core"
+            / "ComputerUseExecutionCoordinator.swift"
+        ).read_text()
+        confirmation_source = (
+            COMPUTER_USE_ROOT
+            / "Safety"
+            / "ConfirmationPolicy.swift"
+        ).read_text()
+        lock_source = (
+            COMPUTER_USE_ROOT
+            / "Safety"
+            / "ForegroundInteractionLock.swift"
+        ).read_text()
+        audit_source = (
+            COMPUTER_USE_ROOT
+            / "Safety"
+            / "ComputerUseAuditLog.swift"
+        ).read_text()
+        test_source = (
+            Path(__file__).resolve().parents[1]
+            / "AuraBotTests"
+            / "AuraBotTests.swift"
+        ).read_text()
+
+        self.assertIn("ComputerUseDestructiveActionDetector", confirmation_source)
+        self.assertIn("destructiveCommandTokens", confirmation_source)
+        self.assertIn("confirmationPolicy.shouldBlock", coordinator_source)
+        self.assertIn(".blocked", coordinator_source)
+        self.assertIn("foregroundLock.withLock", coordinator_source)
+        self.assertIn("protocol ComputerUseAuditLogging", audit_source)
+        self.assertIn("struct ComputerUseAuditRecord", audit_source)
+        self.assertIn("CheckedContinuation", lock_source)
+        self.assertIn("testExecutionCoordinatorBlocksUnsafeActionAndAuditsDecision", test_source)
+        self.assertIn("testForegroundInteractionLockSerializesRequiredOperations", test_source)
+
+    def test_accessibility_slice_is_read_only_and_mockable(self):
+        worker_source = (
+            COMPUTER_USE_ROOT
+            / "Workers"
+            / "AccessibilityComputerUseWorker.swift"
+        ).read_text()
+        reader_source = (
+            COMPUTER_USE_ROOT
+            / "Accessibility"
+            / "AccessibilityTreeReader.swift"
+        ).read_text()
+        normalizer_source = (
+            COMPUTER_USE_ROOT
+            / "Accessibility"
+            / "AccessibilitySnapshotNormalizer.swift"
+        ).read_text()
+        test_source = (
+            Path(__file__).resolve().parents[1]
+            / "AuraBotTests"
+            / "AuraBotTests.swift"
+        ).read_text()
+
+        self.assertIn("protocol AccessibilityPermissionChecking", (COMPUTER_USE_ROOT / "Accessibility" / "AccessibilityPermission.swift").read_text())
+        self.assertIn("protocol AccessibilityTreeReading", reader_source)
+        self.assertIn("StaticAccessibilityTreeReader", reader_source)
+        self.assertIn("AXUIElementCopyAttributeValue", reader_source)
+        self.assertIn("AccessibilitySnapshotNormalizer", normalizer_source)
+        self.assertIn('case ("generic-native-app", "inspect_ui")', worker_source)
+        self.assertIn("permissionChecker.isTrusted", worker_source)
+        self.assertIn("snapshot_json", worker_source)
+        self.assertNotIn("AXUIElementPerformAction", worker_source)
+        self.assertNotIn("AXUIElementSetAttributeValue", worker_source)
+        self.assertIn("testAccessibilityNormalizerCompactsAndLimitsStaticTree", test_source)
+        self.assertIn("testAccessibilityWorkerReturnsNormalizedReadOnlySnapshot", test_source)
+
+    def test_browser_worker_slice_uses_extension_context_and_fallbacks(self):
+        source = (
+            COMPUTER_USE_ROOT
+            / "Workers"
+            / "BrowserExtensionComputerUseWorker.swift"
+        ).read_text()
+
+        self.assertIn("protocol BrowserContextProviding", source)
+        self.assertIn("context.source == .extensionData", source)
+        self.assertIn("browser_extension_context_unavailable", source)
+        self.assertIn("fallback_workers", source)
+        self.assertIn("com.google.Chrome", source)
+
+    def test_safari_current_page_has_mockable_apple_events_metadata(self):
+        source = (COMPUTER_USE_ROOT / "Workers" / "AppleEventsComputerUseWorker.swift").read_text()
+        test_source = (
+            Path(__file__).resolve().parents[1]
+            / "AuraBotTests"
+            / "AuraBotTests.swift"
+        ).read_text()
+
+        self.assertIn("protocol AppleScriptRunning", source)
+        self.assertIn("StaticAppleScriptRunner", source)
+        self.assertIn('metadata["url"]', source)
+        self.assertIn('metadata["title"]', source)
+        self.assertIn('metadata["page_id"]', source)
+        self.assertIn("testSafariAppleEventsWorkerParsesMockedCurrentPage", test_source)
 
     def test_file_worker_blocks_delete_until_confirmation_ui_exists(self):
         source = (COMPUTER_USE_ROOT / "Workers" / "FileAPIComputerUseWorker.swift").read_text()

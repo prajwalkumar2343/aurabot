@@ -17,7 +17,7 @@ struct ComputerUseWorkerRequest: Sendable {
 }
 
 struct ComputerUseWorkerResult: Equatable, Sendable {
-    enum Status: String, Equatable, Sendable {
+    enum Status: String, Codable, Equatable, Sendable {
         case success
         case skipped
         case requiresConfirmation = "requires_confirmation"
@@ -76,13 +76,33 @@ struct ComputerUseWorkerRegistry: Sendable {
         )
     }
 
-    static func localDefault() -> ComputerUseWorkerRegistry {
+    static func localDefault(
+        accessibilityPermissionChecker: (any AccessibilityPermissionChecking)? = nil,
+        accessibilityTreeReader: (any AccessibilityTreeReading)? = nil,
+        browserContextProvider: (any BrowserContextProviding)? = nil
+    ) -> ComputerUseWorkerRegistry {
         var workers: [any ComputerUseWorker] = ComputerUseWorkerKind.allCases.map {
             DryRunComputerUseWorker(kind: $0)
         }
 
-        workers.removeAll { $0.kind == .appleEvents || $0.kind == .fileAPI }
+        workers.removeAll {
+            $0.kind == .accessibility ||
+            $0.kind == .appleEvents ||
+                $0.kind == .browserExtension ||
+                $0.kind == .fileAPI
+        }
+        workers.append(
+            AccessibilityComputerUseWorker(
+                permissionChecker: accessibilityPermissionChecker ?? SystemAccessibilityPermissionChecker(),
+                treeReader: accessibilityTreeReader ?? AXAccessibilityTreeReader()
+            )
+        )
         workers.append(AppleEventsComputerUseWorker())
+        workers.append(
+            BrowserExtensionComputerUseWorker(
+                contextProvider: browserContextProvider ?? EmptyBrowserContextProvider()
+            )
+        )
         workers.append(FileAPIComputerUseWorker())
 
         return ComputerUseWorkerRegistry(workers: workers)
