@@ -77,6 +77,8 @@ struct ComputerUseWorkerRegistry: Sendable {
     }
 
     static func localDefault(
+        accessibilityPermissionChecker: (any AccessibilityPermissionChecking)? = nil,
+        accessibilityTreeReader: (any AccessibilityTreeReading)? = nil,
         browserContextProvider: (any BrowserContextProviding)? = nil
     ) -> ComputerUseWorkerRegistry {
         var workers: [any ComputerUseWorker] = ComputerUseWorkerKind.allCases.map {
@@ -84,10 +86,17 @@ struct ComputerUseWorkerRegistry: Sendable {
         }
 
         workers.removeAll {
+            $0.kind == .accessibility ||
             $0.kind == .appleEvents ||
                 $0.kind == .browserExtension ||
                 $0.kind == .fileAPI
         }
+        workers.append(
+            AccessibilityComputerUseWorker(
+                permissionChecker: accessibilityPermissionChecker ?? SystemAccessibilityPermissionChecker(),
+                treeReader: accessibilityTreeReader ?? AXAccessibilityTreeReader()
+            )
+        )
         workers.append(AppleEventsComputerUseWorker())
         workers.append(
             BrowserExtensionComputerUseWorker(
