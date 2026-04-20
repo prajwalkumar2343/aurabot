@@ -262,6 +262,96 @@ final class AuraBotCoreTests: XCTestCase {
         XCTAssertFalse(plan.requiresConfirmation)
     }
 
+    func testAccessibilityNormalizerCompactsAndLimitsStaticTree() {
+        let snapshot = AccessibilityRawElementSnapshot(
+            role: nil,
+            title: "   Main   Window   ",
+            actions: ["AXRaise", "AXPress"],
+            children: [
+                AccessibilityRawElementSnapshot(
+                    role: "AXButton",
+                    title: "  Continue\nButton  ",
+                    value: "ignored",
+                    actions: ["AXPress"]
+                ),
+                AccessibilityRawElementSnapshot(
+                    role: "AXStaticText",
+                    value: "A long label that should be truncated"
+                )
+            ]
+        )
+        let normalizer = AccessibilitySnapshotNormalizer(
+            maxDepth: 1,
+            maxChildrenPerElement: 1,
+            maxTextLength: 18
+        )
+
+        let normalized = normalizer.normalize(snapshot)
+
+        XCTAssertEqual(normalized.role, "AXUnknown")
+        XCTAssertEqual(normalized.name, "Main Window")
+        XCTAssertEqual(normalized.actions, ["AXPress", "AXRaise"])
+        XCTAssertEqual(normalized.children.count, 1)
+        XCTAssertEqual(normalized.children.first?.path, "0.0")
+        XCTAssertEqual(normalized.children.first?.name, "Continue Button")
+        XCTAssertEqual(normalized.children.first?.value, "ignored")
+    }
+
+    func testAccessibilityWorkerRequiresPermissionBeforeInspection() async throws {
+        let router = try ComputerUseCapabilityRouter.bundled()
+        let plan = try XCTUnwrap(
+            router.plan(
+                for: ComputerUseToolSelection(
+                    skillID: "generic-native-app",
+                    actionName: "inspect_ui",
+                    confidence: 0.75,
+                    reasons: ["test_tool_selection"]
+                )
+            )
+        )
+        let worker = AccessibilityComputerUseWorker(
+            permissionChecker: StaticAccessibilityPermissionChecker(trusted: false),
+            treeReader: StaticAccessibilityTreeReader(snapshot: makeAccessibilitySnapshot())
+        )
+
+        let result = await worker.execute(
+            ComputerUseWorkerRequest(plan: plan, command: "inspect this app")
+        )
+
+        XCTAssertEqual(result.status, .unavailable)
+        XCTAssertEqual(result.metadata["reason"], "accessibility_permission_missing")
+        XCTAssertEqual(result.metadata["fallback_workers"], "screen_observation")
+    }
+
+    func testAccessibilityWorkerReturnsNormalizedReadOnlySnapshot() async throws {
+        let router = try ComputerUseCapabilityRouter.bundled()
+        let plan = try XCTUnwrap(
+            router.plan(
+                for: ComputerUseToolSelection(
+                    skillID: "generic-native-app",
+                    actionName: "inspect_ui",
+                    confidence: 0.75,
+                    reasons: ["test_tool_selection"]
+                )
+            )
+        )
+        let worker = AccessibilityComputerUseWorker(
+            permissionChecker: StaticAccessibilityPermissionChecker(trusted: true),
+            treeReader: StaticAccessibilityTreeReader(snapshot: makeAccessibilitySnapshot())
+        )
+
+        let result = await worker.execute(
+            ComputerUseWorkerRequest(plan: plan, command: "inspect this app")
+        )
+
+        XCTAssertEqual(result.status, .success)
+        XCTAssertEqual(result.worker, .accessibility)
+        XCTAssertEqual(result.metadata["root_role"], "AXWindow")
+        XCTAssertEqual(result.metadata["element_count"], "2")
+        XCTAssertTrue(result.metadata["summary"]?.contains("AXButton") == true)
+        XCTAssertTrue(result.metadata["snapshot_json"]?.contains("Submit") == true)
+    }
+
     func testDestructiveFinderCommandAlwaysRequiresConfirmation() throws {
         let router = try ComputerUseCapabilityRouter.bundled()
 
@@ -311,10 +401,12 @@ final class AuraBotCoreTests: XCTestCase {
     func testLocalWorkerRegistryUsesRealWorkersForSafeLocalPaths() throws {
         let registry = ComputerUseWorkerRegistry.localDefault()
 
+        let accessibilityWorker = try XCTUnwrap(registry.worker(for: .accessibility))
         let appleEventsWorker = try XCTUnwrap(registry.worker(for: .appleEvents))
         let browserExtensionWorker = try XCTUnwrap(registry.worker(for: .browserExtension))
         let fileAPIWorker = try XCTUnwrap(registry.worker(for: .fileAPI))
 
+        XCTAssertTrue(accessibilityWorker is AccessibilityComputerUseWorker)
         XCTAssertTrue(appleEventsWorker is AppleEventsComputerUseWorker)
         XCTAssertTrue(browserExtensionWorker is BrowserExtensionComputerUseWorker)
         XCTAssertTrue(fileAPIWorker is FileAPIComputerUseWorker)
@@ -494,6 +586,25 @@ final class AuraBotCoreTests: XCTestCase {
             viewportSignature: "viewport-1",
             noveltyScore: 0.2,
             timestamp: Date(timeIntervalSince1970: 0)
+        )
+    }
+
+    private func makeAccessibilitySnapshot() -> AccessibilityRawElementSnapshot {
+        AccessibilityRawElementSnapshot(
+            role: "AXWindow",
+            title: "Settings",
+            identifier: "settings-window",
+            actions: ["AXRaise"],
+            frame: AccessibilityElementFrame(x: 0, y: 0, width: 640, height: 480),
+            children: [
+                AccessibilityRawElementSnapshot(
+                    role: "AXButton",
+                    title: "Submit",
+                    identifier: "submit-button",
+                    actions: ["AXPress"],
+                    frame: AccessibilityElementFrame(x: 20, y: 20, width: 120, height: 40)
+                )
+            ]
         )
     }
 }
