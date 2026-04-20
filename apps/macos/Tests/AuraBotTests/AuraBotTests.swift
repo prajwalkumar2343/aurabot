@@ -373,6 +373,120 @@ final class AuraBotCoreTests: XCTestCase {
         XCTAssertFalse(plan.parallelSafe)
     }
 
+    func testConfirmationPolicyDetectsDestructiveCommandLanguage() throws {
+        let plan = ComputerUseExecutionPlan(
+            skillID: "terminal",
+            appName: "Terminal",
+            actionName: "run_command",
+            worker: .nativeCommand,
+            fallbackWorkers: [],
+            parallelSafe: true,
+            requiresFocus: .never,
+            requiresForegroundLock: false,
+            requiresConfirmation: false,
+            destructive: false,
+            permissions: [],
+            confidence: 0.8,
+            matchReasons: ["test"]
+        )
+        let request = ComputerUseWorkerRequest(
+            plan: plan,
+            command: "remove the generated folder"
+        )
+
+        XCTAssertTrue(ComputerUseConfirmationPolicy().requiresConfirmation(request))
+        XCTAssertTrue(ComputerUseConfirmationPolicy().shouldBlock(request))
+    }
+
+    func testExecutionCoordinatorBlocksUnsafeActionAndAuditsDecision() async throws {
+        let router = try ComputerUseCapabilityRouter.bundled()
+        let plan = try XCTUnwrap(
+            router.plan(
+                for: ComputerUseToolSelection(
+                    skillID: "finder",
+                    actionName: "delete_files",
+                    confidence: 0.95,
+                    reasons: ["test_tool_selection"]
+                )
+            )
+        )
+        let auditLog = InMemoryComputerUseAuditLog()
+        let coordinator = ComputerUseExecutionCoordinator(
+            registry: .dryRunDefault(),
+            auditLog: auditLog,
+            now: { Date(timeIntervalSince1970: 10) }
+        )
+
+        let result = await coordinator.execute(
+            ComputerUseWorkerRequest(plan: plan, command: "delete these files")
+        )
+        let records = await auditLog.allRecords()
+
+        XCTAssertEqual(result.status, .requiresConfirmation)
+        XCTAssertEqual(result.metadata["reason"], "confirmation_required")
+        XCTAssertEqual(records.map(\.phase), [.requested, .blocked])
+        XCTAssertEqual(records.last?.status, .requiresConfirmation)
+        XCTAssertEqual(records.last?.destructive, true)
+    }
+
+    func testExecutionCoordinatorAuditsSuccessfulWorkerExecution() async throws {
+        let router = try ComputerUseCapabilityRouter.bundled()
+        let plan = try XCTUnwrap(
+            router.plan(
+                for: ComputerUseToolSelection(
+                    skillID: "chrome",
+                    actionName: "extract_page_context",
+                    confidence: 0.88,
+                    reasons: ["test_tool_selection"]
+                )
+            )
+        )
+        let auditLog = InMemoryComputerUseAuditLog()
+        let coordinator = ComputerUseExecutionCoordinator(
+            registry: .dryRunDefault(),
+            auditLog: auditLog,
+            now: { Date(timeIntervalSince1970: 20) }
+        )
+
+        let result = await coordinator.execute(
+            ComputerUseWorkerRequest(plan: plan, command: "summarize this page")
+        )
+        let records = await auditLog.allRecords()
+
+        XCTAssertEqual(result.status, .skipped)
+        XCTAssertEqual(records.map(\.phase), [.requested, .started, .completed])
+        XCTAssertEqual(records.last?.status, .skipped)
+        XCTAssertEqual(records.last?.requiresForegroundLock, false)
+    }
+
+    func testForegroundInteractionLockSerializesRequiredOperations() async {
+        let foregroundLock = ComputerUseForegroundInteractionLock()
+        let recorder = ForegroundLockRecorder()
+
+        let first = Task {
+            await foregroundLock.withLock(required: true) {
+                await recorder.append("first-start")
+                try? await Task.sleep(nanoseconds: 50_000_000)
+                await recorder.append("first-end")
+            }
+        }
+        try? await Task.sleep(nanoseconds: 5_000_000)
+
+        let second = Task {
+            await foregroundLock.withLock(required: true) {
+                await recorder.append("second-start")
+                await recorder.append("second-end")
+            }
+        }
+
+        _ = await (first.value, second.value)
+
+        XCTAssertEqual(
+            await recorder.events(),
+            ["first-start", "first-end", "second-start", "second-end"]
+        )
+    }
+
     func testDryRunWorkerRegistryResolvesRoutedWorker() async throws {
         let router = try ComputerUseCapabilityRouter.bundled()
         let plan = try XCTUnwrap(
@@ -606,5 +720,17 @@ final class AuraBotCoreTests: XCTestCase {
                 )
             ]
         )
+    }
+}
+
+private actor ForegroundLockRecorder {
+    private var recordedEvents: [String] = []
+
+    func append(_ event: String) {
+        recordedEvents.append(event)
+    }
+
+    func events() -> [String] {
+        recordedEvents
     }
 }

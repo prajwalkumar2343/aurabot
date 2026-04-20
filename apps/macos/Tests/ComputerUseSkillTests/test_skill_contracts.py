@@ -140,7 +140,10 @@ class ComputerUseSkillContractTests(unittest.TestCase):
             COMPUTER_USE_ROOT / "Accessibility" / "AccessibilityPermission.swift",
             COMPUTER_USE_ROOT / "Accessibility" / "AccessibilitySnapshotNormalizer.swift",
             COMPUTER_USE_ROOT / "Accessibility" / "AccessibilityTreeReader.swift",
+            COMPUTER_USE_ROOT / "Core" / "ComputerUseExecutionCoordinator.swift",
+            COMPUTER_USE_ROOT / "Safety" / "ComputerUseAuditLog.swift",
             COMPUTER_USE_ROOT / "Safety" / "ConfirmationPolicy.swift",
+            COMPUTER_USE_ROOT / "Safety" / "ForegroundInteractionLock.swift",
             COMPUTER_USE_ROOT / "Workers" / "AccessibilityComputerUseWorker.swift",
             COMPUTER_USE_ROOT / "Workers" / "AppleEventsComputerUseWorker.swift",
             COMPUTER_USE_ROOT / "Workers" / "BrowserExtensionComputerUseWorker.swift",
@@ -159,6 +162,44 @@ class ComputerUseSkillContractTests(unittest.TestCase):
         self.assertIn("AppleEventsComputerUseWorker()", registry_source)
         self.assertIn("BrowserExtensionComputerUseWorker(", registry_source)
         self.assertIn("FileAPIComputerUseWorker()", registry_source)
+
+    def test_safety_slice_blocks_audits_and_serializes_unsafe_work(self):
+        coordinator_source = (
+            COMPUTER_USE_ROOT
+            / "Core"
+            / "ComputerUseExecutionCoordinator.swift"
+        ).read_text()
+        confirmation_source = (
+            COMPUTER_USE_ROOT
+            / "Safety"
+            / "ConfirmationPolicy.swift"
+        ).read_text()
+        lock_source = (
+            COMPUTER_USE_ROOT
+            / "Safety"
+            / "ForegroundInteractionLock.swift"
+        ).read_text()
+        audit_source = (
+            COMPUTER_USE_ROOT
+            / "Safety"
+            / "ComputerUseAuditLog.swift"
+        ).read_text()
+        test_source = (
+            Path(__file__).resolve().parents[1]
+            / "AuraBotTests"
+            / "AuraBotTests.swift"
+        ).read_text()
+
+        self.assertIn("ComputerUseDestructiveActionDetector", confirmation_source)
+        self.assertIn("destructiveCommandTokens", confirmation_source)
+        self.assertIn("confirmationPolicy.shouldBlock", coordinator_source)
+        self.assertIn(".blocked", coordinator_source)
+        self.assertIn("foregroundLock.withLock", coordinator_source)
+        self.assertIn("protocol ComputerUseAuditLogging", audit_source)
+        self.assertIn("struct ComputerUseAuditRecord", audit_source)
+        self.assertIn("CheckedContinuation", lock_source)
+        self.assertIn("testExecutionCoordinatorBlocksUnsafeActionAndAuditsDecision", test_source)
+        self.assertIn("testForegroundInteractionLockSerializesRequiredOperations", test_source)
 
     def test_accessibility_slice_is_read_only_and_mockable(self):
         worker_source = (
