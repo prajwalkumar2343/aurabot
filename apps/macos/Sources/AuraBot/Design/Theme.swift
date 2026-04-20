@@ -3,87 +3,51 @@ import SwiftUI
 // MARK: - Color Palette
 @available(macOS 14.0, *)
 enum Colors {
-    // Background - soft ethereal tones for glassmorphism
-    static let white = Color.white
-    static let background = Color(hex: "#F8FAFF")
-    static let surface = Color.white.opacity(0.45)
-    static let surfaceHover = Color.white.opacity(0.70)
+    // Backgrounds
+    static let background = Color(hex: "#F5F5F7")
+    static let surface = Color.white
+    static let surfaceSecondary = Color(hex: "#FAFAFA")
+    static let surfaceTertiary = Color(hex: "#F0F0F0")
     
-    // Deep background for contrast
-    static let backdrop = Color(hex: "#EEF2FF")
-    static let backdropSecondary = Color(hex: "#F5F3FF")
+    // Borders
+    static let border = Color(hex: "#E5E5E5")
+    static let borderHover = Color(hex: "#D2D2D7")
+    static let borderFocus = Color(hex: "#007AFF")
     
-    // Borders - softer for glassmorphism
-    static let border = Color.white.opacity(0.6)
-    static let borderFocus = Color(hex: "#3B82F6")
-    static let glassBorder = Color.white.opacity(0.4)
+    // Accent - Single Apple Blue
+    static let primary = Color(hex: "#007AFF")
+    static let primaryHover = Color(hex: "#0051D5")
+    static let primaryMuted = Color(hex: "#007AFF").opacity(0.15)
     
-    // Primary - Electric Blue
-    static let primary = Color(hex: "#2563EB")
-    static let primaryHover = Color(hex: "#1D4ED8")
-    static let primaryGlow = Color(hex: "#2563EB").opacity(0.25)
-    
-    // Secondary - Violet
-    static let secondary = Color(hex: "#7C3AED")
-    static let secondaryGlow = Color(hex: "#7C3AED").opacity(0.25)
-    
-    // Accents
-    static let accent = Color(hex: "#F59E0B")
-    static let success = Color(hex: "#10B981")
-    static let danger = Color(hex: "#EF4444")
-    static let warning = Color(hex: "#F59E0B")
+    // Semantic
+    static let success = Color(hex: "#34C759")
+    static let danger = Color(hex: "#FF3B30")
+    static let warning = Color(hex: "#FF9500")
     
     // Text
-    static let textPrimary = Color(hex: "#111827")
-    static let textSecondary = Color(hex: "#6B7280")
-    static let textMuted = Color(hex: "#9CA3AF")
-    
-    // Gradients
-    static let primaryGradient = LinearGradient(
-        colors: [primary, secondary],
-        startPoint: .leading,
-        endPoint: .trailing
-    )
-    
-    static let heroGradient = LinearGradient(
-        colors: [primary.opacity(0.12), secondary.opacity(0.08)],
-        startPoint: .topLeading,
-        endPoint: .bottomTrailing
-    )
-    
-    static let glassGradient = LinearGradient(
-        colors: [Color.white.opacity(0.7), Color.white.opacity(0.4)],
-        startPoint: .top,
-        endPoint: .bottom
-    )
-    
-    static let meshGradient = LinearGradient(
-        colors: [
-            Color(hex: "#EEF2FF").opacity(0.8),
-            Color(hex: "#F5F3FF").opacity(0.6),
-            Color(hex: "#EFF6FF").opacity(0.8)
-        ],
-        startPoint: .topLeading,
-        endPoint: .bottomTrailing
-    )
+    static let textPrimary = Color(hex: "#000000")
+    static let textSecondary = Color(hex: "#6E6E73")
+    static let textTertiary = Color(hex: "#86868B")
+    static let textInverse = Color.white
 }
 
 // MARK: - Typography
 @available(macOS 14.0, *)
 enum Typography {
-    static let largeTitle = Font.system(size: 34, weight: .bold, design: .rounded)
-    static let title1 = Font.system(size: 28, weight: .bold, design: .rounded)
-    static let title2 = Font.system(size: 22, weight: .semibold, design: .rounded)
-    static let title3 = Font.system(size: 20, weight: .semibold, design: .rounded)
+    static let largeTitle = Font.system(size: 34, weight: .bold, design: .default)
+    static let title1 = Font.system(size: 28, weight: .bold, design: .default)
+    static let title2 = Font.system(size: 22, weight: .semibold, design: .default)
+    static let title3 = Font.system(size: 20, weight: .semibold, design: .default)
     static let headline = Font.system(size: 17, weight: .semibold, design: .default)
     static let body = Font.system(size: 15, weight: .regular, design: .default)
     static let callout = Font.system(size: 14, weight: .regular, design: .default)
     static let subheadline = Font.system(size: 13, weight: .regular, design: .default)
+    static let footnote = Font.system(size: 13, weight: .regular, design: .default)
     static let caption = Font.system(size: 12, weight: .regular, design: .default)
     static let caption2 = Font.system(size: 11, weight: .regular, design: .default)
     
-    // Monospace for code/memory metadata
-    static let mono = Font.system(size: 13, weight: .medium, design: .monospaced)
+    // Monospace for metadata
+    static let mono = Font.system(size: 12, weight: .medium, design: .monospaced)
 }
 
 // MARK: - Spacing Grid
@@ -106,44 +70,23 @@ enum Spacing {
 enum Shadows {
     static let sm = ShadowStyle(
         color: Color.black.opacity(0.04),
-        radius: 6,
+        radius: 4,
         x: 0,
-        y: 3
+        y: 2
     )
     
     static let md = ShadowStyle(
         color: Color.black.opacity(0.06),
-        radius: 12,
+        radius: 8,
         x: 0,
-        y: 6
+        y: 4
     )
     
     static let lg = ShadowStyle(
         color: Color.black.opacity(0.08),
-        radius: 20,
+        radius: 16,
         x: 0,
-        y: 10
-    )
-    
-    static let xl = ShadowStyle(
-        color: Color.black.opacity(0.1),
-        radius: 28,
-        x: 0,
-        y: 14
-    )
-    
-    static let glow = ShadowStyle(
-        color: Colors.primaryGlow,
-        radius: 24,
-        x: 0,
-        y: 0
-    )
-    
-    static let glowHover = ShadowStyle(
-        color: Colors.primary.opacity(0.35),
-        radius: 36,
-        x: 0,
-        y: 0
+        y: 8
     )
 }
 
@@ -171,17 +114,12 @@ struct PrimaryButtonStyle: ButtonStyle {
             .background(
                 RoundedRectangle(cornerRadius: Radius.md)
                     .fill(Colors.primary)
-                    .shadow(
-                        color: Colors.primary.opacity(0.25),
-                        radius: isHovered ? 14 : 10,
-                        x: 0,
-                        y: isHovered ? 5 : 3
-                    )
             )
             .foregroundColor(.white)
             .font(Typography.callout.weight(.semibold))
-            .scaleEffect(configuration.isPressed ? 0.96 : (isHovered ? 1.02 : 1.0))
-            .animation(AnimationPresets.hover, value: isHovered)
+            .scaleEffect(configuration.isPressed ? 0.97 : 1.0)
+            .opacity(configuration.isPressed ? 0.9 : 1.0)
+            .animation(.easeOut(duration: 0.15), value: isHovered)
             .onHover { isHovered = $0 }
     }
 }
@@ -195,17 +133,18 @@ struct SecondaryButtonStyle: ButtonStyle {
             .padding(.horizontal, Spacing.lg)
             .padding(.vertical, Spacing.sm)
             .background(
-                ZStack {
-                    RoundedRectangle(cornerRadius: Radius.md)
-                        .fill(Colors.surface)
-                    RoundedRectangle(cornerRadius: Radius.md)
-                        .stroke(Colors.glassBorder, lineWidth: 1)
-                }
+                RoundedRectangle(cornerRadius: Radius.md)
+                    .fill(Colors.surfaceSecondary)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: Radius.md)
+                            .stroke(Colors.border, lineWidth: 1)
+                    )
             )
             .foregroundColor(Colors.textPrimary)
             .font(Typography.callout.weight(.medium))
-            .scaleEffect(configuration.isPressed ? 0.96 : (isHovered ? 1.02 : 1.0))
-            .animation(AnimationPresets.hover, value: isHovered)
+            .scaleEffect(configuration.isPressed ? 0.97 : 1.0)
+            .opacity(configuration.isPressed ? 0.9 : 1.0)
+            .animation(.easeOut(duration: 0.15), value: isHovered)
             .onHover { isHovered = $0 }
     }
 }
@@ -226,10 +165,10 @@ struct ShadowModifier: ViewModifier {
 @available(macOS 14.0, *)
 enum Radius {
     static let sm: CGFloat = 6
-    static let md: CGFloat = 10
-    static let lg: CGFloat = 14
-    static let xl: CGFloat = 18
-    static let xxl: CGFloat = 22
+    static let md: CGFloat = 8
+    static let lg: CGFloat = 10
+    static let xl: CGFloat = 12
+    static let xxl: CGFloat = 16
     static let full: CGFloat = 9999
 }
 
@@ -263,33 +202,23 @@ extension Color {
 // MARK: - View Extensions for Theme
 @available(macOS 14.0, *)
 extension View {
-    func glassStyle() -> some View {
+    func cardStyle() -> some View {
         self
-            .background(.ultraThinMaterial)
-            .background(Colors.glassGradient)
+            .padding(Spacing.lg)
+            .background(Colors.surface)
             .overlay(
                 RoundedRectangle(cornerRadius: Radius.lg)
-                    .stroke(Colors.glassBorder, lineWidth: 1)
+                    .stroke(Colors.border, lineWidth: 1)
             )
             .cornerRadius(Radius.lg)
     }
     
-    func glassCard() -> some View {
+    func cardStyleElevated() -> some View {
         self
             .padding(Spacing.lg)
-            .background(.ultraThinMaterial)
             .background(Colors.surface)
-            .overlay(
-                RoundedRectangle(cornerRadius: Radius.xl)
-                    .stroke(Colors.glassBorder, lineWidth: 1)
-            )
-            .cornerRadius(Radius.xl)
-            .shadow(color: Shadows.md.color, radius: Shadows.md.radius, x: Shadows.md.x, y: Shadows.md.y)
-    }
-    
-    func primaryGlow() -> some View {
-        self
-            .shadow(color: Colors.primaryGlow, radius: 20, x: 0, y: 0)
+            .cornerRadius(Radius.lg)
+            .shadow(color: Shadows.sm.color, radius: Shadows.sm.radius, x: Shadows.sm.x, y: Shadows.sm.y)
     }
     
     func withShadow(_ shadow: ShadowStyle) -> some View {
