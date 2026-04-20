@@ -17,7 +17,7 @@ struct ComputerUseWorkerRequest: Sendable {
 }
 
 struct ComputerUseWorkerResult: Equatable, Sendable {
-    enum Status: String, Equatable, Sendable {
+    enum Status: String, Codable, Equatable, Sendable {
         case success
         case skipped
         case requiresConfirmation = "requires_confirmation"
