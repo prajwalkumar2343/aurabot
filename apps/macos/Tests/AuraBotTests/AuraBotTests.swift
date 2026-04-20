@@ -480,9 +480,10 @@ final class AuraBotCoreTests: XCTestCase {
         }
 
         _ = await (first.value, second.value)
+        let events = await recorder.events()
 
         XCTAssertEqual(
-            await recorder.events(),
+            events,
             ["first-start", "first-end", "second-start", "second-end"]
         )
     }
