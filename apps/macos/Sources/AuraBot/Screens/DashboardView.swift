@@ -4,17 +4,19 @@ import SwiftUI
 struct DashboardView: View {
     @ObservedObject var service: AppService
     @State private var showingNewMemory = false
+    @State private var isRefreshing = false
     
     var body: some View {
         ScrollView(showsIndicators: false) {
-            VStack(alignment: .leading, spacing: Spacing.xxxl) {
-                // Header
-                DashboardHeader(service: service, showingNewMemory: $showingNewMemory)
+            VStack(alignment: .leading, spacing: Spacing.xxl) {
+                DashboardHeader(
+                    service: service,
+                    showingNewMemory: $showingNewMemory,
+                    isRefreshing: $isRefreshing
+                )
                 
-                // Stats Grid
                 StatsGrid(service: service)
                 
-                // Recent Memories
                 RecentMemoriesSection(service: service)
             }
             .padding(Spacing.xxxl)
@@ -30,25 +32,64 @@ struct DashboardView: View {
 struct DashboardHeader: View {
     @ObservedObject var service: AppService
     @Binding var showingNewMemory: Bool
+    @Binding var isRefreshing: Bool
     
     var body: some View {
-        HStack {
+        HStack(alignment: .center, spacing: Spacing.xl) {
             VStack(alignment: .leading, spacing: Spacing.xs) {
-                Text("Dashboard")
+                Text("Aura")
                     .font(Typography.title1)
                     .foregroundColor(Colors.textPrimary)
                 
-                Text("Overview of your memory system")
-                    .font(Typography.body)
-                    .foregroundColor(Colors.textSecondary)
+                HStack(spacing: Spacing.sm) {
+                    StatusBadge(
+                        title: service.captureEnabled ? "Capturing" : "Paused",
+                        icon: service.captureEnabled ? "record.circle" : "pause.circle",
+                        color: service.captureEnabled ? Colors.success : Colors.textTertiary
+                    )
+
+                    StatusBadge(
+                        title: service.isBackendConnected ? "Backend online" : "Backend offline",
+                        icon: service.isBackendConnected ? "checkmark.seal" : "exclamationmark.triangle",
+                        color: service.isBackendConnected ? Colors.primary : Colors.warning
+                    )
+                }
             }
             
             Spacer()
+
+            Toggle("Capture", isOn: .init(
+                get: { service.captureEnabled },
+                set: { _ in service.toggleCapture() }
+            ))
+            .toggleStyle(SwitchToggleStyle(tint: Colors.success))
             
-            Button(action: { showingNewMemory = true }) {
+            Button {
+                refresh()
+            } label: {
+                Label(isRefreshing ? "Refreshing" : "Refresh", systemImage: "arrow.clockwise")
+            }
+            .buttonStyle(SecondaryButtonStyle())
+            .disabled(isRefreshing)
+
+            Button {
+                showingNewMemory = true
+            } label: {
                 Label("New Memory", systemImage: "plus")
             }
             .buttonStyle(PrimaryButtonStyle())
+        }
+        .frame(minHeight: 56)
+    }
+
+    private func refresh() {
+        guard !isRefreshing else { return }
+        isRefreshing = true
+        Task {
+            await service.refreshMemories()
+            await MainActor.run {
+                isRefreshing = false
+            }
         }
     }
 }
@@ -56,28 +97,47 @@ struct DashboardHeader: View {
 @available(macOS 14.0, *)
 struct StatsGrid: View {
     @ObservedObject var service: AppService
+
+    private var capturesToday: Int {
+        service.memories.filter { Calendar.current.isDateInToday($0.createdAt) }.count
+    }
     
     var body: some View {
-        HStack(spacing: Spacing.lg) {
-            StatWidget(
-                title: "Total Memories",
+        LazyVGrid(
+            columns: [GridItem(.adaptive(minimum: 210), spacing: Spacing.lg)],
+            alignment: .leading,
+            spacing: Spacing.lg
+        ) {
+            DashboardStatCard(
+                title: "Memories",
                 value: "\(service.memories.count)",
+                detail: "\(capturesToday) today",
                 icon: "brain.head.profile",
                 color: Colors.primary
             )
-            
-            StatWidget(
-                title: "Capture Interval",
+
+            DashboardStatCard(
+                title: "Capture",
                 value: "\(service.captureInterval)s",
-                icon: "clock",
+                detail: service.captureEnabled ? "Active interval" : "Paused",
+                icon: "timer",
                 color: Colors.secondary
             )
-            
-            StatWidget(
-                title: "Last Activity",
-                value: service.lastActivity.isEmpty ? "--" : "Just now",
-                icon: "waveform",
-                color: Colors.accent
+
+            DashboardStatCard(
+                title: "LLM",
+                value: service.isLLMConnected ? "Online" : "Offline",
+                detail: service.config.llm.model.isEmpty ? "No model set" : service.config.llm.model,
+                icon: "sparkles",
+                color: service.isLLMConnected ? Colors.success : Colors.warning
+            )
+
+            DashboardStatCard(
+                title: "Memory API",
+                value: service.isMemoryConnected ? "Online" : "Offline",
+                detail: service.config.memory.collectionName,
+                icon: "server.rack",
+                color: service.isMemoryConnected ? Colors.primary : Colors.accent
             )
         }
     }
@@ -88,16 +148,16 @@ struct RecentMemoriesSection: View {
     @ObservedObject var service: AppService
     
     var body: some View {
-        VStack(alignment: .leading, spacing: Spacing.lg) {
+        VStack(alignment: .leading, spacing: Spacing.md) {
             HStack {
                 Text("Recent Memories")
                     .font(Typography.title2)
                     .foregroundColor(Colors.textPrimary)
                 
                 Spacer()
-                
-                Button("View All") {}
-                    .font(Typography.callout)
+
+                Text("\(min(service.memories.count, 5)) shown")
+                    .font(Typography.caption)
                     .foregroundColor(Colors.primary)
             }
             
@@ -119,43 +179,32 @@ struct RecentMemoriesSection: View {
 @available(macOS 14.0, *)
 struct EmptyMemoriesPlaceholder: View {
     let onStartCapture: () -> Void
-    @State private var isHovered = false
     
     var body: some View {
-        VStack(spacing: Spacing.xl) {
+        VStack(spacing: Spacing.lg) {
             Image(systemName: "brain.head.profile")
-                .font(.system(size: 48))
-                .foregroundColor(Colors.textMuted)
+                .font(.system(size: 40, weight: .light))
+                .foregroundColor(Colors.textTertiary)
             
             Text("No memories yet")
                 .font(Typography.title3)
                 .foregroundColor(Colors.textPrimary)
-            
-            Text("Start screen capture to begin recording your activities")
-                .font(Typography.body)
-                .foregroundColor(Colors.textSecondary)
-                .multilineTextAlignment(.center)
-            
-            Button("Start Capture", action: onStartCapture)
+
+            Button {
+                onStartCapture()
+            } label: {
+                Label("Start Capture", systemImage: "record.circle")
+            }
                 .buttonStyle(PrimaryButtonStyle())
         }
         .frame(maxWidth: .infinity)
         .padding(Spacing.xxxxl)
-        .background(
-            ZStack {
-                RoundedRectangle(cornerRadius: Radius.xxl)
-                    .fill(.ultraThinMaterial)
-                RoundedRectangle(cornerRadius: Radius.xxl)
-                    .fill(Colors.white.opacity(0.3))
-                RoundedRectangle(cornerRadius: Radius.xxl)
-                    .stroke(Colors.glassBorder, lineWidth: 1)
-            }
+        .background(Colors.surface)
+        .overlay(
+            RoundedRectangle(cornerRadius: Radius.xl)
+                .stroke(Colors.border, lineWidth: 1)
         )
-        .scaleEffect(isHovered ? 1.01 : 1.0)
-        .animation(AnimationPresets.hover, value: isHovered)
-        .onHover { hovering in
-            isHovered = hovering
-        }
+        .cornerRadius(Radius.xl)
     }
 }
 
@@ -180,29 +229,104 @@ struct NewMemorySheet: View {
             TextEditor(text: $content)
                 .frame(minHeight: 120)
                 .padding(Spacing.sm)
-                .background(
-                    ZStack {
-                        RoundedRectangle(cornerRadius: Radius.md)
-                            .fill(.ultraThinMaterial)
-                        RoundedRectangle(cornerRadius: Radius.md)
-                            .fill(Colors.white.opacity(0.3))
-                        RoundedRectangle(cornerRadius: Radius.md)
-                            .stroke(Colors.glassBorder, lineWidth: 1)
-                    }
+                .background(Colors.surfaceSecondary)
+                .overlay(
+                    RoundedRectangle(cornerRadius: Radius.md)
+                        .stroke(Colors.border, lineWidth: 1)
                 )
+                .cornerRadius(Radius.md)
             
             HStack {
                 Spacer()
                 
                 Button("Save") {
-                    // Save memory logic
                     dismiss()
                 }
                 .buttonStyle(PrimaryButtonStyle())
                 .disabled(content.isEmpty)
+                .opacity(content.isEmpty ? 0.5 : 1.0)
             }
         }
         .padding()
         .frame(width: 500)
+    }
+}
+
+@available(macOS 14.0, *)
+struct StatusBadge: View {
+    let title: String
+    let icon: String
+    let color: Color
+
+    var body: some View {
+        HStack(spacing: Spacing.xs) {
+            Image(systemName: icon)
+                .font(.system(size: 12, weight: .semibold))
+
+            Text(title)
+                .font(Typography.caption)
+                .fontWeight(.medium)
+        }
+        .foregroundColor(color)
+        .padding(.horizontal, Spacing.sm)
+        .padding(.vertical, Spacing.xs)
+        .background(color.opacity(0.1))
+        .overlay(
+            RoundedRectangle(cornerRadius: Radius.sm)
+                .stroke(color.opacity(0.18), lineWidth: 1)
+        )
+        .cornerRadius(Radius.sm)
+    }
+}
+
+@available(macOS 14.0, *)
+struct DashboardStatCard: View {
+    let title: String
+    let value: String
+    let detail: String
+    let icon: String
+    let color: Color
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: Spacing.lg) {
+            HStack {
+                Image(systemName: icon)
+                    .font(.system(size: 18, weight: .semibold))
+                    .foregroundColor(color)
+                    .frame(width: 36, height: 36)
+                    .background(color.opacity(0.12))
+                    .cornerRadius(Radius.md)
+
+                Spacer()
+            }
+
+            VStack(alignment: .leading, spacing: Spacing.xs) {
+                Text(value)
+                    .font(.system(size: 28, weight: .semibold, design: .default))
+                    .foregroundColor(Colors.textPrimary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+
+                Text(title)
+                    .font(Typography.subheadline)
+                    .fontWeight(.medium)
+                    .foregroundColor(Colors.textSecondary)
+
+                Text(detail)
+                    .font(Typography.caption)
+                    .foregroundColor(Colors.textTertiary)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+            }
+        }
+        .frame(maxWidth: .infinity, minHeight: 150, alignment: .leading)
+        .padding(Spacing.lg)
+        .background(Colors.surface)
+        .overlay(
+            RoundedRectangle(cornerRadius: Radius.lg)
+                .stroke(Colors.border, lineWidth: 1)
+        )
+        .cornerRadius(Radius.lg)
+        .shadow(color: Shadows.sm.color, radius: Shadows.sm.radius, x: Shadows.sm.x, y: Shadows.sm.y)
     }
 }
