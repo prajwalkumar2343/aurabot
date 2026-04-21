@@ -4,31 +4,38 @@ import SwiftUI
 @available(macOS 14.0, *)
 enum Colors {
     // Backgrounds
-    static let background = Color(hex: "#F5F5F7")
+    static let background = Color(hex: "#F4F6F5")
     static let surface = Color.white
-    static let surfaceSecondary = Color(hex: "#FAFAFA")
-    static let surfaceTertiary = Color(hex: "#F0F0F0")
+    static let surfaceSecondary = Color(hex: "#F8FAF9")
+    static let surfaceTertiary = Color(hex: "#EEF2F1")
+    static let surfaceHover = Color(hex: "#E9EFED")
     
     // Borders
-    static let border = Color(hex: "#E5E5E5")
-    static let borderHover = Color(hex: "#D2D2D7")
-    static let borderFocus = Color(hex: "#007AFF")
+    static let border = Color(hex: "#DDE4E1")
+    static let borderHover = Color(hex: "#C8D4D0")
+    static let borderFocus = Color(hex: "#168A7A")
+    static let glassBorder = Color(hex: "#DDE4E1")
     
-    // Accent - Single Apple Blue
-    static let primary = Color(hex: "#007AFF")
-    static let primaryHover = Color(hex: "#0051D5")
-    static let primaryMuted = Color(hex: "#007AFF").opacity(0.15)
+    // Accents
+    static let primary = Color(hex: "#168A7A")
+    static let primaryHover = Color(hex: "#0F6F63")
+    static let primaryMuted = Color(hex: "#168A7A").opacity(0.14)
+    static let primaryGlow = Color(hex: "#168A7A").opacity(0.16)
+    static let secondary = Color(hex: "#4E63A6")
+    static let accent = Color(hex: "#C95E48")
     
     // Semantic
-    static let success = Color(hex: "#34C759")
-    static let danger = Color(hex: "#FF3B30")
-    static let warning = Color(hex: "#FF9500")
+    static let success = Color(hex: "#2F9E44")
+    static let danger = Color(hex: "#C0392B")
+    static let warning = Color(hex: "#B7791F")
     
     // Text
-    static let textPrimary = Color(hex: "#000000")
-    static let textSecondary = Color(hex: "#6E6E73")
-    static let textTertiary = Color(hex: "#86868B")
+    static let textPrimary = Color(hex: "#17201D")
+    static let textSecondary = Color(hex: "#56635F")
+    static let textTertiary = Color(hex: "#7B8783")
+    static let textMuted = Color(hex: "#7B8783")
     static let textInverse = Color.white
+    static let white = Color.white
 }
 
 // MARK: - Typography
@@ -69,24 +76,31 @@ enum Spacing {
 @available(macOS 14.0, *)
 enum Shadows {
     static let sm = ShadowStyle(
-        color: Color.black.opacity(0.04),
+        color: Color.black.opacity(0.03),
         radius: 4,
         x: 0,
         y: 2
     )
     
     static let md = ShadowStyle(
-        color: Color.black.opacity(0.06),
-        radius: 8,
+        color: Color.black.opacity(0.05),
+        radius: 10,
         x: 0,
-        y: 4
+        y: 5
     )
     
     static let lg = ShadowStyle(
-        color: Color.black.opacity(0.08),
-        radius: 16,
+        color: Color.black.opacity(0.07),
+        radius: 18,
         x: 0,
-        y: 8
+        y: 9
+    )
+
+    static let xl = ShadowStyle(
+        color: Color.black.opacity(0.08),
+        radius: 24,
+        x: 0,
+        y: 12
     )
 }
 
@@ -166,9 +180,9 @@ struct ShadowModifier: ViewModifier {
 enum Radius {
     static let sm: CGFloat = 6
     static let md: CGFloat = 8
-    static let lg: CGFloat = 10
-    static let xl: CGFloat = 12
-    static let xxl: CGFloat = 16
+    static let lg: CGFloat = 8
+    static let xl: CGFloat = 8
+    static let xxl: CGFloat = 8
     static let full: CGFloat = 9999
 }
 
