@@ -7,7 +7,7 @@
   "scripts": {
     "build": "tsc",
     "typecheck": "tsc --noEmit",
-    "test": "npm run build && node --test dist/tests/*.test.js dist/tests/schema/*.test.js",
+    "test": "npm run build && node --test dist/tests/*.test.js dist/tests/schema/*.test.js dist/tests/recent/*.test.js",
     "smoke": "npm run build && node dist/src/cli.js smoke",
     "schema:check": "npm run build && node dist/src/cli.js schema:check"
   },
