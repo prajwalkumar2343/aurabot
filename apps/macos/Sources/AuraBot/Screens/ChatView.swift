@@ -43,11 +43,9 @@ struct ChatView: View {
                     .background(
                         ZStack {
                             RoundedRectangle(cornerRadius: Radius.lg)
-                                .fill(.ultraThinMaterial)
+                                .fill(Colors.surface)
                             RoundedRectangle(cornerRadius: Radius.lg)
-                                .fill(Colors.white.opacity(0.4))
-                            RoundedRectangle(cornerRadius: Radius.lg)
-                                .stroke(Colors.glassBorder, lineWidth: 1)
+                                .stroke(Colors.border, lineWidth: 1)
                         }
                     )
                 
@@ -141,16 +139,9 @@ struct MessageBubbleView: View {
                     .background(
                         ZStack {
                             RoundedRectangle(cornerRadius: Radius.lg)
-                                .fill(.ultraThinMaterial)
+                                .fill(message.isUser ? Colors.primary.opacity(0.12) : Colors.surface)
                             RoundedRectangle(cornerRadius: Radius.lg)
-                                .fill(message.isUser ? Colors.primary.opacity(0.15) : Color.clear)
-                            RoundedRectangle(cornerRadius: Radius.lg)
-                                .fill(message.isUser ? Colors.primary.opacity(0.05) : Colors.white.opacity(message.isUser ? 0 : 0.3))
-                            RoundedRectangle(cornerRadius: Radius.lg)
-                                .stroke(
-                                    message.isUser ? Colors.primary.opacity(0.2) : Colors.glassBorder,
-                                    lineWidth: 1
-                                )
+                                .stroke(message.isUser ? Colors.primary.opacity(0.22) : Colors.border, lineWidth: 1)
                         }
                     )
                     .foregroundColor(Colors.textPrimary)
