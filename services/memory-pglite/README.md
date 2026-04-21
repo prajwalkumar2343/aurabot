@@ -30,6 +30,7 @@ npm run smoke
 npm run schema:check
 npm run brain:init
 npm run brain:sync
+npm run serve
 npm test
 ```
 
@@ -43,6 +44,41 @@ without overwriting existing user-edited pages. `npm run brain:sync` scans the
 brain directory, validates frontmatter, indexes changed pages into
 `brain_pages`, `brain_chunks`, and `timeline_events`, and enqueues graph
 extraction jobs for changed pages.
+
+`npm run serve` starts the local Memory v2 PGlite HTTP service.
+
+`POST /v2/graph/query` accepts:
+
+```json
+{
+  "user_id": "default_user",
+  "start": "projects/aurabot",
+  "relation_types": ["uses"],
+  "depth": 2,
+  "direction": "both",
+  "limit": 50
+}
+```
+
+The route returns the shared `GraphQueryResponse` shape from
+`src/contracts/index.ts`.
+
+`POST /v2/search` accepts:
+
+```json
+{
+  "user_id": "default_user",
+  "query": "what did we decide about memory storage?",
+  "scopes": ["all"],
+  "limit": 10
+}
+```
+
+The route returns the shared `SearchMemoryResponse` shape from
+`src/contracts/index.ts`.
+
+Graph extraction jobs queued by recent-context ingestion and brain sync can be
+processed with `processGraphExtractionJobs()` from `src/graph/jobs.ts`.
 
 ## Agent 1 Ownership
 
