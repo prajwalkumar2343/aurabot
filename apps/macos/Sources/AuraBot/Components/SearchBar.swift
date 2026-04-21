@@ -52,13 +52,11 @@ struct SearchBar: View {
         .background(
             ZStack {
                 RoundedRectangle(cornerRadius: Radius.lg)
-                    .fill(.ultraThinMaterial)
-                RoundedRectangle(cornerRadius: Radius.lg)
-                    .fill(Colors.white.opacity(isFocused ? 0.5 : 0.3))
+                    .fill(isFocused ? Colors.surface : Colors.surfaceSecondary)
                 RoundedRectangle(cornerRadius: Radius.lg)
                     .stroke(
-                        isFocused ? Colors.borderFocus : Colors.glassBorder,
-                        lineWidth: isFocused ? 1.5 : 1
+                        isFocused ? Colors.borderFocus : Colors.border,
+                        lineWidth: 1
                     )
             }
         )
@@ -115,13 +113,11 @@ struct ExpandableSearchBar: View {
         .background(
             ZStack {
                 RoundedRectangle(cornerRadius: Radius.lg)
-                    .fill(.ultraThinMaterial)
-                RoundedRectangle(cornerRadius: Radius.lg)
-                    .fill(Colors.white.opacity(isFocused ? 0.5 : 0.3))
+                    .fill(isFocused ? Colors.surface : Colors.surfaceSecondary)
                 RoundedRectangle(cornerRadius: Radius.lg)
                     .stroke(
-                        isFocused ? Colors.borderFocus : Colors.glassBorder,
-                        lineWidth: isFocused ? 1.5 : 1
+                        isFocused ? Colors.borderFocus : Colors.border,
+                        lineWidth: 1
                     )
             }
         )
@@ -135,7 +131,7 @@ struct ExpandableSearchBar: View {
                 isFocused = true
             }
         }
-        .onChange(of: isFocused) { focused in
+        .onChange(of: isFocused) { _, focused in
             if !focused && text.isEmpty {
                 withAnimation(AnimationPresets.spring) {
                     isExpanded = false
@@ -213,13 +209,11 @@ struct FilterSearchBar: View {
             .background(
                 ZStack {
                     RoundedRectangle(cornerRadius: Radius.lg)
-                        .fill(.ultraThinMaterial)
-                    RoundedRectangle(cornerRadius: Radius.lg)
-                        .fill(Colors.white.opacity(isFocused ? 0.5 : 0.3))
+                        .fill(isFocused ? Colors.surface : Colors.surfaceSecondary)
                     RoundedRectangle(cornerRadius: Radius.lg)
                         .stroke(
-                            isFocused ? Colors.borderFocus : Colors.glassBorder,
-                            lineWidth: isFocused ? 1.5 : 1
+                            isFocused ? Colors.borderFocus : Colors.border,
+                            lineWidth: 1
                         )
                 }
             )
@@ -272,7 +266,7 @@ struct FilterChip: View {
                         Capsule()
                             .fill(isSelected ? Colors.primary : (isHovered ? Colors.surfaceHover : Colors.surface))
                         Capsule()
-                            .stroke(isSelected ? Color.clear : Colors.glassBorder, lineWidth: 1)
+                            .stroke(isSelected ? Color.clear : Colors.border, lineWidth: 1)
                     }
                 )
                 .foregroundColor(isSelected ? .white : Colors.textSecondary)

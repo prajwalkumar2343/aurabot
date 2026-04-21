@@ -123,11 +123,9 @@ struct MemoriesHeaderSection: View {
                 .background(
                     ZStack {
                         RoundedRectangle(cornerRadius: Radius.md)
-                            .fill(.ultraThinMaterial)
+                            .fill(Colors.surfaceSecondary)
                         RoundedRectangle(cornerRadius: Radius.md)
-                            .fill(Colors.white.opacity(0.3))
-                        RoundedRectangle(cornerRadius: Radius.md)
-                            .stroke(Colors.glassBorder, lineWidth: 1)
+                            .stroke(Colors.border, lineWidth: 1)
                     }
                 )
             }
@@ -251,11 +249,9 @@ struct EmptySearchState: View {
         .background(
             ZStack {
                 RoundedRectangle(cornerRadius: Radius.xxl)
-                    .fill(.ultraThinMaterial)
+                    .fill(Colors.surface)
                 RoundedRectangle(cornerRadius: Radius.xxl)
-                    .fill(Colors.white.opacity(0.3))
-                RoundedRectangle(cornerRadius: Radius.xxl)
-                    .stroke(Colors.glassBorder, lineWidth: 1)
+                    .stroke(Colors.border, lineWidth: 1)
             }
         )
         .scaleEffect(isHovered ? 1.01 : 1.0)

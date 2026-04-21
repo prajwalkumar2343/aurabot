@@ -27,7 +27,7 @@ struct StatWidget: View {
     }
     
     var body: some View {
-        GlassCard(padding: Spacing.xl, shadow: isHovered ? Shadows.lg : Shadows.md) {
+        GlassCard(padding: Spacing.lg, shadow: isHovered ? Shadows.md : Shadows.sm) {
             VStack(alignment: .leading, spacing: Spacing.lg) {
                 // Icon
                 ZStack {
@@ -74,8 +74,7 @@ struct StatWidget: View {
             .degrees(tiltY),
             axis: (x: 1, y: 0, z: 0)
         )
-        .scaleEffect(isHovered ? 1.02 : 1.0)
-        .offset(y: isHovered ? -4 : 0)
+        .scaleEffect(isHovered ? 1.005 : 1.0)
         .animation(AnimationPresets.hover, value: isHovered)
         .animation(AnimationPresets.hover, value: tiltX)
         .animation(AnimationPresets.hover, value: tiltY)
@@ -100,7 +99,7 @@ struct AnimatedStatWidget: View {
     @State private var isHovered = false
     
     var body: some View {
-        GlassCard(padding: Spacing.xl, shadow: isHovered ? Shadows.lg : Shadows.md) {
+        GlassCard(padding: Spacing.lg, shadow: isHovered ? Shadows.md : Shadows.sm) {
             VStack(alignment: .leading, spacing: Spacing.lg) {
                 // Icon with glow
                 ZStack {
@@ -127,8 +126,7 @@ struct AnimatedStatWidget: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .scaleEffect(isHovered ? 1.02 : 1.0)
-        .offset(y: isHovered ? -4 : 0)
+        .scaleEffect(isHovered ? 1.005 : 1.0)
         .animation(AnimationPresets.hover, value: isHovered)
         .onHover { hovering in
             isHovered = hovering
@@ -136,7 +134,7 @@ struct AnimatedStatWidget: View {
         .onAppear {
             animateValue()
         }
-        .onChange(of: value) { _ in
+        .onChange(of: value) { _, _ in
             animateValue()
         }
     }
@@ -199,7 +197,7 @@ struct MiniStatWidget: View {
                         .stroke(Colors.border, lineWidth: 1)
                 )
         )
-        .scaleEffect(isHovered ? 1.02 : 1.0)
+        .scaleEffect(isHovered ? 1.005 : 1.0)
         .animation(AnimationPresets.hover, value: isHovered)
         .onHover { hovering in
             isHovered = hovering

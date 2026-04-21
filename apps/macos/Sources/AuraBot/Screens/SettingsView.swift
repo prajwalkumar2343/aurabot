@@ -564,11 +564,9 @@ struct CustomTextField: View {
             .background(
                 ZStack {
                     RoundedRectangle(cornerRadius: Radius.md)
-                        .fill(.ultraThinMaterial)
+                        .fill(isFocused ? Colors.surface : Colors.surfaceSecondary)
                     RoundedRectangle(cornerRadius: Radius.md)
-                        .fill(Colors.white.opacity(isFocused ? 0.5 : 0.3))
-                    RoundedRectangle(cornerRadius: Radius.md)
-                        .stroke(isFocused ? Colors.borderFocus : Colors.glassBorder, lineWidth: isFocused ? 1.5 : 1)
+                        .stroke(isFocused ? Colors.borderFocus : Colors.border, lineWidth: 1)
                 }
             )
         }
@@ -645,11 +643,9 @@ struct PermissionCard: View {
         .background(
             ZStack {
                 RoundedRectangle(cornerRadius: Radius.lg)
-                    .fill(.ultraThinMaterial)
+                    .fill(isHovered ? Colors.surfaceSecondary : Colors.surface)
                 RoundedRectangle(cornerRadius: Radius.lg)
-                    .fill(Colors.white.opacity(isHovered ? 0.3 : 0))
-                RoundedRectangle(cornerRadius: Radius.lg)
-                    .stroke(isHovered ? Colors.glassBorder : Color.clear, lineWidth: 1)
+                    .stroke(isHovered ? Colors.borderHover : Colors.border, lineWidth: 1)
             }
         )
         .animation(AnimationPresets.hover, value: isHovered)
@@ -677,9 +673,7 @@ struct SavedToast: View {
         .background(
             ZStack {
                 RoundedRectangle(cornerRadius: Radius.lg)
-                    .fill(.ultraThinMaterial)
-                RoundedRectangle(cornerRadius: Radius.lg)
-                    .fill(Colors.white.opacity(0.5))
+                    .fill(Colors.surface)
                 RoundedRectangle(cornerRadius: Radius.lg)
                     .stroke(Colors.success.opacity(0.3), lineWidth: 1)
             }
