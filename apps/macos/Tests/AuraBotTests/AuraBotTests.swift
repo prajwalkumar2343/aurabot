@@ -4,6 +4,51 @@ import XCTest
 
 @available(macOS 14.0, *)
 final class AuraBotCoreTests: XCTestCase {
+    func testMemoryV2SearchFixtureDecodes() throws {
+        let response = try decodeMemoryFixture("search-response", as: SearchMemoryResponse.self)
+
+        XCTAssertEqual(response.schemaVersion, MemoryV2JSON.schemaVersion)
+        XCTAssertEqual(response.items.first?.source, .brainChunk)
+        XCTAssertEqual(response.items.first?.relations.first?.relationType, .decidedIn)
+        XCTAssertEqual(response.debug.matchedEntities.first, "ent_project_aurabot")
+    }
+
+    func testMemoryV2RecentContextFixturesDecode() throws {
+        let eventResponse = try decodeMemoryFixture(
+            "recent-context-event-response",
+            as: RecentContextEventResponse.self
+        )
+        let listResponse = try decodeMemoryFixture(
+            "recent-context-list-response",
+            as: RecentContextListResponse.self
+        )
+
+        XCTAssertEqual(eventResponse.schemaVersion, MemoryV2JSON.schemaVersion)
+        XCTAssertEqual(eventResponse.event.source, .browser)
+        XCTAssertEqual(eventResponse.event.displayContext, "Browse")
+        XCTAssertEqual(listResponse.items.count, 2)
+        XCTAssertEqual(listResponse.items.last?.source, .repo)
+    }
+
+    func testMemoryV2OperationalFixturesDecode() throws {
+        let currentContext = try decodeMemoryFixture(
+            "current-context-response",
+            as: CurrentContextPacket.self
+        )
+        let graph = try decodeMemoryFixture("graph-query-response", as: GraphQueryResponse.self)
+        let brainSync = try decodeMemoryFixture("brain-sync-response", as: BrainSyncResponse.self)
+        let promotion = try decodeMemoryFixture("promotion-response", as: PromotionResponse.self)
+        let delete = try decodeMemoryFixture("delete-response", as: DeleteResponse.self)
+        let health = try decodeMemoryFixture("health-response", as: HealthResponse.self)
+
+        XCTAssertEqual(currentContext.activeEntities, ["ent_project_aurabot", "ent_concept_memory_v2"])
+        XCTAssertEqual(graph.relations.first?.evidence.first?.source, .brainPage)
+        XCTAssertEqual(brainSync.syncedPages.first?.slug, "projects/aurabot")
+        XCTAssertEqual(promotion.mode, "draft")
+        XCTAssertEqual(delete.source, .recentContext)
+        XCTAssertEqual(health.status, "ok")
+    }
+
     func testYouTubeWatchURLDerivesStableMediaContext() {
         let derived = BrowserContextService.deriveActivity(
             url: "https://www.youtube.com/watch?v=abc123&t=30",
@@ -722,6 +767,21 @@ final class AuraBotCoreTests: XCTestCase {
             ]
         )
     }
+}
+
+@available(macOS 14.0, *)
+private func decodeMemoryFixture<T: Decodable>(_ name: String, as type: T.Type) throws -> T {
+    let repoRoot = URL(fileURLWithPath: #filePath)
+        .deletingLastPathComponent()
+        .deletingLastPathComponent()
+        .deletingLastPathComponent()
+        .deletingLastPathComponent()
+        .deletingLastPathComponent()
+    let url = repoRoot
+        .appendingPathComponent("services/memory-pglite/src/test-fixtures")
+        .appendingPathComponent("\(name).json")
+    let data = try Data(contentsOf: url)
+    return try MemoryV2JSON.makeDecoder().decode(type, from: data)
 }
 
 private actor ForegroundLockRecorder {

@@ -95,7 +95,7 @@ class AppService: ObservableObject {
     
     func chat(message: String) async throws -> String {
         let relevantMemories = try await memoryService.search(query: message, limit: 5)
-        let context = relevantMemories.map { $0.memory.content }
+        let context = relevantMemories.map(\.content)
         return try await llmService.generateResponse(message: message, memories: context)
     }
     
@@ -152,11 +152,11 @@ class AppService: ObservableObject {
         let relevantMemories = try await memoryService.search(query: text, limit: 5)
         let memoryInfos = relevantMemories.map { 
             MemoryInfo(
-                id: $0.memory.id,
-                content: $0.memory.content,
-                context: $0.memory.metadata.context,
+                id: $0.id,
+                content: $0.content,
+                context: $0.displayContext,
                 score: $0.score,
-                date: $0.memory.createdAt
+                date: $0.createdAt
             )
         }
         
