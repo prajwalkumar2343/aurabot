@@ -176,7 +176,7 @@ struct StatusPanel: View {
                 
                 Spacer()
                 
-                Text("30s")
+                Text("\(service.captureInterval)s")
                     .font(Typography.caption)
                     .foregroundColor(Colors.textTertiary)
                     .padding(.horizontal, Spacing.sm)
@@ -186,8 +186,8 @@ struct StatusPanel: View {
             }
             
             HStack(spacing: Spacing.lg) {
-                StatusDot(color: Colors.success, label: "LLM")
-                StatusDot(color: Colors.success, label: "Memory")
+                StatusDot(color: service.isLLMConnected ? Colors.success : Colors.warning, label: "LLM")
+                StatusDot(color: service.isMemoryConnected ? Colors.success : Colors.warning, label: "Memory")
                 StatusDot(
                     color: service.captureEnabled ? Colors.success : Colors.textTertiary,
                     label: "Capture"
@@ -227,7 +227,7 @@ struct StatusPulse: View {
                     }
                 }
             }
-            .onChange(of: isActive) { active in
+            .onChange(of: isActive) { _, active in
                 if active {
                     withAnimation(.easeOut(duration: 1.2).repeatForever(autoreverses: false)) {
                         isPulsing = true
