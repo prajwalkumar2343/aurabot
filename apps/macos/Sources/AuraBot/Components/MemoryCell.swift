@@ -36,7 +36,7 @@ struct MemoryCell: View {
                     
                     HStack(spacing: Spacing.sm) {
                         // Context tag
-                        Text(memory.metadata.context)
+                        Text(memory.displayContext)
                             .font(Typography.caption)
                             .fontWeight(.medium)
                             .padding(.horizontal, Spacing.sm)
@@ -95,7 +95,7 @@ struct MemoryCell: View {
     }
     
     private var categoryColor: Color {
-        switch memory.metadata.context.lowercased() {
+        switch memory.displayContext.lowercased() {
         case let s where s.contains("work"): return Colors.primary
         case let s where s.contains("code"): return Colors.secondary
         case let s where s.contains("meeting"): return Colors.accent
@@ -105,7 +105,7 @@ struct MemoryCell: View {
     }
     
     private var categoryIcon: String {
-        switch memory.metadata.context.lowercased() {
+        switch memory.displayContext.lowercased() {
         case let s where s.contains("work"): return "briefcase.fill"
         case let s where s.contains("code"): return "code"
         case let s where s.contains("meeting"): return "video.fill"
@@ -160,7 +160,7 @@ struct CompactMemoryCell: View {
     }
     
     private var categoryColor: Color {
-        switch memory.metadata.context.lowercased() {
+        switch memory.displayContext.lowercased() {
         case let s where s.contains("work"): return Colors.primary
         case let s where s.contains("code"): return Colors.secondary
         case let s where s.contains("meeting"): return Colors.accent
@@ -212,7 +212,7 @@ struct MemoryGridCell: View {
             Spacer()
             
             // Tag
-            Text(memory.metadata.context)
+            Text(memory.displayContext)
                 .font(Typography.caption2)
                 .fontWeight(.medium)
                 .padding(.horizontal, Spacing.sm)
@@ -255,7 +255,7 @@ struct MemoryGridCell: View {
     }
     
     private var categoryColor: Color {
-        switch memory.metadata.context.lowercased() {
+        switch memory.displayContext.lowercased() {
         case let s where s.contains("work"): return Colors.primary
         case let s where s.contains("code"): return Colors.secondary
         case let s where s.contains("meeting"): return Colors.accent
@@ -264,7 +264,7 @@ struct MemoryGridCell: View {
     }
     
     private var categoryIcon: String {
-        switch memory.metadata.context.lowercased() {
+        switch memory.displayContext.lowercased() {
         case let s where s.contains("work"): return "briefcase.fill"
         case let s where s.contains("code"): return "code"
         case let s where s.contains("meeting"): return "video.fill"

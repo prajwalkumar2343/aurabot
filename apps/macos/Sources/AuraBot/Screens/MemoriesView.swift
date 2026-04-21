@@ -21,7 +21,8 @@ struct MemoriesView: View {
         
         if let filter = selectedFilter {
             result = result.filter {
-                $0.metadata.context.localizedCaseInsensitiveContains(filter)
+                $0.displayContext.localizedCaseInsensitiveContains(filter)
+                    || $0.source.displayName.localizedCaseInsensitiveContains(filter)
             }
         }
         
