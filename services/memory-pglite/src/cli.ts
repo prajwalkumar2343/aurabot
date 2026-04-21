@@ -3,7 +3,9 @@
 import { mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { initializeBrainRepository, resolveBrainDir } from "./brain/index.js";
 import { openMemoryDatabase } from "./database/index.js";
+import { syncBrainPages } from "./indexing/index.js";
 import { checkSchema } from "./schema/check.js";
 
 const command = process.argv[2];
@@ -16,9 +18,15 @@ async function main(): Promise<void> {
     case "schema:check":
       await schemaCheck();
       break;
+    case "brain:init":
+      await brainInit();
+      break;
+    case "brain:sync":
+      await brainSync();
+      break;
     default:
       console.error(`Unknown command: ${command ?? "(missing)"}`);
-      console.error("Available commands: smoke, schema:check");
+      console.error("Available commands: smoke, schema:check, brain:init, brain:sync");
       process.exitCode = 2;
   }
 }
@@ -59,6 +67,30 @@ async function schemaCheck(): Promise<void> {
     const result = await checkSchema(database);
     console.log(JSON.stringify(result, null, 2));
     if (!result.ok) {
+      process.exitCode = 1;
+    }
+  } finally {
+    await database.close();
+  }
+}
+
+async function brainInit(): Promise<void> {
+  const rootDir = resolveBrainDir();
+  const result = await initializeBrainRepository(rootDir);
+  console.log(JSON.stringify(result, null, 2));
+}
+
+async function brainSync(): Promise<void> {
+  const rootDir = resolveBrainDir();
+  const userId = process.env.AURABOT_MEMORY_USER_ID?.trim() || "default_user";
+  const database = await openMemoryDatabase();
+  try {
+    const result = await syncBrainPages(database, {
+      rootDir,
+      userId,
+    });
+    console.log(JSON.stringify(result, null, 2));
+    if (result.errors.length > 0) {
       process.exitCode = 1;
     }
   } finally {

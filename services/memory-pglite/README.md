@@ -19,6 +19,7 @@ Environment variables:
 | `AURABOT_HOME` | Base AuraBot data directory. Defaults to `~/.aurabot`. |
 | `AURABOT_PGLITE_DIR` | Explicit PGlite data directory override. |
 | `AURABOT_PGLITE_TEST_DIR` | Test-only PGlite data directory override. |
+| `AURABOT_BRAIN_DIR` | Explicit markdown brain directory override. Defaults to `~/.aurabot/brain`. |
 | `AURABOT_MEMORY_EMBEDDING_DIMENSIONS` | Embedding dimension count. Defaults to `1536`. |
 
 ## Commands
@@ -27,6 +28,8 @@ Environment variables:
 npm install
 npm run smoke
 npm run schema:check
+npm run brain:init
+npm run brain:sync
 npm test
 ```
 
@@ -34,6 +37,12 @@ npm test
 initializes PGlite, applies migrations, checks `SELECT 1`, and verifies vector
 support. The runtime writes a sibling lock file at `<pglite-dir>.lock`; the
 PGlite data directory itself remains PGlite-owned.
+
+`npm run brain:init` creates the markdown brain starter directories and files
+without overwriting existing user-edited pages. `npm run brain:sync` scans the
+brain directory, validates frontmatter, indexes changed pages into
+`brain_pages`, `brain_chunks`, and `timeline_events`, and enqueues graph
+extraction jobs for changed pages.
 
 ## Agent 1 Ownership
 
