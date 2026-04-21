@@ -1,130 +1,153 @@
+import CryptoKit
 import Foundation
 
 actor MemoryService {
     private let config: MemoryConfig
     private let session: URLSession
-    
+    private let decoder: JSONDecoder
+    private let encoder: JSONEncoder
+
     init(config: MemoryConfig) {
         self.config = config
         self.session = URLSession.shared
+        self.decoder = MemoryV2JSON.makeDecoder()
+        self.encoder = MemoryV2JSON.makeEncoder()
     }
-    
+
     func add(content: String, metadata: Metadata) async throws -> Memory {
-        guard let url = URL(string: "\(config.baseURL)/v1/memories/") else {
-            throw URLError(.badURL)
-        }
+        let payload = RecentContextEventInput(
+            userID: config.userID,
+            agentID: config.collectionName,
+            idempotencyKey: idempotencyKey(for: content, metadata: metadata),
+            source: inferSource(from: metadata),
+            content: content,
+            occurredAt: metadata.timestamp.isEmpty ? ISO8601DateFormatter().string(from: Date()) : metadata.timestamp,
+            ttlSeconds: 6 * 60 * 60,
+            importance: 0.5,
+            metadata: metadata
+        )
 
-        var metadataPayload: [String: Any] = [
-            "timestamp": metadata.timestamp,
-            "context": metadata.context,
-            "activities": metadata.activities,
-            "key_elements": metadata.keyElements,
-            "user_intent": metadata.userIntent,
-            "display_num": metadata.displayNum
-        ]
+        var request = try makeRequest(path: "/v2/recent-context", method: "POST")
+        request.httpBody = try encoder.encode(payload)
 
-        if let browser = metadata.browser {
-            metadataPayload["browser"] = browser
-        }
-        if let url = metadata.url {
-            metadataPayload["url"] = url
-        }
-        if let captureReason = metadata.captureReason {
-            metadataPayload["capture_reason"] = captureReason
-        }
-
-        let payload: [String: Any] = [
-            "messages": [
-                ["role": "user", "content": content]
-            ],
-            "user_id": config.userID,
-            "metadata": metadataPayload,
-            "agent_id": config.collectionName
-        ]
-        
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        if !config.apiKey.isEmpty {
-            request.setValue("Bearer \(config.apiKey)", forHTTPHeaderField: "Authorization")
-        }
-        request.httpBody = try JSONSerialization.data(withJSONObject: payload)
-        
         let data = try await performRequest(request)
-        return try decodeMemory(from: data)
+        let response = try decoder.decode(RecentContextEventResponse.self, from: data)
+        try validateSchemaVersion(response.schemaVersion)
+        return response.event
     }
-    
+
     func search(query: String, limit: Int = 10) async throws -> [SearchResult] {
-        guard let url = URL(string: "\(config.baseURL)/v1/memories/search/") else {
-            throw URLError(.badURL)
-        }
-        
-        let payload: [String: Any] = [
-            "query": query,
-            "user_id": config.userID,
-            "agent_id": config.collectionName,
-            "limit": limit
-        ]
-        
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        if !config.apiKey.isEmpty {
-            request.setValue("Bearer \(config.apiKey)", forHTTPHeaderField: "Authorization")
-        }
-        request.httpBody = try JSONSerialization.data(withJSONObject: payload)
-        
+        let payload = SearchMemoryRequest(
+            query: query,
+            userID: config.userID,
+            agentID: config.collectionName,
+            scopes: nil,
+            limit: limit,
+            debug: false
+        )
+
+        var request = try makeRequest(path: "/v2/search", method: "POST")
+        request.httpBody = try encoder.encode(payload)
+
         let data = try await performRequest(request)
-        return try decodeSearchResults(from: data)
+        let response = try decoder.decode(SearchMemoryResponse.self, from: data)
+        try validateSchemaVersion(response.schemaVersion)
+        return response.items
     }
-    
+
     func getRecent(limit: Int = 10) async throws -> [Memory] {
-        var urlComponents = URLComponents(string: "\(config.baseURL)/v1/memories/")
-        urlComponents?.queryItems = [
+        var queryItems = [
             URLQueryItem(name: "user_id", value: config.userID),
-            URLQueryItem(name: "agent_id", value: config.collectionName),
             URLQueryItem(name: "limit", value: String(limit))
         ]
-        
-        guard let url = urlComponents?.url else {
-            throw URLError(.badURL)
+
+        if !config.collectionName.isEmpty {
+            queryItems.append(URLQueryItem(name: "agent_id", value: config.collectionName))
         }
-        
-        var request = URLRequest(url: url)
-        if !config.apiKey.isEmpty {
-            request.setValue("Bearer \(config.apiKey)", forHTTPHeaderField: "Authorization")
-        }
-        
+
+        let request = try makeRequest(path: "/v2/recent-context", queryItems: queryItems)
         let data = try await performRequest(request)
-        return try decodeMemories(from: data)
+        let response = try decoder.decode(RecentContextListResponse.self, from: data)
+        try validateSchemaVersion(response.schemaVersion)
+        return response.items
     }
-    
-    func delete(memoryID: String) async throws {
-        guard let url = URL(string: "\(config.baseURL)/v1/memories/\(memoryID)") else {
-            throw URLError(.badURL)
+
+    func getCurrentContext() async throws -> CurrentContextPacket {
+        var queryItems = [
+            URLQueryItem(name: "user_id", value: config.userID)
+        ]
+
+        if !config.collectionName.isEmpty {
+            queryItems.append(URLQueryItem(name: "agent_id", value: config.collectionName))
         }
-        
-        var request = URLRequest(url: url)
-        request.httpMethod = "DELETE"
-        if !config.apiKey.isEmpty {
-            request.setValue("Bearer \(config.apiKey)", forHTTPHeaderField: "Authorization")
-        }
-        
-        _ = try await performRequest(request)
+
+        let request = try makeRequest(path: "/v2/current-context", queryItems: queryItems)
+        let data = try await performRequest(request)
+        let response = try decoder.decode(CurrentContextPacket.self, from: data)
+        try validateSchemaVersion(response.schemaVersion)
+        return response
     }
-    
+
+    func delete(memoryID: String, source: MemorySource = .recentContext) async throws {
+        let encodedSource = source.rawValue.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? source.rawValue
+        let encodedID = memoryID.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? memoryID
+        let queryItems = [
+            URLQueryItem(name: "user_id", value: config.userID)
+        ]
+
+        let request = try makeRequest(
+            path: "/v2/memories/\(encodedSource)/\(encodedID)",
+            queryItems: queryItems,
+            method: "DELETE"
+        )
+
+        _ = try await performRequest(request, allowsEmptyBody: true)
+    }
+
     func checkHealth() async -> Bool {
-        guard let url = URL(string: "\(config.baseURL)/health") else { return false }
-        
         do {
-            let (_, response) = try await session.data(from: url)
-            return (response as? HTTPURLResponse)?.statusCode == 200
+            let request = try makeRequest(path: "/v2/health")
+            let data = try await performRequest(request)
+            let response = try decoder.decode(HealthResponse.self, from: data)
+            return response.schemaVersion == MemoryV2JSON.schemaVersion && response.status == "ok"
         } catch {
             return false
         }
     }
 
-    private func performRequest(_ request: URLRequest) async throws -> Data {
+    private func makeRequest(
+        path: String,
+        queryItems: [URLQueryItem] = [],
+        method: String = "GET"
+    ) throws -> URLRequest {
+        guard var components = URLComponents(string: config.baseURL) else {
+            throw URLError(.badURL)
+        }
+
+        let normalizedBasePath = components.path.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+        let normalizedPath = path.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+        components.path = "/" + [normalizedBasePath, normalizedPath]
+            .filter { !$0.isEmpty }
+            .joined(separator: "/")
+        components.queryItems = queryItems.isEmpty ? nil : queryItems
+
+        guard let url = components.url else {
+            throw URLError(.badURL)
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = method
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+
+        if !config.apiKey.isEmpty {
+            request.setValue("Bearer \(config.apiKey)", forHTTPHeaderField: "Authorization")
+        }
+
+        return request
+    }
+
+    private func performRequest(_ request: URLRequest, allowsEmptyBody: Bool = false) async throws -> Data {
         let (data, response) = try await session.data(for: request)
 
         guard let httpResponse = response as? HTTPURLResponse else {
@@ -132,152 +155,98 @@ actor MemoryService {
         }
 
         guard (200..<300).contains(httpResponse.statusCode) else {
-            if let apiError = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-               let message = apiError["error"] as? String {
+            if let apiError = try? decoder.decode(MemoryV2ErrorResponse.self, from: data) {
+                throw MemoryServiceError.apiError(apiError.error.message)
+            }
+            if let legacyError = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+               let message = legacyError["error"] as? String {
                 throw MemoryServiceError.apiError(message)
             }
             throw URLError(.badServerResponse)
         }
 
+        if data.isEmpty && !allowsEmptyBody {
+            throw URLError(.zeroByteResource)
+        }
+
         return data
     }
 
-    private func decodeMemory(from data: Data) throws -> Memory {
-        guard let object = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-            throw URLError(.cannotParseResponse)
-        }
-
-        return try parseMemory(object)
-    }
-
-    private func decodeMemories(from data: Data) throws -> [Memory] {
-        guard let objects = try JSONSerialization.jsonObject(with: data) as? [[String: Any]] else {
-            throw URLError(.cannotParseResponse)
-        }
-
-        return try objects.map(parseMemory)
-    }
-
-    private func decodeSearchResults(from data: Data) throws -> [SearchResult] {
-        guard let object = try JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let results = object["results"] as? [[String: Any]] else {
-            throw URLError(.cannotParseResponse)
-        }
-
-        return try results.compactMap { result in
-            guard let memoryObject = result["memory"] as? [String: Any] else {
-                return nil
-            }
-
-            return SearchResult(
-                memory: try parseMemory(memoryObject),
-                score: parseDouble(result["score"]) ?? 0,
-                distance: parseDouble(result["distance"]) ?? 0
-            )
+    private func validateSchemaVersion(_ schemaVersion: String) throws {
+        guard schemaVersion == MemoryV2JSON.schemaVersion else {
+            throw MemoryServiceError.schemaMismatch(schemaVersion)
         }
     }
 
-    private func parseMemory(_ object: [String: Any]) throws -> Memory {
-        let metadataObject = object["metadata"] as? [String: Any] ?? [:]
-        let createdAtString = object["created_at"] as? String ?? ""
+    private func inferSource(from metadata: Metadata) -> RecentContextSource {
+        if metadata.url != nil || metadata.browser != nil {
+            return .browser
+        }
 
-        return Memory(
-            id: object["id"] as? String ?? UUID().uuidString,
-            content: object["content"] as? String ?? object["memory"] as? String ?? "",
-            userID: object["user_id"] as? String ?? config.userID,
-            metadata: Metadata(
-                timestamp: metadataObject["timestamp"] as? String ?? createdAtString,
-                context: metadataObject["context"] as? String ?? "General",
-                activities: metadataObject["activities"] as? [String] ?? [],
-                keyElements: metadataObject["key_elements"] as? [String] ?? [],
-                userIntent: metadataObject["user_intent"] as? String ?? "",
-                displayNum: parseInt(metadataObject["display_num"]) ?? 0,
-                browser: metadataObject["browser"] as? String,
-                url: metadataObject["url"] as? String,
-                captureReason: metadataObject["capture_reason"] as? String
-            ),
-            createdAt: parseDate(createdAtString) ?? Date()
+        let reason = metadata.captureReason?.lowercased() ?? ""
+        let context = metadata.context.lowercased()
+
+        if reason.contains("terminal") || context.contains("terminal") {
+            return .terminal
+        }
+        if reason.contains("file") || context.contains("file") {
+            return .file
+        }
+        if reason.contains("repo") || context.contains("code") {
+            return .repo
+        }
+        if reason.contains("app") {
+            return .app
+        }
+
+        return .screen
+    }
+
+    private func idempotencyKey(for content: String, metadata: Metadata) -> String {
+        let fingerprint = stableFingerprint(
+            [
+                config.userID,
+                config.collectionName,
+                metadata.timestamp,
+                metadata.context,
+                content
+            ].joined(separator: "|")
         )
+
+        return "recent_context_\(config.userID)_\(fingerprint)"
     }
 
-    private func parseDate(_ value: String) -> Date? {
-        guard !value.isEmpty else { return nil }
-
-        if let date = Self.iso8601Fractional.date(from: value) {
-            return date
-        }
-
-        if let date = Self.iso8601.date(from: value) {
-            return date
-        }
-
-        if let date = Self.pythonDateFormatter.date(from: value) {
-            return date
-        }
-
-        return Self.pythonDateFormatterNoFraction.date(from: value)
+    private func stableFingerprint(_ value: String) -> String {
+        let digest = SHA256.hash(data: Data(value.utf8))
+        return digest.prefix(12).map { String(format: "%02x", $0) }.joined()
     }
+}
 
-    private func parseDouble(_ value: Any?) -> Double? {
-        switch value {
-        case let number as Double:
-            return number
-        case let number as Int:
-            return Double(number)
-        case let number as NSNumber:
-            return number.doubleValue
-        case let string as String:
-            return Double(string)
-        default:
-            return nil
-        }
+private struct MemoryV2ErrorResponse: Decodable {
+    let schemaVersion: String
+    let error: MemoryV2Error
+
+    enum CodingKeys: String, CodingKey {
+        case schemaVersion = "schema_version"
+        case error
     }
+}
 
-    private func parseInt(_ value: Any?) -> Int? {
-        switch value {
-        case let number as Int:
-            return number
-        case let number as NSNumber:
-            return number.intValue
-        case let string as String:
-            return Int(string)
-        default:
-            return nil
-        }
-    }
-
-    private static let iso8601Fractional: ISO8601DateFormatter = {
-        let formatter = ISO8601DateFormatter()
-        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        return formatter
-    }()
-
-    private static let iso8601: ISO8601DateFormatter = {
-        ISO8601DateFormatter()
-    }()
-
-    private static let pythonDateFormatter: DateFormatter = {
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.dateFormat = "yyyy-MM-dd'T'HH:mm:ss.SSSSSS"
-        return formatter
-    }()
-
-    private static let pythonDateFormatterNoFraction: DateFormatter = {
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.dateFormat = "yyyy-MM-dd'T'HH:mm:ss"
-        return formatter
-    }()
+private struct MemoryV2Error: Decodable {
+    let code: String
+    let message: String
 }
 
 enum MemoryServiceError: LocalizedError {
     case apiError(String)
+    case schemaMismatch(String)
 
     var errorDescription: String? {
         switch self {
         case .apiError(let message):
             return message
+        case .schemaMismatch(let version):
+            return "Expected Memory v2 schema version, got \(version)"
         }
     }
 }
