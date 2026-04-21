@@ -71,26 +71,23 @@ struct MemoryCell: View {
             .background(
                 ZStack {
                     RoundedRectangle(cornerRadius: Radius.xl)
-                        .fill(.ultraThinMaterial)
-                    RoundedRectangle(cornerRadius: Radius.xl)
-                        .fill(Colors.white.opacity(isHovered ? 0.5 : 0.3))
+                        .fill(isHovered ? Colors.surfaceSecondary : Colors.surface)
                     RoundedRectangle(cornerRadius: Radius.xl)
                         .stroke(
-                            isHovered ? Colors.borderFocus.opacity(0.5) : Colors.glassBorder,
-                            lineWidth: isHovered ? 1.5 : 1
+                            isHovered ? Colors.borderHover : Colors.border,
+                            lineWidth: 1
                         )
                 }
             )
             .shadow(
-                color: isHovered ? Colors.primary.opacity(0.08) : Color.clear,
-                radius: isHovered ? 16 : 0,
+                color: isHovered ? Shadows.sm.color : Color.clear,
+                radius: isHovered ? Shadows.sm.radius : 0,
                 x: 0,
-                y: isHovered ? 6 : 0
+                y: isHovered ? Shadows.sm.y : 0
             )
         }
         .buttonStyle(.plain)
-        .scaleEffect(isHovered ? 1.01 : 1.0)
-        .offset(y: isHovered ? -2 : 0)
+        .scaleEffect(isHovered ? 1.003 : 1.0)
         .animation(AnimationPresets.hover, value: isHovered)
         .onHover { hovering in
             isHovered = hovering
@@ -151,11 +148,9 @@ struct CompactMemoryCell: View {
         .background(
             ZStack {
                 RoundedRectangle(cornerRadius: Radius.md)
-                    .fill(.ultraThinMaterial)
+                    .fill(isHovered ? Colors.surfaceSecondary : Colors.surface)
                 RoundedRectangle(cornerRadius: Radius.md)
-                    .fill(Colors.white.opacity(isHovered ? 0.35 : 0))
-                RoundedRectangle(cornerRadius: Radius.md)
-                    .stroke(isHovered ? Colors.glassBorder : Color.clear, lineWidth: 1)
+                    .stroke(isHovered ? Colors.border : Color.clear, lineWidth: 1)
             }
         )
         .animation(AnimationPresets.hover, value: isHovered)
@@ -238,24 +233,21 @@ struct MemoryGridCell: View {
         .background(
             ZStack {
                 RoundedRectangle(cornerRadius: Radius.xl)
-                    .fill(.ultraThinMaterial)
-                RoundedRectangle(cornerRadius: Radius.xl)
-                    .fill(Colors.white.opacity(isHovered ? 0.5 : 0.3))
+                    .fill(isHovered ? Colors.surfaceSecondary : Colors.surface)
                 RoundedRectangle(cornerRadius: Radius.xl)
                     .stroke(
-                        isHovered ? Colors.borderFocus.opacity(0.5) : Colors.glassBorder,
-                        lineWidth: isHovered ? 1.5 : 1
+                        isHovered ? Colors.borderHover : Colors.border,
+                        lineWidth: 1
                     )
             }
         )
         .shadow(
-            color: isHovered ? Colors.primary.opacity(0.08) : Color.clear,
-            radius: isHovered ? 16 : 0,
+            color: isHovered ? Shadows.sm.color : Color.clear,
+            radius: isHovered ? Shadows.sm.radius : 0,
             x: 0,
-            y: isHovered ? 6 : 0
+            y: isHovered ? Shadows.sm.y : 0
         )
-        .scaleEffect(isHovered ? 1.02 : 1.0)
-        .offset(y: isHovered ? -4 : 0)
+        .scaleEffect(isHovered ? 1.005 : 1.0)
         .animation(AnimationPresets.hover, value: isHovered)
         .onHover { hovering in
             isHovered = hovering
