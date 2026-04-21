@@ -20,23 +20,15 @@ extension Date {
 // MARK: - View Extensions
 @available(macOS 14.0, *)
 extension View {
-    func cardStyle() -> some View {
-        self
-            .padding()
-            .background(Color.gray.opacity(0.1))
-            .cornerRadius(12)
-    }
-    
     func glassmorphic() -> some View {
         self
-            .background(.ultraThinMaterial)
-            .background(Colors.white.opacity(0.7))
+            .background(Colors.surface)
             .overlay(
-                RoundedRectangle(cornerRadius: 16)
+                RoundedRectangle(cornerRadius: Radius.lg)
                     .stroke(Colors.border, lineWidth: 1)
             )
-            .cornerRadius(16)
-            .shadow(color: Shadows.md.color, radius: Shadows.md.radius, x: Shadows.md.x, y: Shadows.md.y)
+            .cornerRadius(Radius.lg)
+            .shadow(color: Shadows.sm.color, radius: Shadows.sm.radius, x: Shadows.sm.x, y: Shadows.sm.y)
     }
     
     func withPageTransition() -> some View {

@@ -30,18 +30,11 @@ struct GlassCard<Content: View>: View {
             .padding(padding)
             .background(
                 ZStack {
-                    // Glass background
                     RoundedRectangle(cornerRadius: cornerRadius)
-                        .fill(blur)
-                    
-                    // Subtle white overlay for frosted look
+                        .fill(Colors.surface)
+
                     RoundedRectangle(cornerRadius: cornerRadius)
-                        .fill(Colors.white.opacity(0.35))
-                    
-                    // Top inner highlight
-                    RoundedRectangle(cornerRadius: cornerRadius)
-                        .stroke(Color.white.opacity(0.5), lineWidth: 1)
-                        .padding(0.5)
+                        .fill(Colors.surfaceSecondary.opacity(0.45))
                 }
             )
             .overlay(
