@@ -1,5 +1,7 @@
 # AuraBot - AI Memory Assistant for macOS
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
 AuraBot is an intelligent screen capture and memory system that learns your context and activities over time. It uses vision AI to understand your screen content and stores meaningful memories using a vector database, enabling you to query your digital history and get AI-assisted responses with personal context.
 
 ## How It Works
