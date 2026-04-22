@@ -1,4 +1,6 @@
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
+import { join } from "node:path";
 import { describe, it } from "node:test";
 import type { RecentContextEventInput } from "../../src/contracts/index.js";
 import { openMemoryDatabase } from "../../src/database/index.js";
@@ -83,6 +85,55 @@ describe("recent context summaries", () => {
         assert.match(first.summary, /Recent context includes 2 events/);
         assert.equal(first.metadata.summary_id, second.metadata.summary_id);
         assert.equal(first.metadata.generated_by, "deterministic_summarizer");
+      } finally {
+        await database.close();
+      }
+    });
+  });
+
+  it("materializes rolling summaries as generated markdown brain pages", async () => {
+    await withTempDir(async (dir) => {
+      const database = await openMemoryDatabase({
+        dataDir: join(dir, "pglite"),
+        embeddingDimensions: 3,
+      });
+      const brainDir = join(dir, "brain");
+      try {
+        await insertRecentContextEvent(database, eventInput());
+
+        const summary = await summarizeRecentContext(database, {
+          userId: "default_user",
+          agentId: "screen_memories_v3",
+          idempotencyKey: "summary_markdown_window",
+          window: {
+            started_at: "2026-04-21T09:00:00Z",
+            ended_at: "2026-04-21T09:30:00Z",
+          },
+          markdown: {
+            rootDir: brainDir,
+            syncAfterWrite: true,
+          },
+        });
+
+        const markdown = summary.metadata.markdown as unknown as {
+          path: string;
+          slug: string;
+          synced: boolean;
+        };
+        assert.equal(markdown.slug, "timelines/recent-context/default-user/screen-memories-v3/current");
+        assert.equal(markdown.synced, true);
+
+        const generated = await readFile(join(brainDir, markdown.path), "utf8");
+        assert.match(generated, /source: recent_context_summary/);
+        assert.match(generated, /summary_id: summary_/);
+        assert.match(generated, /Editing Swift MemoryService/);
+
+        const indexed = await database.query<{ slug: string; page_type: string }>(
+          "SELECT slug, page_type FROM brain_pages WHERE slug = $1 LIMIT 1",
+          [markdown.slug],
+        );
+        assert.equal(indexed.rows[0]?.slug, markdown.slug);
+        assert.equal(indexed.rows[0]?.page_type, "document");
       } finally {
         await database.close();
       }

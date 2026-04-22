@@ -207,6 +207,12 @@ Path rules:
 - `slug: preferences` maps to `PREFERENCES.md`.
 - Writers must use an expected hash check before modifying an existing page.
 
+Generated recent-context summary pages are the exception to the user-edit
+writer rule. The service owns and overwrites
+`timelines/recent-context/{user}/{agent}/current.md` after each rolling summary,
+then indexes it like any other brain page. These pages mirror summaries only;
+raw recent events remain in PGlite.
+
 ## Fixture Set
 
 Shared fixtures are stored in `services/memory-pglite/src/test-fixtures/`.

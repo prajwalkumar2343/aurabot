@@ -1,3 +1,4 @@
+import { syncBrainPages } from "../indexing/brain-sync.js";
 import type { CurrentContextPacket, JsonObject, RecentContextEvent, TimeWindow } from "../contracts/index.js";
 import type { MemoryPgliteDatabase } from "../database/index.js";
 import { enqueueMemoryJob } from "../jobs/index.js";
@@ -5,6 +6,7 @@ import { TABLES } from "../schema/constants.js";
 import type { EmbeddingProvider } from "./events.js";
 import { getRecentContextEvents } from "./events.js";
 import { contentHash, sha256Hex, stableJson } from "./hash.js";
+import { writeRecentContextSummaryMarkdown } from "./markdown.js";
 
 const DEFAULT_CURRENT_CONTEXT_HOURS = 6;
 const DEFAULT_RECENT_EVENTS_LIMIT = 10;
@@ -16,6 +18,10 @@ export interface SummarizeRecentContextInput {
   window: TimeWindow;
   embedder?: EmbeddingProvider;
   mode?: "deterministic";
+  markdown?: {
+    rootDir: string;
+    syncAfterWrite?: boolean;
+  };
 }
 
 export interface CurrentContextOptions {
@@ -156,6 +162,46 @@ export async function summarizeRecentContext(
     },
   });
 
+  if (input.markdown) {
+    const markdownInput: Parameters<typeof writeRecentContextSummaryMarkdown>[0] = {
+      rootDir: input.markdown.rootDir,
+      userId: input.userId,
+      summaryId,
+      window,
+      summary: deterministic.summary,
+      facts: deterministic,
+      sourceHash,
+      sourceEvents: events,
+      generatedAt,
+    };
+    if (input.agentId) {
+      markdownInput.agentId = input.agentId;
+    }
+
+    const markdown = await writeRecentContextSummaryMarkdown(markdownInput);
+    let synced = false;
+
+    if (input.markdown.syncAfterWrite ?? true) {
+      await syncBrainPages(database, {
+        rootDir: input.markdown.rootDir,
+        userId: input.userId,
+        now: generatedAt,
+      });
+      synced = true;
+    }
+
+    await mergeSummaryMetadata(database, summaryId, {
+      markdown: {
+        root_dir: markdown.root_dir,
+        path: markdown.path,
+        slug: markdown.slug,
+        content_hash: markdown.content_hash,
+        generated_at: markdown.generated_at,
+        synced,
+      },
+    });
+  }
+
   const stored = await getSummaryById(database, summaryId);
   return summaryRowToCurrentContextPacket(stored, events);
 }
@@ -280,6 +326,22 @@ async function getSummaryById(
     throw new Error(`Failed to load recent context summary ${summaryId}`);
   }
   return row;
+}
+
+async function mergeSummaryMetadata(
+  database: MemoryPgliteDatabase,
+  summaryId: string,
+  metadata: JsonObject,
+): Promise<void> {
+  await database.query(
+    `
+      UPDATE ${TABLES.recentContextSummaries}
+      SET metadata = COALESCE(metadata, '{}'::jsonb) || $2::jsonb,
+          updated_at = NOW()
+      WHERE id = $1
+    `,
+    [summaryId, stableJson(metadata)],
+  );
 }
 
 async function getLatestSummary(
