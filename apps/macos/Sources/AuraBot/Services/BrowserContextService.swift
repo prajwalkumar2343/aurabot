@@ -1,6 +1,22 @@
 import AppKit
 import Foundation
 
+enum BrowserContextUnavailableReason: String, Equatable, Sendable {
+    case noActiveBrowser = "no_active_browser"
+    case extensionStale = "extension_stale"
+    case automationUnavailable = "automation_unavailable"
+}
+
+struct BrowserContextStatus: Sendable {
+    let context: BrowserContext?
+    let staleExtensionContext: BrowserContext?
+    let reason: BrowserContextUnavailableReason?
+
+    var hasFreshExtensionContext: Bool {
+        context?.source == .extensionData
+    }
+}
+
 actor BrowserContextService {
     private let config: ExtensionConfig
     private var latestExtensionContext: BrowserContext?
@@ -14,12 +30,36 @@ actor BrowserContextService {
     }
 
     func currentContext() async -> BrowserContext? {
+        await currentContextStatus().context
+    }
+
+    func currentContextStatus() async -> BrowserContextStatus {
+        let now = Date()
         if let latestExtensionContext,
-           Date().timeIntervalSince(latestExtensionContext.timestamp) <= TimeInterval(config.freshnessSeconds) {
-            return latestExtensionContext
+           now.timeIntervalSince(latestExtensionContext.timestamp) <= TimeInterval(config.freshnessSeconds) {
+            return BrowserContextStatus(
+                context: latestExtensionContext,
+                staleExtensionContext: nil,
+                reason: nil
+            )
         }
 
-        return automationContext()
+        let automation = automationContext()
+        let staleReason: BrowserContextUnavailableReason? = latestExtensionContext == nil ? nil : .extensionStale
+
+        if let automation {
+            return BrowserContextStatus(
+                context: automation,
+                staleExtensionContext: latestExtensionContext,
+                reason: staleReason
+            )
+        }
+
+        return BrowserContextStatus(
+            context: nil,
+            staleExtensionContext: latestExtensionContext,
+            reason: latestExtensionContext == nil ? .noActiveBrowser : .extensionStale
+        )
     }
 
     private func automationContext() -> BrowserContext? {
@@ -47,6 +87,14 @@ actor BrowserContextService {
             scrollPercent: nil,
             viewportSignature: nil,
             noveltyScore: nil,
+            visibleText: nil,
+            selectedText: nil,
+            readableText: nil,
+            visibleTextHash: nil,
+            readableTextHash: nil,
+            textCaptureMode: nil,
+            privateWindow: false,
+            sourceQuality: .automationFallback,
             timestamp: Date()
         )
     }

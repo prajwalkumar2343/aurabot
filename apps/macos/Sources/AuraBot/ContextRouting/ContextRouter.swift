@@ -82,10 +82,11 @@ actor ContextRouter {
             keyElements: compact([
                 activeApp.name,
                 browserContext.title,
-                browserContext.url
+                browserContext.url,
+                browserContext.sourceQuality.rawValue
             ]),
             userIntent: browserContext.activity == .media ? "Watching or reviewing media" : "Browsing or researching",
-            importance: browserContext.source == .extensionData ? 0.72 : 0.62,
+            importance: browserImportance(for: browserContext),
             ttl: "session",
             fingerprint: fingerprint,
             timestamp: now,
@@ -93,7 +94,33 @@ actor ContextRouter {
             captureReason: "context_router_browser"
         )
 
-        return structuredPlan(event, confidence: browserContext.source == .extensionData ? 0.9 : 0.72, force: force)
+        return structuredPlan(event, confidence: browserConfidence(for: browserContext), force: force)
+    }
+
+    private func browserImportance(for context: BrowserContext) -> Double {
+        switch context.sourceQuality {
+        case .extensionFull:
+            return 0.76
+        case .extensionMetadataOnly:
+            return 0.66
+        case .extensionPrivate:
+            return 0.52
+        case .automationFallback:
+            return 0.58
+        }
+    }
+
+    private func browserConfidence(for context: BrowserContext) -> Double {
+        switch context.sourceQuality {
+        case .extensionFull:
+            return 0.92
+        case .extensionMetadataOnly:
+            return 0.82
+        case .extensionPrivate:
+            return 0.74
+        case .automationFallback:
+            return 0.62
+        }
     }
 
     private func planCodingContext(

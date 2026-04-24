@@ -85,6 +85,13 @@ final class AuraBotCoreTests: XCTestCase {
             scrollPercent: nil,
             viewportSignature: nil,
             noveltyScore: nil,
+            visibleText: nil,
+            selectedText: nil,
+            readableText: nil,
+            visibleTextHash: nil,
+            readableTextHash: nil,
+            textCaptureMode: nil,
+            privateWindow: false,
             timestamp: Date(timeIntervalSince1970: 0)
         )
 
@@ -106,6 +113,114 @@ final class AuraBotCoreTests: XCTestCase {
         XCTAssertEqual(config.apiKey, "")
         XCTAssertTrue(config.allowedOrigins.contains("chrome-extension://"))
         XCTAssertTrue(config.allowedOrigins.contains("http://127.0.0.1:"))
+    }
+
+    func testBrowserExtensionPayloadCapturesTextHashesWithoutPersistingPrivateWindowText() throws {
+        let payload = BrowserExtensionUpdateRequest(
+            schemaVersion: 1,
+            captureID: "capture-1",
+            browser: "Google Chrome",
+            bundleIdentifier: "com.google.Chrome",
+            url: "https://example.com/article",
+            title: "Example Article",
+            activity: .browsing,
+            pageID: nil,
+            mediaID: nil,
+            mediaIsPlaying: nil,
+            scrollPercent: 42,
+            viewportSignature: "viewport-1",
+            noveltyScore: 0.6,
+            visibleText: "Visible article text",
+            selectedText: "Selected sentence",
+            readableText: "Full readable page text",
+            visibleTextHash: "visible-hash",
+            readableTextHash: "readable-hash",
+            textCaptureMode: "full_readable_text",
+            privateWindow: true,
+            timestamp: Date(timeIntervalSince1970: 0)
+        )
+
+        let context = try payload.asBrowserContext()
+
+        XCTAssertEqual(context.textCaptureMode, "private_window_metadata_only")
+        XCTAssertTrue(context.privateWindow)
+        XCTAssertEqual(context.schemaVersion, 1)
+        XCTAssertEqual(context.captureID, "capture-1")
+        XCTAssertEqual(context.sourceQuality, .extensionPrivate)
+        XCTAssertNil(context.visibleText)
+        XCTAssertNil(context.readableText)
+        XCTAssertEqual(context.visibleTextHash, "visible-hash")
+        XCTAssertEqual(context.readableTextHash, "readable-hash")
+    }
+
+    func testBrowserExtensionPayloadRejectsUnsupportedSchemaVersion() throws {
+        let payload = BrowserExtensionUpdateRequest(
+            schemaVersion: 999,
+            captureID: "capture-unsupported",
+            browser: "Google Chrome",
+            bundleIdentifier: "com.google.Chrome",
+            url: "https://example.com/article",
+            title: "Example Article",
+            activity: .browsing,
+            pageID: nil,
+            mediaID: nil,
+            mediaIsPlaying: nil,
+            scrollPercent: nil,
+            viewportSignature: nil,
+            noveltyScore: nil,
+            visibleText: nil,
+            selectedText: nil,
+            readableText: nil,
+            visibleTextHash: nil,
+            readableTextHash: nil,
+            textCaptureMode: nil,
+            privateWindow: false,
+            timestamp: Date(timeIntervalSince1970: 0)
+        )
+
+        XCTAssertThrowsError(try payload.asBrowserContext())
+    }
+
+    func testBrowserContextServiceReportsFreshExtensionStatus() async throws {
+        var config = ExtensionConfig()
+        config.freshnessSeconds = 30
+        let service = BrowserContextService(config: config)
+        let context = makeBrowserContext(
+            source: .extensionData,
+            browser: "Google Chrome",
+            bundleIdentifier: "com.google.Chrome",
+            url: "https://example.com/docs",
+            title: "Example Docs",
+            timestamp: Date()
+        )
+
+        await service.updateExtensionContext(context)
+        let status = await service.currentContextStatus()
+
+        XCTAssertTrue(status.hasFreshExtensionContext)
+        XCTAssertNil(status.staleExtensionContext)
+        XCTAssertNil(status.reason)
+        XCTAssertEqual(status.context?.sourceQuality, .extensionFull)
+    }
+
+    func testBrowserContextServicePreservesStaleExtensionDiagnostics() async throws {
+        var config = ExtensionConfig()
+        config.freshnessSeconds = 1
+        let service = BrowserContextService(config: config)
+        let context = makeBrowserContext(
+            source: .extensionData,
+            browser: "Google Chrome",
+            bundleIdentifier: "com.google.Chrome",
+            url: "https://example.com/docs",
+            title: "Example Docs",
+            timestamp: Date(timeIntervalSince1970: 0)
+        )
+
+        await service.updateExtensionContext(context)
+        let status = await service.currentContextStatus()
+
+        XCTAssertEqual(status.staleExtensionContext?.captureID, "capture-fixture")
+        XCTAssertEqual(status.reason, .extensionStale)
     }
 
     func testBundledComputerUseSkillsLoad() throws {
@@ -219,6 +334,9 @@ final class AuraBotCoreTests: XCTestCase {
         XCTAssertEqual(result.metadata["url"], "https://example.com/docs")
         XCTAssertEqual(result.metadata["title"], "Example Docs")
         XCTAssertEqual(result.metadata["page_id"], "example.com/docs")
+        XCTAssertEqual(result.metadata["schema_version"], "1")
+        XCTAssertEqual(result.metadata["capture_id"], "capture-fixture")
+        XCTAssertEqual(result.metadata["source_quality"], "extension_full")
     }
 
     func testBrowserExtensionWorkerFallsBackWhenExtensionContextIsUnavailable() async throws {
@@ -728,7 +846,8 @@ final class AuraBotCoreTests: XCTestCase {
         browser: String,
         bundleIdentifier: String,
         url: String,
-        title: String
+        title: String,
+        timestamp: Date = Date(timeIntervalSince1970: 0)
     ) -> BrowserContext {
         let derived = BrowserContextService.deriveActivity(url: url, title: title)
 
@@ -745,7 +864,15 @@ final class AuraBotCoreTests: XCTestCase {
             scrollPercent: 42,
             viewportSignature: "viewport-1",
             noveltyScore: 0.2,
-            timestamp: Date(timeIntervalSince1970: 0)
+            visibleText: "Visible documentation text",
+            selectedText: nil,
+            readableText: nil,
+            visibleTextHash: "visible-hash",
+            readableTextHash: nil,
+            textCaptureMode: "visible_viewport",
+            privateWindow: false,
+            captureID: "capture-fixture",
+            timestamp: timestamp
         )
     }
 

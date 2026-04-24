@@ -2,6 +2,13 @@ import Foundation
 import Vapor
 
 struct BrowserExtensionUpdateRequest: Content {
+    static let currentSchemaVersion = 1
+    static let maxVisibleTextLength = 8 * 1024
+    static let maxSelectedTextLength = 2 * 1024
+    static let maxReadableTextLength = 64 * 1024
+
+    var schemaVersion: Int?
+    var captureID: String?
     var browser: String
     var bundleIdentifier: String?
     var url: String?
@@ -13,9 +20,22 @@ struct BrowserExtensionUpdateRequest: Content {
     var scrollPercent: Double?
     var viewportSignature: String?
     var noveltyScore: Double?
+    var visibleText: String?
+    var selectedText: String?
+    var readableText: String?
+    var visibleTextHash: String?
+    var readableTextHash: String?
+    var textCaptureMode: String?
+    var privateWindow: Bool?
     var timestamp: Date?
 
     func asBrowserContext() throws -> BrowserContext {
+        let normalizedSchemaVersion = schemaVersion ?? Self.currentSchemaVersion
+        guard normalizedSchemaVersion == Self.currentSchemaVersion else {
+            throw Abort(.badRequest, reason: "Unsupported browser context schemaVersion")
+        }
+
+        try Self.validateLength(captureID, field: "captureID", max: 128)
         try Self.validateLength(browser, field: "browser", max: 80)
         try Self.validateLength(bundleIdentifier, field: "bundleIdentifier", max: 160)
         try Self.validateLength(url, field: "url", max: 4096)
@@ -23,6 +43,12 @@ struct BrowserExtensionUpdateRequest: Content {
         try Self.validateLength(pageID, field: "pageID", max: 512)
         try Self.validateLength(mediaID, field: "mediaID", max: 256)
         try Self.validateLength(viewportSignature, field: "viewportSignature", max: 256)
+        try Self.validateLength(visibleText, field: "visibleText", max: Self.maxVisibleTextLength)
+        try Self.validateLength(selectedText, field: "selectedText", max: Self.maxSelectedTextLength)
+        try Self.validateLength(readableText, field: "readableText", max: Self.maxReadableTextLength)
+        try Self.validateLength(visibleTextHash, field: "visibleTextHash", max: 128)
+        try Self.validateLength(readableTextHash, field: "readableTextHash", max: 128)
+        try Self.validateLength(textCaptureMode, field: "textCaptureMode", max: 80)
 
         if let scrollPercent, !(0...100).contains(scrollPercent) {
             throw Abort(.badRequest, reason: "scrollPercent must be between 0 and 100")
@@ -32,6 +58,12 @@ struct BrowserExtensionUpdateRequest: Content {
         }
 
         let derived = BrowserContextService.deriveActivity(url: url, title: title)
+        let isPrivateWindow = privateWindow ?? false
+        let normalizedTextCaptureMode = textCaptureMode?.lowercased() ?? ""
+        let shouldDropText =
+            isPrivateWindow ||
+            normalizedTextCaptureMode.contains("metadata_only") ||
+            normalizedTextCaptureMode.contains("sensitive")
 
         return BrowserContext(
             source: .extensionData,
@@ -46,6 +78,15 @@ struct BrowserExtensionUpdateRequest: Content {
             scrollPercent: scrollPercent,
             viewportSignature: viewportSignature,
             noveltyScore: noveltyScore,
+            visibleText: shouldDropText ? nil : visibleText,
+            selectedText: shouldDropText ? nil : selectedText,
+            readableText: shouldDropText ? nil : readableText,
+            visibleTextHash: visibleTextHash,
+            readableTextHash: readableTextHash,
+            textCaptureMode: isPrivateWindow ? "private_window_metadata_only" : textCaptureMode,
+            privateWindow: isPrivateWindow,
+            schemaVersion: normalizedSchemaVersion,
+            captureID: captureID,
             timestamp: timestamp ?? Date()
         )
     }
@@ -54,6 +95,20 @@ struct BrowserExtensionUpdateRequest: Content {
         guard let value, value.count > max else { return }
         throw Abort(.payloadTooLarge, reason: "\(field) exceeds \(max) characters")
     }
+}
+
+struct BrowserExtensionStatusResponse: Content {
+    let status: String
+    let source: String?
+    let sourceQuality: String?
+    let reason: String?
+    let browser: String?
+    let url: String?
+    let title: String?
+    let captureID: String?
+    let schemaVersion: Int?
+    let ageSeconds: Double?
+    let staleCaptureID: String?
 }
 
 final class BrowserExtensionServer {
@@ -73,7 +128,7 @@ final class BrowserExtensionServer {
         let app = Application(.production)
         app.http.server.configuration.hostname = "127.0.0.1"
         app.http.server.configuration.port = config.port
-        app.routes.defaultMaxBodySize = "16kb"
+        app.routes.defaultMaxBodySize = "128kb"
 
         app.middleware.use(BrowserExtensionSecurityMiddleware(config: config))
 
@@ -86,6 +141,26 @@ final class BrowserExtensionServer {
 
         app.get("health") { _ in
             ["status": "ok"]
+        }
+
+        app.get("browser", "context", "status") { [browserContextService] _ async -> BrowserExtensionStatusResponse in
+            let status = await browserContextService.currentContextStatus()
+            let context = status.context
+            let ageSeconds = context.map { Date().timeIntervalSince($0.timestamp) }
+
+            return BrowserExtensionStatusResponse(
+                status: status.hasFreshExtensionContext ? "fresh_extension" : context == nil ? "unavailable" : "fallback",
+                source: context?.source.rawValue,
+                sourceQuality: context?.sourceQuality.rawValue,
+                reason: status.reason?.rawValue,
+                browser: context?.browser,
+                url: context?.url,
+                title: context?.title,
+                captureID: context?.captureID,
+                schemaVersion: context?.schemaVersion,
+                ageSeconds: ageSeconds,
+                staleCaptureID: status.staleExtensionContext?.captureID
+            )
         }
 
         app.post("browser", "context") { [browserContextService] req async throws -> HTTPStatus in
@@ -115,7 +190,7 @@ private struct BrowserExtensionSecurityMiddleware: Middleware {
     let config: ExtensionConfig
 
     func respond(to request: Request, chainingTo next: Responder) -> EventLoopFuture<Response> {
-        guard request.url.path == "/browser/context" else {
+        guard request.url.path == "/browser/context" || request.url.path == "/browser/context/status" else {
             return next.respond(to: request)
         }
 

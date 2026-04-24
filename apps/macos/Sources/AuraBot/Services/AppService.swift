@@ -256,7 +256,14 @@ class AppService: ObservableObject {
                 displayNum: capture.displayNum,
                 browser: capture.browserContext?.browser,
                 url: capture.browserContext?.url,
-                captureReason: capture.captureReason
+                captureReason: capture.captureReason,
+                visibleTextHash: capture.browserContext?.visibleTextHash,
+                readableTextHash: capture.browserContext?.readableTextHash,
+                textCaptureMode: capture.browserContext?.textCaptureMode,
+                pageTextSummary: capture.browserContext?.readableTextSummary ?? capture.browserContext?.visibleTextExcerpt,
+                browserSourceQuality: capture.browserContext?.sourceQuality.rawValue,
+                browserCaptureID: capture.browserContext?.captureID,
+                browserSchemaVersion: capture.browserContext?.schemaVersion
             )
             
             _ = try await memoryService.add(content: content, metadata: metadata)
