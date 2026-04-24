@@ -184,6 +184,10 @@ struct StatusPanel: View {
                     .background(Colors.surfaceTertiary)
                     .cornerRadius(Radius.sm)
             }
+
+            if let message = service.capturePermissionMessage {
+                InlinePermissionNotice(message: message)
+            }
             
             HStack(spacing: Spacing.lg) {
                 StatusDot(color: service.isLLMConnected ? Colors.success : Colors.warning, label: "LLM")

@@ -54,6 +54,10 @@ struct DashboardHeader: View {
                         color: service.isBackendConnected ? Colors.primary : Colors.warning
                     )
                 }
+
+                if let message = service.capturePermissionMessage {
+                    InlinePermissionNotice(message: message)
+                }
             }
             
             Spacer()
@@ -91,6 +95,33 @@ struct DashboardHeader: View {
                 isRefreshing = false
             }
         }
+    }
+}
+
+@available(macOS 14.0, *)
+struct InlinePermissionNotice: View {
+    let message: String
+
+    var body: some View {
+        HStack(spacing: Spacing.sm) {
+            Image(systemName: "lock.trianglebadge.exclamationmark")
+                .foregroundColor(Colors.warning)
+
+            Text(message)
+                .font(Typography.caption)
+                .foregroundColor(Colors.warning)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(.horizontal, Spacing.md)
+        .padding(.vertical, Spacing.sm)
+        .background(
+            RoundedRectangle(cornerRadius: Radius.md)
+                .fill(Colors.warning.opacity(0.10))
+                .overlay(
+                    RoundedRectangle(cornerRadius: Radius.md)
+                        .stroke(Colors.warning.opacity(0.25), lineWidth: 1)
+                )
+        )
     }
 }
 

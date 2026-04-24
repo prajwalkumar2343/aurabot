@@ -397,7 +397,8 @@ struct BrowserExtensionSetupCard: View {
                     BrowserExtensionStep(
                         index: "1",
                         title: "Local server URL",
-                        detail: service.browserExtensionServerURL
+                        detail: service.browserExtensionServerURL,
+                        isMono: true
                     )
                     BrowserExtensionStep(
                         index: "2",
@@ -420,6 +421,7 @@ struct BrowserExtensionStep: View {
     let index: String
     let title: String
     let detail: String
+    var isMono: Bool = false
 
     var body: some View {
         HStack(alignment: .top, spacing: Spacing.md) {
@@ -435,7 +437,7 @@ struct BrowserExtensionStep: View {
                     .foregroundColor(Colors.textPrimary)
 
                 Text(detail)
-                    .font(title == "Local server URL" ? Typography.mono : Typography.callout)
+                    .font(isMono ? Typography.mono : Typography.callout)
                     .foregroundColor(Colors.textSecondary)
                     .textSelection(.enabled)
             }

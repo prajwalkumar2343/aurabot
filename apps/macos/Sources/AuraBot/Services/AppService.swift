@@ -14,6 +14,7 @@ class AppService: ObservableObject {
     @Published var isMemoryConnected: Bool = false
     @Published var isBackendConnected: Bool = false
     @Published var captureInterval: Int = 30
+    @Published var capturePermissionMessage: String?
     @Published private(set) var permissionStatuses: [AppPermissionStatus] = PermissionCenter.allStatuses()
     
     @Published private(set) var config: AppConfig
@@ -90,10 +91,14 @@ class AppService: ObservableObject {
     }
     
     func toggleCapture() {
+        refreshPermissionStatuses()
+
         guard requiredPermissionsGranted else {
-            refreshPermissionStatuses()
+            capturePermissionMessage = "Grant Screen Recording and Accessibility to enable capture."
             return
         }
+
+        capturePermissionMessage = nil
 
         captureEnabled.toggle()
         if captureEnabled {
@@ -151,6 +156,10 @@ class AppService: ObservableObject {
 
     func refreshPermissionStatuses() {
         permissionStatuses = PermissionCenter.allStatuses()
+
+        if requiredPermissionsGranted {
+            capturePermissionMessage = nil
+        }
     }
 
     func openSystemSettings(for kind: AppPermissionKind) {
@@ -166,8 +175,17 @@ class AppService: ObservableObject {
     }
 
     func openChromeExtensionsPage() {
-        guard let url = URL(string: "chrome://extensions") else { return }
-        NSWorkspace.shared.open(url)
+        if let url = URL(string: "googlechrome://extensions"),
+           NSWorkspace.shared.open(url) {
+            return
+        }
+
+        guard let chromeURL = NSWorkspace.shared.urlForApplication(withBundleIdentifier: "com.google.Chrome") else {
+            return
+        }
+
+        let configuration = NSWorkspace.OpenConfiguration()
+        NSWorkspace.shared.openApplication(at: chromeURL, configuration: configuration) { _, _ in }
     }
 
     private func applyConfiguration(_ newConfig: AppConfig) {
