@@ -1,4 +1,5 @@
 import SwiftUI
+import AppKit
 
 @available(macOS 14.0, *)
 struct SettingsView: View {
@@ -52,7 +53,7 @@ struct SettingsView: View {
                 .offset(y: appearAnimation ? 0 : 20)
                 
                 // Permissions
-                PermissionsSection()
+                PermissionsSection(service: service)
                     .opacity(appearAnimation ? 1 : 0)
                     .offset(y: appearAnimation ? 0 : 20)
                 
@@ -77,9 +78,13 @@ struct SettingsView: View {
         )
         .onAppear {
             loadFromService()
+            service.refreshPermissionStatuses()
             withAnimation(.spring(response: 0.6, dampingFraction: 0.8).delay(0.1)) {
                 appearAnimation = true
             }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+            service.refreshPermissionStatuses()
         }
     }
 
@@ -375,32 +380,34 @@ struct AISettingsSection: View {
 
 @available(macOS 14.0, *)
 struct PermissionsSection: View {
+    @ObservedObject var service: AppService
+
     var body: some View {
         SettingsSection(title: "Permissions", icon: "lock.shield") {
-            VStack(spacing: Spacing.md) {
-                PermissionCard(
-                    title: "Screen Recording",
-                    description: "Take screenshots for context-aware assistance",
-                    icon: "rectangle.dashed",
-                    color: Colors.primary,
-                    isGranted: true
-                )
-                
-                PermissionCard(
-                    title: "Accessibility",
-                    description: "Detect keyboard shortcuts and window changes",
-                    icon: "keyboard",
-                    color: Colors.secondary,
-                    isGranted: true
-                )
-                
-                PermissionCard(
-                    title: "Microphone",
-                    description: "Optional voice input for chat",
-                    icon: "mic",
-                    color: Colors.accent,
-                    isGranted: false
-                )
+            VStack(alignment: .leading, spacing: Spacing.lg) {
+                HStack {
+                    VStack(alignment: .leading, spacing: Spacing.xs) {
+                        Text("Live macOS privacy access")
+                            .font(Typography.headline)
+                            .foregroundColor(Colors.textPrimary)
+
+                        Text("Click any checklist item to jump directly into the matching System Settings panel.")
+                            .font(Typography.callout)
+                            .foregroundColor(Colors.textSecondary)
+                    }
+
+                    Spacer()
+
+                    SecondaryButton("Refresh", icon: "arrow.clockwise") {
+                        service.refreshPermissionStatuses()
+                    }
+                }
+
+                PermissionChecklistGroup(statuses: service.permissionStatuses) { kind in
+                    service.openSystemSettings(for: kind)
+                }
+
+                BrowserExtensionSetupCard(service: service)
             }
         }
     }
@@ -569,88 +576,6 @@ struct CustomTextField: View {
                         .stroke(isFocused ? Colors.borderFocus : Colors.border, lineWidth: 1)
                 }
             )
-        }
-    }
-}
-
-@available(macOS 14.0, *)
-struct PermissionCard: View {
-    let title: String
-    let description: String
-    let icon: String
-    let color: Color
-    let isGranted: Bool
-    
-    @State private var isHovered = false
-    
-    var body: some View {
-        HStack(spacing: Spacing.lg) {
-            // Icon
-            ZStack {
-                RoundedRectangle(cornerRadius: Radius.md)
-                    .fill(color.opacity(0.15))
-                    .frame(width: 44, height: 44)
-                
-                Image(systemName: icon)
-                    .font(.system(size: 20, weight: .semibold))
-                    .foregroundColor(color)
-            }
-            
-            // Content
-            VStack(alignment: .leading, spacing: Spacing.xs) {
-                Text(title)
-                    .font(Typography.subheadline)
-                    .fontWeight(.semibold)
-                    .foregroundColor(Colors.textPrimary)
-                
-                Text(description)
-                    .font(Typography.caption)
-                    .foregroundColor(Colors.textSecondary)
-                    .lineLimit(1)
-            }
-            
-            Spacer()
-            
-            // Status
-            if isGranted {
-                HStack(spacing: Spacing.xs) {
-                    Image(systemName: "checkmark.circle.fill")
-                        .font(.system(size: 14))
-                        .foregroundColor(Colors.success)
-                    
-                    Text("Granted")
-                        .font(Typography.caption)
-                        .fontWeight(.medium)
-                        .foregroundColor(Colors.success)
-                }
-                .padding(.horizontal, Spacing.sm)
-                .padding(.vertical, Spacing.xs)
-                .background(
-                    ZStack {
-                        RoundedRectangle(cornerRadius: Radius.sm)
-                            .fill(Colors.success.opacity(0.1))
-                        RoundedRectangle(cornerRadius: Radius.sm)
-                            .stroke(Colors.success.opacity(0.15), lineWidth: 1)
-                    }
-                )
-            } else {
-                Button("Grant") {}
-                    .buttonStyle(.bordered)
-                    .controlSize(.small)
-            }
-        }
-        .padding(Spacing.md)
-        .background(
-            ZStack {
-                RoundedRectangle(cornerRadius: Radius.lg)
-                    .fill(isHovered ? Colors.surfaceSecondary : Colors.surface)
-                RoundedRectangle(cornerRadius: Radius.lg)
-                    .stroke(isHovered ? Colors.borderHover : Colors.border, lineWidth: 1)
-            }
-        )
-        .animation(AnimationPresets.hover, value: isHovered)
-        .onHover { hovering in
-            isHovered = hovering
         }
     }
 }
