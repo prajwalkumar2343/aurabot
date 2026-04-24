@@ -1,10 +1,4 @@
-const DEFAULT_SETTINGS = {
-  captureEnabled: true,
-  serverURL: "http://127.0.0.1:7345",
-  apiKey: "",
-  captureFullPageText: false,
-  disabledDomains: ""
-};
+importScripts("settings.js");
 
 chrome.runtime.onInstalled.addListener(async () => {
   const existing = await chrome.storage.sync.get(DEFAULT_SETTINGS);

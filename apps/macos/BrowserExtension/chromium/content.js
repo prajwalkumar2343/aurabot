@@ -1,11 +1,3 @@
-const DEFAULT_SETTINGS = {
-  captureEnabled: true,
-  serverURL: "http://127.0.0.1:7345",
-  apiKey: "",
-  captureFullPageText: false,
-  disabledDomains: ""
-};
-
 const CONTEXT_SCHEMA_VERSION = 1;
 const DEDUPE_WINDOW_MS = 1500;
 const MAX_VISIBLE_TEXT = 8 * 1024;
@@ -32,7 +24,9 @@ const SENSITIVE_HOST_PATTERNS = [
   /(^|\.)stripe\.com$/i,
   /(^|\.)plaid\.com$/i,
   /(^|\.)accounts\.google\.com$/i,
-  /(^|\.)login\.microsoftonline\.com$/i,
+  /(^|\.)login\.microsoftonline\.com$/i
+];
+const SENSITIVE_HOST_KEYWORDS = [
   /bank/i,
   /broker/i,
   /medical/i,
@@ -146,12 +140,12 @@ function isDisabledDomain(disabledDomains) {
 }
 
 function isSensitivePage() {
-  const host = location.hostname;
-  const href = location.href;
+  const host = location.hostname.toLowerCase();
   if (document.querySelector('input[type="password"]')) {
     return true;
   }
-  return SENSITIVE_HOST_PATTERNS.some((pattern) => pattern.test(host) || pattern.test(href));
+  return SENSITIVE_HOST_PATTERNS.some((pattern) => pattern.test(host)) ||
+    SENSITIVE_HOST_KEYWORDS.some((pattern) => pattern.test(host));
 }
 
 function collectVisibleText(maxLength) {

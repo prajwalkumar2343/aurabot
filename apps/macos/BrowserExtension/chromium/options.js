@@ -1,11 +1,3 @@
-const DEFAULT_SETTINGS = {
-  captureEnabled: true,
-  serverURL: "http://127.0.0.1:7345",
-  apiKey: "",
-  captureFullPageText: false,
-  disabledDomains: ""
-};
-
 const fields = {
   captureEnabled: document.getElementById("captureEnabled"),
   serverURL: document.getElementById("serverURL"),
