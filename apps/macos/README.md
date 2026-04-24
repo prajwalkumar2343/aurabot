@@ -115,7 +115,17 @@ Config is stored at `~/.aurabot/config.json`:
   },
   "llm": {
     "baseURL": "http://localhost:1234/v1",
-    "model": "local-model"
+    "model": "local-model",
+    "openRouterChatModel": "openai/gpt-5.3",
+    "contextCollectorRewrite": {
+      "enabled": false,
+      "allowedModels": [
+        { "label": "Gemini >= 3.1", "minimumVersion": 3.1, "matchPatterns": ["gemini[-_ ]?(\\d+(?:\\.\\d+)?)"], "requiredTokens": [] },
+        { "label": "Claude Opus >= 4.5", "minimumVersion": 4.5, "matchPatterns": ["claude[-_ ]?opus[-_ ]?(\\d+(?:\\.\\d+)?)", "claude[-_ ]?(\\d+(?:\\.\\d+)?)[:/_ -]?opus"], "requiredTokens": ["claude", "opus"] },
+        { "label": "GPT >= 5.3", "minimumVersion": 5.3, "matchPatterns": ["gpt[-_ ]?(\\d+(?:\\.\\d+)?)"], "requiredTokens": [] },
+        { "label": "Kimi >= 2.5", "minimumVersion": 2.5, "matchPatterns": ["kimi[-_ ]?(\\d+(?:\\.\\d+)?)"], "requiredTokens": [] }
+      ]
+    }
   },
   "memory": {
     "baseURL": "http://localhost:8000",

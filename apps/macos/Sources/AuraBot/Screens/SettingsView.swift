@@ -10,6 +10,7 @@ struct SettingsView: View {
     @State private var openRouterAPIKey = ""
     @State private var visionModel = ""
     @State private var chatModel = ""
+    @State private var contextCollectorRewriteEnabled = false
     @State private var memoryURL = "http://localhost:8000"
     @State private var memoryAPIKey = ""
     @State private var memoryUserID = "default_user"
@@ -42,6 +43,7 @@ struct SettingsView: View {
                     openRouterAPIKey: $openRouterAPIKey,
                     visionModel: $visionModel,
                     chatModel: $chatModel,
+                    contextCollectorRewriteEnabled: $contextCollectorRewriteEnabled,
                     memoryURL: $memoryURL,
                     memoryAPIKey: $memoryAPIKey,
                     memoryUserID: $memoryUserID,
@@ -93,6 +95,7 @@ struct SettingsView: View {
         openRouterAPIKey = config.llm.openRouterAPIKey
         visionModel = config.llm.model
         chatModel = config.llm.openRouterChatModel
+        contextCollectorRewriteEnabled = config.llm.contextCollectorRewrite.enabled
         memoryURL = config.memory.baseURL
         memoryAPIKey = config.memory.apiKey
         memoryUserID = config.memory.userID
@@ -112,6 +115,7 @@ struct SettingsView: View {
             updatedConfig.llm.openRouterAPIKey = openRouterAPIKey.trimmingCharacters(in: .whitespacesAndNewlines)
             updatedConfig.llm.model = visionModel.trimmingCharacters(in: .whitespacesAndNewlines)
             updatedConfig.llm.openRouterChatModel = chatModel.trimmingCharacters(in: .whitespacesAndNewlines)
+            updatedConfig.llm.contextCollectorRewrite.enabled = contextCollectorRewriteEnabled
             updatedConfig.memory.baseURL = memoryURL.trimmingCharacters(in: .whitespacesAndNewlines)
             updatedConfig.memory.apiKey = memoryAPIKey.trimmingCharacters(in: .whitespacesAndNewlines)
             updatedConfig.memory.userID = memoryUserID.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -270,6 +274,7 @@ struct AISettingsSection: View {
     @Binding var openRouterAPIKey: String
     @Binding var visionModel: String
     @Binding var chatModel: String
+    @Binding var contextCollectorRewriteEnabled: Bool
     @Binding var memoryURL: String
     @Binding var memoryAPIKey: String
     @Binding var memoryUserID: String
@@ -316,6 +321,40 @@ struct AISettingsSection: View {
                     text: $chatModel,
                     icon: "text.bubble"
                 )
+
+                Divider()
+                    .background(Colors.glassBorder)
+
+                VStack(alignment: .leading, spacing: Spacing.md) {
+                    CustomToggle(
+                        title: "Optional Context Collector Rewrites",
+                        description: "Allow OpenRouter to rewrite app-specific context collection code only when the selected chat model meets the configured capability threshold.",
+                        isOn: $contextCollectorRewriteEnabled
+                    )
+
+                    let rules = ContextCollectorRewriteModelRule.defaultRules.map(\.label).joined(separator: ", ")
+                    let eligible = LLMConfig(
+                        baseURL: llmURL,
+                        model: visionModel,
+                        maxTokens: 512,
+                        temperature: 0.7,
+                        timeoutSeconds: 30,
+                        openRouterAPIKey: openRouterAPIKey,
+                        openRouterChatModel: chatModel,
+                        contextCollectorRewrite: ContextCollectorRewritePolicy(
+                            enabled: contextCollectorRewriteEnabled,
+                            allowedModels: ContextCollectorRewriteModelRule.defaultRules
+                        )
+                    ).allowsContextCollectorRewrite()
+
+                    Text("Allowlist: \(rules)")
+                        .font(Typography.caption)
+                        .foregroundColor(Colors.textMuted)
+
+                    Text(eligible ? "Current chat model is eligible." : "Current chat model is not eligible.")
+                        .font(Typography.caption)
+                        .foregroundColor(eligible ? Colors.success : Colors.textMuted)
+                }
 
                 Divider()
                     .background(Colors.glassBorder)
