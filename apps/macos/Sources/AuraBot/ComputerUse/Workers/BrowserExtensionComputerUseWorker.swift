@@ -58,9 +58,14 @@ struct BrowserExtensionComputerUseWorker: ComputerUseWorker {
         metadata["page_signature"] = context.pageSignature
         metadata["activity"] = context.activity.rawValue
         metadata["summary"] = context.llmSummary
+        metadata["schema_version"] = String(context.schemaVersion)
+        metadata["source_quality"] = context.sourceQuality.rawValue
 
         if let bundleIdentifier = context.bundleIdentifier {
             metadata["bundle_id"] = bundleIdentifier
+        }
+        if let captureID = context.captureID {
+            metadata["capture_id"] = captureID
         }
         if let url = context.url {
             metadata["url"] = url
@@ -79,6 +84,18 @@ struct BrowserExtensionComputerUseWorker: ComputerUseWorker {
         }
         if let viewportSignature = context.viewportSignature {
             metadata["viewport_signature"] = viewportSignature
+        }
+        if let visibleTextHash = context.visibleTextHash {
+            metadata["visible_text_hash"] = visibleTextHash
+        }
+        if let readableTextHash = context.readableTextHash {
+            metadata["readable_text_hash"] = readableTextHash
+        }
+        if let textCaptureMode = context.textCaptureMode {
+            metadata["text_capture_mode"] = textCaptureMode
+        }
+        if context.privateWindow {
+            metadata["private_window"] = "true"
         }
 
         return ComputerUseWorkerResult(

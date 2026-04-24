@@ -98,7 +98,14 @@ struct ContextEvent: Sendable {
             displayNum: displayNum,
             browser: browserContext?.browser,
             url: browserContext?.url,
-            captureReason: captureReason
+            captureReason: captureReason,
+            visibleTextHash: browserContext?.visibleTextHash,
+            readableTextHash: browserContext?.readableTextHash,
+            textCaptureMode: browserContext?.textCaptureMode,
+            pageTextSummary: browserContext?.readableTextSummary ?? browserContext?.visibleTextExcerpt,
+            browserSourceQuality: browserContext?.sourceQuality.rawValue,
+            browserCaptureID: browserContext?.captureID,
+            browserSchemaVersion: browserContext?.schemaVersion
         )
     }
 }

@@ -91,6 +91,12 @@ Primary indexes:
 Rolling summaries over recent events. These are used to avoid rereading every raw
 event when building current context.
 
+When summary creation is requested through the API, the service also writes a
+generated Markdown mirror under
+`~/.aurabot/brain/timelines/recent-context/{user}/{agent}/current.md` and syncs
+that page into `brain_pages`/`brain_chunks`. Raw recent events remain in
+`recent_context_events`; only the rolling summary page is mirrored into Markdown.
+
 Key columns:
 
 - `id TEXT PRIMARY KEY`

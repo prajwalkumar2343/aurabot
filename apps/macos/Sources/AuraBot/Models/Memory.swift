@@ -287,6 +287,13 @@ struct Metadata: Codable, Sendable {
     let browser: String?
     let url: String?
     let captureReason: String?
+    let visibleTextHash: String?
+    let readableTextHash: String?
+    let textCaptureMode: String?
+    let pageTextSummary: String?
+    let browserSourceQuality: String?
+    let browserCaptureID: String?
+    let browserSchemaVersion: Int?
 
     enum CodingKeys: String, CodingKey {
         case timestamp
@@ -298,6 +305,13 @@ struct Metadata: Codable, Sendable {
         case browser
         case url
         case captureReason = "capture_reason"
+        case visibleTextHash = "visible_text_hash"
+        case readableTextHash = "readable_text_hash"
+        case textCaptureMode = "text_capture_mode"
+        case pageTextSummary = "page_text_summary"
+        case browserSourceQuality = "browser_source_quality"
+        case browserCaptureID = "browser_capture_id"
+        case browserSchemaVersion = "browser_schema_version"
     }
 
     init(
@@ -309,7 +323,14 @@ struct Metadata: Codable, Sendable {
         displayNum: Int,
         browser: String?,
         url: String?,
-        captureReason: String?
+        captureReason: String?,
+        visibleTextHash: String? = nil,
+        readableTextHash: String? = nil,
+        textCaptureMode: String? = nil,
+        pageTextSummary: String? = nil,
+        browserSourceQuality: String? = nil,
+        browserCaptureID: String? = nil,
+        browserSchemaVersion: Int? = nil
     ) {
         self.timestamp = timestamp
         self.context = context
@@ -320,6 +341,13 @@ struct Metadata: Codable, Sendable {
         self.browser = browser
         self.url = url
         self.captureReason = captureReason
+        self.visibleTextHash = visibleTextHash
+        self.readableTextHash = readableTextHash
+        self.textCaptureMode = textCaptureMode
+        self.pageTextSummary = pageTextSummary
+        self.browserSourceQuality = browserSourceQuality
+        self.browserCaptureID = browserCaptureID
+        self.browserSchemaVersion = browserSchemaVersion
     }
 
     init(from decoder: Decoder) throws {
@@ -333,6 +361,13 @@ struct Metadata: Codable, Sendable {
         browser = try container.decodeIfPresent(String.self, forKey: .browser)
         url = try container.decodeIfPresent(String.self, forKey: .url)
         captureReason = try container.decodeIfPresent(String.self, forKey: .captureReason)
+        visibleTextHash = try container.decodeIfPresent(String.self, forKey: .visibleTextHash)
+        readableTextHash = try container.decodeIfPresent(String.self, forKey: .readableTextHash)
+        textCaptureMode = try container.decodeIfPresent(String.self, forKey: .textCaptureMode)
+        pageTextSummary = try container.decodeIfPresent(String.self, forKey: .pageTextSummary)
+        browserSourceQuality = try container.decodeIfPresent(String.self, forKey: .browserSourceQuality)
+        browserCaptureID = try container.decodeIfPresent(String.self, forKey: .browserCaptureID)
+        browserSchemaVersion = try container.decodeIfPresent(Int.self, forKey: .browserSchemaVersion)
     }
 }
 

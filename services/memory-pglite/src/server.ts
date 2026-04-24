@@ -1,10 +1,12 @@
 #!/usr/bin/env node
 
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
+import { resolveBrainDir } from "./brain/index.js";
 import { graphQuery, type GraphDirection } from "./graph/index.js";
 import { openMemoryDatabase, type MemoryPgliteDatabase } from "./database/index.js";
 import type { RelationType } from "./contracts/index.js";
 import { RELATION_TYPES } from "./contracts/index.js";
+import { summarizeRecentContext, type SummarizeRecentContextInput } from "./recent/summaries.js";
 import { searchMemory, type SearchScope } from "./search/index.js";
 
 const DEFAULT_HOST = "127.0.0.1";
@@ -13,6 +15,7 @@ const MAX_REQUEST_BYTES = 1_000_000;
 
 export interface MemoryPgliteServerOptions {
   database?: MemoryPgliteDatabase;
+  brainRootDir?: string;
 }
 
 export interface ListenOptions extends MemoryPgliteServerOptions {
@@ -48,14 +51,27 @@ interface SearchMemoryRequest {
   debug?: boolean;
 }
 
+interface SummarizeRecentContextRequest {
+  user_id: string;
+  agent_id?: string;
+  idempotency_key: string;
+  window: {
+    started_at: string;
+    ended_at: string;
+  };
+  mode?: "deterministic";
+  write_markdown?: boolean;
+}
+
 export function createMemoryPgliteServer(options: MemoryPgliteServerOptions = {}): Server {
   const database = options.database;
   if (!database) {
     throw new Error("createMemoryPgliteServer requires an open database");
   }
+  const requestOptions = { brainRootDir: options.brainRootDir ?? resolveBrainDir() };
 
   return createServer((request, response) => {
-    void handleRequest(database, request, response);
+    void handleRequest(database, request, response, requestOptions);
   });
 }
 
@@ -64,7 +80,11 @@ export async function listenMemoryPgliteServer(options: ListenOptions = {}): Pro
   database: MemoryPgliteDatabase;
 }> {
   const database = options.database ?? (await openMemoryDatabase());
-  const server = createMemoryPgliteServer({ database });
+  const serverOptions: MemoryPgliteServerOptions = { database };
+  if (options.brainRootDir) {
+    serverOptions.brainRootDir = options.brainRootDir;
+  }
+  const server = createMemoryPgliteServer(serverOptions);
   const host = options.host ?? process.env.AURABOT_MEMORY_PGLITE_HOST ?? DEFAULT_HOST;
   const port = options.port ?? parsePort(process.env.AURABOT_MEMORY_PGLITE_PORT, DEFAULT_PORT);
 
@@ -83,6 +103,7 @@ async function handleRequest(
   database: MemoryPgliteDatabase,
   request: IncomingMessage,
   response: ServerResponse,
+  options: Pick<MemoryPgliteServerOptions, "brainRootDir"> = {},
 ): Promise<void> {
   const url = new URL(request.url ?? "/", "http://localhost");
   let body: unknown;
@@ -102,17 +123,22 @@ async function handleRequest(
     }
   }
 
-  const result = await handleMemoryPgliteRequest(database, {
-    method: request.method ?? "GET",
-    path: url.pathname,
-    body,
-  });
+  const result = await handleMemoryPgliteRequest(
+    database,
+    {
+      method: request.method ?? "GET",
+      path: url.pathname,
+      body,
+    },
+    options,
+  );
   sendJson(response, result.status, result.body);
 }
 
 export async function handleMemoryPgliteRequest(
   database: MemoryPgliteDatabase,
   request: MemoryPgliteRequest,
+  options: Pick<MemoryPgliteServerOptions, "brainRootDir"> = {},
 ): Promise<MemoryPgliteResponse> {
   if (request.method === "OPTIONS") {
     return { status: 200, body: {} };
@@ -144,6 +170,10 @@ export async function handleMemoryPgliteRequest(
     return handleSearchMemory(database, request.body);
   }
 
+  if (request.method === "POST" && request.path === "/v2/recent-context/summaries") {
+    return handleSummarizeRecentContext(database, request.body, options);
+  }
+
   return {
     status: 404,
     body: {
@@ -154,6 +184,48 @@ export async function handleMemoryPgliteRequest(
       },
     },
   };
+}
+
+async function handleSummarizeRecentContext(
+  database: MemoryPgliteDatabase,
+  body: unknown,
+  options: Pick<MemoryPgliteServerOptions, "brainRootDir">,
+): Promise<MemoryPgliteResponse> {
+  try {
+    const input = parseSummarizeRecentContextRequest(body);
+    const writeMarkdown = input.write_markdown ?? true;
+    const summaryInput: SummarizeRecentContextInput = {
+      userId: input.user_id,
+      idempotencyKey: input.idempotency_key,
+      window: input.window,
+    };
+    if (input.agent_id) {
+      summaryInput.agentId = input.agent_id;
+    }
+    if (input.mode) {
+      summaryInput.mode = input.mode;
+    }
+    if (writeMarkdown) {
+      summaryInput.markdown = {
+        rootDir: options.brainRootDir ?? resolveBrainDir(),
+        syncAfterWrite: true,
+      };
+    }
+
+    const result = await summarizeRecentContext(database, summaryInput);
+    return { status: 200, body: result };
+  } catch (error) {
+    return {
+      status: 400,
+      body: {
+        schema_version: "memory-v2",
+        error: {
+          code: "invalid_recent_context_summary",
+          message: error instanceof Error ? error.message : "Recent context summary failed",
+        },
+      },
+    };
+  }
 }
 
 async function handleGraphQuery(
@@ -315,6 +387,42 @@ function parseSearchMemoryRequest(value: unknown): SearchMemoryRequest {
   return request;
 }
 
+function parseSummarizeRecentContextRequest(value: unknown): SummarizeRecentContextRequest {
+  if (!isRecord(value)) {
+    throw new RequestError("Request body must be an object", 400);
+  }
+
+  const window = isRecord(value.window) ? value.window : undefined;
+  if (!window) {
+    throw new RequestError("window is required", 400);
+  }
+
+  const request: SummarizeRecentContextRequest = {
+    user_id: requiredString(value.user_id, "user_id"),
+    idempotency_key: requiredString(value.idempotency_key, "idempotency_key"),
+    window: {
+      started_at: requiredString(window.started_at, "window.started_at"),
+      ended_at: requiredString(window.ended_at, "window.ended_at"),
+    },
+  };
+
+  if (value.agent_id !== undefined) {
+    request.agent_id = requiredString(value.agent_id, "agent_id");
+  }
+  if (value.mode !== undefined) {
+    const mode = requiredString(value.mode, "mode");
+    if (mode !== "deterministic") {
+      throw new RequestError("mode must be deterministic", 400);
+    }
+    request.mode = mode;
+  }
+  if (value.write_markdown !== undefined) {
+    request.write_markdown = optionalBoolean(value.write_markdown, "write_markdown");
+  }
+
+  return request;
+}
+
 async function readJsonBody(request: IncomingMessage): Promise<unknown> {
   const chunks: Buffer[] = [];
   let totalBytes = 0;
@@ -373,6 +481,13 @@ function optionalInteger(value: unknown, field: string): number {
     throw new RequestError(`${field} must be an integer`, 400);
   }
   return numberValue;
+}
+
+function optionalBoolean(value: unknown, field: string): boolean {
+  if (typeof value !== "boolean") {
+    throw new RequestError(`${field} must be a boolean`, 400);
+  }
+  return value;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

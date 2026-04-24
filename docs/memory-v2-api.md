@@ -165,7 +165,11 @@ Response fixture: `current-context-response.json`
 
 ## POST /v2/recent-context/summaries
 
-Creates or retrieves an idempotent rolling summary for a time window.
+Creates or retrieves an idempotent rolling summary for a time window. By default,
+the API also writes the summary to a generated Markdown page at
+`timelines/recent-context/{user}/{agent}/current.md` and syncs it into the brain
+index. This improves retrieval without turning every raw recent event into a
+Markdown source-of-truth file.
 
 Request:
 
@@ -178,11 +182,14 @@ Request:
     "started_at": "2026-04-21T09:00:00Z",
     "ended_at": "2026-04-21T09:30:00Z"
   },
-  "mode": "deterministic"
+  "mode": "deterministic",
+  "write_markdown": true
 }
 ```
 
-Response shape matches `CurrentContextPacket` with a stored summary id in `metadata.summary_id`.
+Response shape matches `CurrentContextPacket` with a stored summary id in
+`metadata.summary_id`. When Markdown was written, `metadata.markdown` contains
+`root_dir`, `path`, `slug`, `content_hash`, `generated_at`, and `synced`.
 
 ## POST /v2/brain/sync
 
