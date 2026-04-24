@@ -1,6 +1,7 @@
 import Foundation
 import Combine
 import CoreGraphics
+import AppKit
 
 @available(macOS 14.0, *)
 @MainActor
@@ -13,6 +14,7 @@ class AppService: ObservableObject {
     @Published var isMemoryConnected: Bool = false
     @Published var isBackendConnected: Bool = false
     @Published var captureInterval: Int = 30
+    @Published private(set) var permissionStatuses: [AppPermissionStatus] = PermissionCenter.allStatuses()
     
     @Published private(set) var config: AppConfig
     private var llmService: LLMService
@@ -41,12 +43,15 @@ class AppService: ObservableObject {
             config: config.capture,
             browserContextService: browserContextService
         )
+
+        refreshPermissionStatuses()
     }
     
     func start() {
         status = .running
         captureEnabled = config.capture.enabled
         captureInterval = config.capture.intervalSeconds
+        refreshPermissionStatuses()
         browserExtensionServer?.start()
         
         if captureEnabled {
@@ -85,6 +90,11 @@ class AppService: ObservableObject {
     }
     
     func toggleCapture() {
+        guard requiredPermissionsGranted else {
+            refreshPermissionStatuses()
+            return
+        }
+
         captureEnabled.toggle()
         if captureEnabled {
             startContextProcessing()
@@ -125,6 +135,39 @@ class AppService: ObservableObject {
         if wasRunning {
             start()
         }
+    }
+
+    var requiredPermissionStatuses: [AppPermissionStatus] {
+        permissionStatuses.filter { $0.kind.isRequired }
+    }
+
+    var requiredPermissionsGranted: Bool {
+        requiredPermissionStatuses.allSatisfy { $0.isGranted }
+    }
+
+    var needsOnboarding: Bool {
+        !requiredPermissionsGranted
+    }
+
+    func refreshPermissionStatuses() {
+        permissionStatuses = PermissionCenter.allStatuses()
+    }
+
+    func openSystemSettings(for kind: AppPermissionKind) {
+        PermissionCenter.openSystemSettings(for: kind)
+    }
+
+    var browserExtensionServerURL: String {
+        "http://127.0.0.1:\(config.browserExtension.port)"
+    }
+
+    var browserExtensionConfigured: Bool {
+        !config.browserExtension.apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    func openChromeExtensionsPage() {
+        guard let url = URL(string: "chrome://extensions") else { return }
+        NSWorkspace.shared.open(url)
     }
 
     private func applyConfiguration(_ newConfig: AppConfig) {
@@ -194,6 +237,7 @@ class AppService: ObservableObject {
 
     private func processContextTick(force: Bool) async {
         guard config.app.processOnCapture else { return }
+        guard requiredPermissionsGranted else { return }
 
         let plan = await contextRouter.capturePlan(force: force)
 
