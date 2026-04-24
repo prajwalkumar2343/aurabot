@@ -47,6 +47,101 @@ struct LLMConfig: Codable {
     var timeoutSeconds: Int = 30
     var openRouterAPIKey: String = ""
     var openRouterChatModel: String = "anthropic/claude-3.5-sonnet"
+    var contextCollectorRewrite: ContextCollectorRewritePolicy = .default
+
+    func allowsContextCollectorRewrite(for modelIdentifier: String? = nil) -> Bool {
+        contextCollectorRewrite.allows(modelIdentifier ?? openRouterChatModel)
+    }
+}
+
+struct ContextCollectorRewritePolicy: Codable {
+    var enabled: Bool = false
+    var allowedModels: [ContextCollectorRewriteModelRule] = ContextCollectorRewriteModelRule.defaultRules
+
+    static let `default` = ContextCollectorRewritePolicy()
+
+    func allows(_ modelIdentifier: String) -> Bool {
+        guard enabled else { return false }
+        return allowedModels.contains { $0.matches(modelIdentifier) }
+    }
+}
+
+struct ContextCollectorRewriteModelRule: Codable, Equatable, Sendable {
+    let label: String
+    let minimumVersion: Double
+    let matchPatterns: [String]
+    let requiredTokens: [String]
+
+    init(
+        label: String,
+        minimumVersion: Double,
+        matchPatterns: [String],
+        requiredTokens: [String] = []
+    ) {
+        self.label = label
+        self.minimumVersion = minimumVersion
+        self.matchPatterns = matchPatterns
+        self.requiredTokens = requiredTokens
+    }
+
+    func matches(_ modelIdentifier: String) -> Bool {
+        let normalized = modelIdentifier.lowercased()
+        guard requiredTokens.allSatisfy({ normalized.contains($0.lowercased()) }) else {
+            return false
+        }
+
+        guard let version = extractedVersion(from: normalized) else {
+            return false
+        }
+
+        return version >= minimumVersion
+    }
+
+    private func extractedVersion(from modelIdentifier: String) -> Double? {
+        for pattern in matchPatterns {
+            guard let regex = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive]) else {
+                continue
+            }
+
+            let range = NSRange(modelIdentifier.startIndex..., in: modelIdentifier)
+            guard let match = regex.firstMatch(in: modelIdentifier, options: [], range: range),
+                  match.numberOfRanges > 1,
+                  let versionRange = Range(match.range(at: 1), in: modelIdentifier) else {
+                continue
+            }
+
+            return Double(modelIdentifier[versionRange])
+        }
+
+        return nil
+    }
+
+    static let defaultRules: [ContextCollectorRewriteModelRule] = [
+        ContextCollectorRewriteModelRule(
+            label: "Gemini >= 3.1",
+            minimumVersion: 3.1,
+            matchPatterns: ["gemini[-_ ]?(\\d+(?:\\.\\d+)?)"]
+        ),
+        ContextCollectorRewriteModelRule(
+            label: "Claude Opus >= 4.5",
+            minimumVersion: 4.5,
+            matchPatterns: [
+                "claude[-_ ]?opus[-_ ]?(\\d+(?:\\.\\d+)?)",
+                "claude[-_ ]?(\\d+(?:\\.\\d+)?)[:/_ -]?opus"
+            ],
+            requiredTokens: ["claude", "opus"]
+        ),
+        ContextCollectorRewriteModelRule(
+            label: "GPT >= 5.3",
+            minimumVersion: 5.3,
+            matchPatterns: ["gpt[-_ ]?(\\d+(?:\\.\\d+)?)"]
+        ),
+        ContextCollectorRewriteModelRule(
+            label: "Kimi >= 2.5",
+            minimumVersion: 2.5,
+            matchPatterns: ["kimi[-_ ]?(\\d+(?:\\.\\d+)?)"]
+        )
+    ]
 }
 
 struct MemoryConfig: Codable {

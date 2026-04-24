@@ -115,6 +115,32 @@ final class AuraBotCoreTests: XCTestCase {
         XCTAssertTrue(config.allowedOrigins.contains("http://127.0.0.1:"))
     }
 
+    func testContextCollectorRewritePolicyRequiresOptIn() {
+        let config = LLMConfig()
+
+        XCTAssertFalse(config.allowsContextCollectorRewrite(for: "google/gemini-3.1-pro"))
+    }
+
+    func testContextCollectorRewritePolicyAcceptsConfiguredModelThresholds() {
+        var config = LLMConfig()
+        config.contextCollectorRewrite.enabled = true
+
+        XCTAssertTrue(config.allowsContextCollectorRewrite(for: "google/gemini-3.1-pro"))
+        XCTAssertTrue(config.allowsContextCollectorRewrite(for: "anthropic/claude-opus-4.5"))
+        XCTAssertTrue(config.allowsContextCollectorRewrite(for: "openai/gpt-5.3"))
+        XCTAssertTrue(config.allowsContextCollectorRewrite(for: "moonshotai/kimi-2.5"))
+    }
+
+    func testContextCollectorRewritePolicyRejectsLowerOrWrongTierModels() {
+        var config = LLMConfig()
+        config.contextCollectorRewrite.enabled = true
+
+        XCTAssertFalse(config.allowsContextCollectorRewrite(for: "google/gemini-2.5-pro"))
+        XCTAssertFalse(config.allowsContextCollectorRewrite(for: "anthropic/claude-sonnet-4.5"))
+        XCTAssertFalse(config.allowsContextCollectorRewrite(for: "openai/gpt-5.2"))
+        XCTAssertFalse(config.allowsContextCollectorRewrite(for: "moonshotai/kimi-2.1"))
+    }
+
     func testBrowserExtensionPayloadCapturesTextHashesWithoutPersistingPrivateWindowText() throws {
         let payload = BrowserExtensionUpdateRequest(
             schemaVersion: 1,
