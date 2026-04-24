@@ -15,7 +15,7 @@ This is the Chromium Manifest V3 browser context sender for the AuraBot macOS ap
 - Optional readable page text, capped at 64 KB
 - `readableTextHash`
 
-Full readable page text is disabled by default. The extension skips page text capture on sensitive domains, pages with password fields, and private/incognito tabs.
+Full readable page text is disabled by default. The extension skips page text capture on sensitive hostnames, pages with password fields, and private/incognito tabs.
 
 ## Local Setup
 

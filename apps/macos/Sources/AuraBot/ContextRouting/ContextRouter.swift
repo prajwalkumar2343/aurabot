@@ -5,7 +5,6 @@ actor ContextRouter {
     private let activeAppCollector = ActiveAppCollector()
     private let browserCollector: BrowserContextCollector
     private let gitCollector = GitContextCollector()
-    private let terminalCollector = TerminalContextCollector()
 
     private var lastEventFingerprint: String?
     private var lastEventAt: Date?
@@ -24,46 +23,16 @@ actor ContextRouter {
         }
 
         if let browserContext = await browserCollector.collect(),
-           isBrowser(bundleIdentifier: activeApp.bundleIdentifier ?? browserContext.bundleIdentifier) {
+           isChromiumBrowser(bundleIdentifier: activeApp.bundleIdentifier ?? browserContext.bundleIdentifier) {
             return planBrowserContext(browserContext, activeApp: activeApp, now: now, force: force)
         }
 
-        if isIDE(bundleIdentifier: activeApp.bundleIdentifier, appName: activeApp.name) {
+        if isCodeApp(bundleIdentifier: activeApp.bundleIdentifier, appName: activeApp.name) {
             let gitContext = await gitCollector.collect()
             return planCodingContext(activeApp: activeApp, gitContext: gitContext, now: now, force: force)
         }
 
-        if isTerminal(bundleIdentifier: activeApp.bundleIdentifier, appName: activeApp.name) {
-            return planTerminalContext(activeApp: activeApp, now: now, force: force)
-        }
-
-        if isMeeting(bundleIdentifier: activeApp.bundleIdentifier, appName: activeApp.name) {
-            return planSimpleStructuredContext(
-                mode: .meetingOrCall,
-                activeApp: activeApp,
-                now: now,
-                force: force,
-                source: "active_app",
-                intent: "Meeting or communication context",
-                importance: 0.55,
-                ttl: "session"
-            )
-        }
-
-        if isDocumentApp(bundleIdentifier: activeApp.bundleIdentifier, appName: activeApp.name) {
-            return planSimpleStructuredContext(
-                mode: .documentWriting,
-                activeApp: activeApp,
-                now: now,
-                force: force,
-                source: "active_app",
-                intent: "Document writing or reading context",
-                importance: 0.58,
-                ttl: "session"
-            )
-        }
-
-        return visualFallbackPlan(now: now, force: force, activeApp: activeApp, reason: "unknown_app_visual_fallback")
+        return visualFallbackPlan(now: now, force: force, activeApp: activeApp, reason: "screen_context_fallback")
     }
 
     private func planBrowserContext(
@@ -129,26 +98,25 @@ actor ContextRouter {
         now: Date,
         force: Bool
     ) -> ContextCapturePlan {
-        let fingerprint = "code|\(activeApp.bundleIdentifier ?? activeApp.name)|\(activeApp.windowTitle ?? "")|\(gitContext?.fingerprint ?? "")"
-        let dirtyKeyElements = gitContext.map { Array($0.dirtyFiles.prefix(8)) } ?? []
+        let projectName = gitContext?.projectName
+        let fingerprint = "code|\(activeApp.bundleIdentifier ?? activeApp.name)|\(activeApp.windowTitle ?? "")|\(projectName ?? "")"
         var summary = "User is working in \(activeApp.displayName)"
-        if let gitContext {
-            summary += " | \(gitContext.summary)"
+        if let projectName, !projectName.isEmpty {
+            summary += " | Project: \(projectName)"
         }
 
         let event = ContextEvent(
             mode: .codingIDE,
-            source: "active_app_git",
+            source: "active_app_project",
             summary: summary,
-            activities: ["coding", "ide"],
+            activities: ["coding", "project_work"],
             keyElements: compact([
                 activeApp.name,
                 activeApp.windowTitle,
-                gitContext?.projectName,
-                gitContext?.branch
-            ]) + dirtyKeyElements,
-            userIntent: "Coding workflow context",
-            importance: gitContext?.dirtyFiles.isEmpty == false ? 0.78 : 0.66,
+                projectName
+            ]),
+            userIntent: "Project work context",
+            importance: 0.64,
             ttl: "session",
             fingerprint: fingerprint,
             timestamp: now,
@@ -156,61 +124,7 @@ actor ContextRouter {
             captureReason: "context_router_coding"
         )
 
-        return structuredPlan(event, confidence: gitContext == nil ? 0.72 : 0.88, force: force)
-    }
-
-    private func planTerminalContext(
-        activeApp: ActiveAppSnapshot,
-        now: Date,
-        force: Bool
-    ) -> ContextCapturePlan {
-        let terminalContext = terminalCollector.collect(from: activeApp)
-        let fingerprint = "terminal|\(terminalContext.fingerprint)"
-        let event = ContextEvent(
-            mode: .terminalDebugging,
-            source: "active_app_terminal",
-            summary: terminalContext.summary,
-            activities: ["terminal", "debugging"],
-            keyElements: compact([activeApp.name, activeApp.windowTitle]),
-            userIntent: "Terminal or debugging workflow",
-            importance: 0.62,
-            ttl: "session",
-            fingerprint: fingerprint,
-            timestamp: now,
-            browserContext: nil,
-            captureReason: "context_router_terminal"
-        )
-
-        return structuredPlan(event, confidence: 0.78, force: force)
-    }
-
-    private func planSimpleStructuredContext(
-        mode: ContextMode,
-        activeApp: ActiveAppSnapshot,
-        now: Date,
-        force: Bool,
-        source: String,
-        intent: String,
-        importance: Double,
-        ttl: String
-    ) -> ContextCapturePlan {
-        let fingerprint = "\(mode.rawValue)|\(activeApp.bundleIdentifier ?? activeApp.name)|\(activeApp.windowTitle ?? "")"
-        let event = ContextEvent(
-            mode: mode,
-            source: source,
-            summary: "User is in \(activeApp.displayName)",
-            activities: [mode.rawValue],
-            keyElements: compact([activeApp.name, activeApp.windowTitle]),
-            userIntent: intent,
-            importance: importance,
-            ttl: ttl,
-            fingerprint: fingerprint,
-            timestamp: now,
-            browserContext: nil,
-            captureReason: "context_router_\(mode.rawValue)"
-        )
-
-        return structuredPlan(event, confidence: 0.68, force: force)
+        return structuredPlan(event, confidence: projectName == nil ? 0.68 : 0.8, force: force)
     }
 
     private func structuredPlan(_ event: ContextEvent, confidence: Double, force: Bool) -> ContextCapturePlan {
@@ -281,19 +195,21 @@ actor ContextRouter {
         return now.timeIntervalSince(lastEventAt) < TimeInterval(max(captureConfig.minCaptureGapSeconds, 1))
     }
 
-    private func isBrowser(bundleIdentifier: String?) -> Bool {
+    private func isChromiumBrowser(bundleIdentifier: String?) -> Bool {
         guard let bundleIdentifier else { return false }
         return [
             "com.google.Chrome",
             "com.microsoft.edgemac",
             "com.brave.Browser",
-            "company.thebrowser.Browser",
-            "com.apple.Safari",
-            "org.mozilla.firefox"
+            "company.thebrowser.Browser"
         ].contains(bundleIdentifier)
     }
 
-    private func isIDE(bundleIdentifier: String?, appName: String) -> Bool {
+    private func isCodeApp(bundleIdentifier: String?, appName: String) -> Bool {
+        if isTerminal(bundleIdentifier: bundleIdentifier, appName: appName) {
+            return true
+        }
+
         if let bundleIdentifier {
             if bundleIdentifier.hasPrefix("com.jetbrains.") {
                 return true
@@ -332,43 +248,6 @@ actor ContextRouter {
 
         let lowercased = appName.lowercased()
         return ["terminal", "iterm", "warp", "kitty", "alacritty"].contains {
-            lowercased.contains($0)
-        }
-    }
-
-    private func isMeeting(bundleIdentifier: String?, appName: String) -> Bool {
-        if let bundleIdentifier,
-           [
-            "us.zoom.xos",
-            "com.microsoft.teams2",
-            "com.tinyspeck.slackmacgap",
-            "com.apple.FaceTime"
-           ].contains(bundleIdentifier) {
-            return true
-        }
-
-        let lowercased = appName.lowercased()
-        return ["zoom", "teams", "slack", "facetime", "meet"].contains {
-            lowercased.contains($0)
-        }
-    }
-
-    private func isDocumentApp(bundleIdentifier: String?, appName: String) -> Bool {
-        if let bundleIdentifier,
-           [
-            "com.apple.Notes",
-            "com.apple.TextEdit",
-            "com.apple.iWork.Pages",
-            "com.microsoft.Word",
-            "com.microsoft.Excel",
-            "com.microsoft.Powerpoint",
-            "notion.id"
-           ].contains(bundleIdentifier) {
-            return true
-        }
-
-        let lowercased = appName.lowercased()
-        return ["notes", "textedit", "pages", "word", "notion", "obsidian"].contains {
             lowercased.contains($0)
         }
     }
