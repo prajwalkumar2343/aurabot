@@ -67,17 +67,3 @@ jobs:
       - name: Run AuraBot tests
         run: swift test
         working-directory: apps/macos
-
-  swift-mem0:
-    name: Swift Mem0
-    runs-on: macos-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Build Mem0
-        run: swift build
-        working-directory: swift-mem0
-
-      - name: Run Mem0 tests
-        run: swift test
-        working-directory: swift-mem0

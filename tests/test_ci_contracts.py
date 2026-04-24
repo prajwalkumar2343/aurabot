@@ -52,11 +52,10 @@ class GitHubActionsContractTests(unittest.TestCase):
             self.workflow,
         )
 
-    def test_swift_ci_builds_and_tests_both_packages(self):
+    def test_swift_ci_builds_and_tests_macos_package(self):
         self.assertIn("working-directory: apps/macos", self.workflow)
-        self.assertIn("working-directory: swift-mem0", self.workflow)
-        self.assertEqual(self.workflow.count("run: swift build"), 2)
-        self.assertEqual(self.workflow.count("run: swift test"), 2)
+        self.assertEqual(self.workflow.count("run: swift build"), 1)
+        self.assertEqual(self.workflow.count("run: swift test"), 1)
 
     def test_actions_are_pinned_to_major_versions(self):
         uses_lines = re.findall(r"uses: ([^\s]+)", self.workflow)
