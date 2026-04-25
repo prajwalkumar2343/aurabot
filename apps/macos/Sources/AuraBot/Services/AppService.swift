@@ -94,7 +94,7 @@ class AppService: ObservableObject {
         refreshPermissionStatuses()
 
         guard requiredPermissionsGranted else {
-            capturePermissionMessage = "Grant Screen Recording and Accessibility to enable capture."
+            capturePermissionMessage = permissionGuidanceMessage
             return
         }
 
@@ -154,16 +154,28 @@ class AppService: ObservableObject {
         !requiredPermissionsGranted
     }
 
+    var permissionGuidanceMessage: String? {
+        guard !requiredPermissionsGranted else { return nil }
+
+        if requiredPermissionStatuses.contains(where: { $0.kind == .screenRecording && $0.state == .pendingRestart }) {
+            return "Screen Recording was requested. After enabling it in System Settings, restart Aura, then click Refresh Status."
+        }
+
+        return "Grant Screen Recording and Accessibility to enable capture."
+    }
+
     func refreshPermissionStatuses() {
         permissionStatuses = PermissionCenter.allStatuses()
-
-        if requiredPermissionsGranted {
-            capturePermissionMessage = nil
-        }
+        capturePermissionMessage = permissionGuidanceMessage
     }
 
     func openSystemSettings(for kind: AppPermissionKind) {
         PermissionCenter.openSystemSettings(for: kind)
+    }
+
+    func requestPermission(_ kind: AppPermissionKind) {
+        PermissionCenter.requestAccess(for: kind)
+        refreshPermissionStatuses()
     }
 
     var browserExtensionServerURL: String {

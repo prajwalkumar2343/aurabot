@@ -93,18 +93,77 @@ enum AppPermissionKind: String, CaseIterable, Identifiable, Hashable {
 
 struct AppPermissionStatus: Identifiable, Equatable {
     let kind: AppPermissionKind
-    let isGranted: Bool
+    let state: AppPermissionState
 
     var id: AppPermissionKind { kind }
+    var isGranted: Bool { state == .granted }
 }
 
+enum AppPermissionState: Equatable {
+    case granted
+    case pendingRestart
+    case notGranted
+
+    var title: String {
+        switch self {
+        case .granted:
+            return "Enabled"
+        case .pendingRestart:
+            return "Restart Aura"
+        case .notGranted:
+            return "Open Panel"
+        }
+    }
+
+    var symbolName: String {
+        switch self {
+        case .granted:
+            return "checkmark.circle.fill"
+        case .pendingRestart:
+            return "arrow.clockwise.circle.fill"
+        case .notGranted:
+            return "arrow.up.right"
+        }
+    }
+
+    var tintColor: Color {
+        switch self {
+        case .granted:
+            return Colors.success
+        case .pendingRestart:
+            return Colors.warning
+        case .notGranted:
+            return Colors.primary
+        }
+    }
+}
+
+@MainActor
 enum PermissionCenter {
+    private static var requestedKinds = Set<AppPermissionKind>()
+
     static func allStatuses() -> [AppPermissionStatus] {
         AppPermissionKind.allCases.map(status(for:))
     }
 
     static func status(for kind: AppPermissionKind) -> AppPermissionStatus {
-        AppPermissionStatus(kind: kind, isGranted: isGranted(kind))
+        AppPermissionStatus(kind: kind, state: state(for: kind))
+    }
+
+    static func state(for kind: AppPermissionKind) -> AppPermissionState {
+        switch kind {
+        case .screenRecording:
+            if CGPreflightScreenCaptureAccess() {
+                requestedKinds.remove(kind)
+                return .granted
+            }
+
+            return requestedKinds.contains(kind) ? .pendingRestart : .notGranted
+        case .accessibility:
+            return isGranted(kind) ? .granted : .notGranted
+        case .microphone:
+            return isGranted(kind) ? .granted : .notGranted
+        }
     }
 
     static func isGranted(_ kind: AppPermissionKind) -> Bool {
@@ -115,6 +174,24 @@ enum PermissionCenter {
             return SystemAccessibilityPermissionChecker().isTrusted(prompt: false)
         case .microphone:
             return AVCaptureDevice.authorizationStatus(for: .audio) == .authorized
+        }
+    }
+
+    static func requestAccess(for kind: AppPermissionKind) {
+        switch kind {
+        case .screenRecording:
+            requestedKinds.insert(kind)
+            _ = CGRequestScreenCaptureAccess()
+            openSystemSettings(for: kind)
+        case .accessibility:
+            let trusted = SystemAccessibilityPermissionChecker().isTrusted(prompt: true)
+            if trusted {
+                requestedKinds.remove(kind)
+            } else {
+                openSystemSettings(for: kind)
+            }
+        case .microphone:
+            AVCaptureDevice.requestAccess(for: .audio) { _ in }
         }
     }
 
@@ -175,7 +252,7 @@ struct PermissionOnboardingView: View {
                             }
                         }
 
-                        Text("Aura unlocks once Screen Recording and Accessibility are enabled. Return here after granting access.")
+                        Text(service.permissionGuidanceMessage ?? "Aura unlocks once Screen Recording and Accessibility are enabled.")
                             .font(Typography.caption)
                             .foregroundColor(Colors.textMuted)
                     }
@@ -211,7 +288,7 @@ struct PermissionOnboardingView: View {
                         ForEach(Array(service.permissionStatuses.enumerated()), id: \.element.id) { index, status in
                             PermissionChecklistRow(
                                 status: status,
-                                onTap: { service.openSystemSettings(for: status.kind) }
+                                onTap: { service.requestPermission(status.kind) }
                             )
                             .opacity(appear ? 1 : 0)
                             .offset(y: appear ? 0 : 12)
@@ -530,12 +607,12 @@ struct PermissionChecklistRow: View {
             HStack(spacing: Spacing.lg) {
                 ZStack {
                     RoundedRectangle(cornerRadius: 16)
-                        .fill(status.kind.accentColor.opacity(status.isGranted ? 0.18 : 0.10))
+                        .fill(statusIconColor.opacity(status.state == .granted ? 0.18 : 0.10))
                         .frame(width: 52, height: 52)
 
-                    Image(systemName: status.isGranted ? "checkmark.circle.fill" : status.kind.icon)
+                    Image(systemName: status.state == .notGranted ? status.kind.icon : status.state.symbolName)
                         .font(.system(size: 22, weight: .semibold))
-                        .foregroundColor(status.isGranted ? Colors.success : status.kind.accentColor)
+                        .foregroundColor(statusIconColor)
                 }
 
                 VStack(alignment: .leading, spacing: Spacing.xs) {
@@ -564,13 +641,13 @@ struct PermissionChecklistRow: View {
                 Spacer()
 
                 VStack(alignment: .trailing, spacing: Spacing.xs) {
-                    Text(status.isGranted ? "Enabled" : "Open Panel")
+                    Text(status.state.title)
                         .font(Typography.caption)
-                        .foregroundColor(status.isGranted ? Colors.success : Colors.primary)
+                        .foregroundColor(status.state.tintColor)
 
-                    Image(systemName: status.isGranted ? "checkmark" : "arrow.up.right")
+                    Image(systemName: trailingSymbolName)
                         .font(.system(size: 13, weight: .bold))
-                        .foregroundColor(status.isGranted ? Colors.success : Colors.primary)
+                        .foregroundColor(status.state.tintColor)
                 }
             }
             .padding(Spacing.lg)
@@ -580,7 +657,7 @@ struct PermissionChecklistRow: View {
                     .fill(isHovered ? Colors.surfaceSecondary : Colors.surface)
                     .overlay(
                         RoundedRectangle(cornerRadius: 22)
-                            .stroke(status.isGranted ? Colors.success.opacity(0.28) : (isHovered ? Colors.borderHover : Colors.border), lineWidth: 1)
+                            .stroke(borderColor, lineWidth: 1)
                     )
             )
         }
@@ -588,5 +665,38 @@ struct PermissionChecklistRow: View {
         .scaleEffect(isHovered ? 1.01 : 1.0)
         .animation(AnimationPresets.hover, value: isHovered)
         .onHover { isHovered = $0 }
+    }
+
+    private var statusIconColor: Color {
+        switch status.state {
+        case .granted:
+            return Colors.success
+        case .pendingRestart:
+            return Colors.warning
+        case .notGranted:
+            return status.kind.accentColor
+        }
+    }
+
+    private var trailingSymbolName: String {
+        switch status.state {
+        case .granted:
+            return "checkmark"
+        case .pendingRestart:
+            return "arrow.clockwise"
+        case .notGranted:
+            return "arrow.up.right"
+        }
+    }
+
+    private var borderColor: Color {
+        switch status.state {
+        case .granted:
+            return Colors.success.opacity(0.28)
+        case .pendingRestart:
+            return Colors.warning.opacity(0.28)
+        case .notGranted:
+            return isHovered ? Colors.borderHover : Colors.border
+        }
     }
 }

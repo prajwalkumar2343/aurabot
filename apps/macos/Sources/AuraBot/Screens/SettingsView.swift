@@ -443,7 +443,7 @@ struct PermissionsSection: View {
                 }
 
                 PermissionChecklistGroup(statuses: service.permissionStatuses) { kind in
-                    service.openSystemSettings(for: kind)
+                    service.requestPermission(kind)
                 }
 
                 BrowserExtensionSetupCard(service: service)
