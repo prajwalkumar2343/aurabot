@@ -75,8 +75,6 @@ struct MainContentView: View {
                         DashboardView(service: service)
                     case .memories:
                         MemoriesView(service: service)
-                    case .chat:
-                        ChatView(service: service)
                     case .settings:
                         SettingsView(service: service)
                     }
@@ -93,6 +91,11 @@ struct MainContentView: View {
         }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
             service.refreshPermissionStatuses()
+        }
+        .onChange(of: service.needsOnboarding) { _, needsOnboarding in
+            if !needsOnboarding {
+                selectedTab = .dashboard
+            }
         }
     }
 }

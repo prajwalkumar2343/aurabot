@@ -391,14 +391,14 @@ struct BrowserExtensionSetupCard: View {
                             .font(Typography.title2)
                             .foregroundColor(Colors.textPrimary)
 
-                        Text("Optional, but recommended for richer browser context, scroll awareness, and page metadata.")
+                        Text("Optional, but recommended for richer browser context and page awareness inside Chrome.")
                             .font(Typography.callout)
                             .foregroundColor(Colors.textSecondary)
                     }
 
                     Spacer()
 
-                    Text(service.browserExtensionConfigured ? "Configured" : "Setup Needed")
+                    Text(service.browserExtensionConfigured ? "Configured" : "Recommended")
                         .font(Typography.caption)
                         .foregroundColor(service.browserExtensionConfigured ? Colors.success : Colors.accent)
                         .padding(.horizontal, Spacing.sm)
@@ -410,7 +410,7 @@ struct BrowserExtensionSetupCard: View {
                 }
 
                 Button {
-                    service.openChromeExtensionsPage()
+                    service.installChromeExtension()
                 } label: {
                     HStack(spacing: Spacing.lg) {
                         ZStack {
@@ -425,7 +425,7 @@ struct BrowserExtensionSetupCard: View {
 
                         VStack(alignment: .leading, spacing: Spacing.xs) {
                             HStack(spacing: Spacing.sm) {
-                                Text("Open `chrome://extensions`")
+                                Text("Install Aura In Chrome")
                                     .font(Typography.headline)
                                     .foregroundColor(Colors.textPrimary)
 
@@ -440,7 +440,7 @@ struct BrowserExtensionSetupCard: View {
                                     )
                             }
 
-                            Text("Enable Developer Mode, load the AuraBot unpacked extension, then open its options.")
+                            Text("Launches Chrome with the Aura extension loaded so the browser context bridge is ready immediately.")
                                 .font(Typography.callout)
                                 .foregroundColor(Colors.textSecondary)
                         }
@@ -448,7 +448,7 @@ struct BrowserExtensionSetupCard: View {
                         Spacer()
 
                         VStack(alignment: .trailing, spacing: Spacing.xs) {
-                            Text("Open Chrome")
+                            Text(service.hasChromeExtensionBundle ? "Open Chrome" : "Open Setup")
                                 .font(Typography.caption)
                                 .foregroundColor(Colors.accent)
 
@@ -473,9 +473,8 @@ struct BrowserExtensionSetupCard: View {
                 VStack(alignment: .leading, spacing: Spacing.md) {
                     BrowserExtensionStep(
                         index: "1",
-                        title: "Local server URL",
-                        detail: service.browserExtensionServerURL,
-                        isMono: true
+                        title: "Install flow",
+                        detail: service.hasChromeExtensionBundle ? "Aura opens Chrome and loads the bundled extension automatically." : "Aura opens Chrome setup so you can finish loading the extension manually."
                     )
                     BrowserExtensionStep(
                         index: "2",
@@ -484,8 +483,9 @@ struct BrowserExtensionSetupCard: View {
                     )
                     BrowserExtensionStep(
                         index: "3",
-                        title: "What it unlocks",
-                        detail: "Better browser context, readable page state, and smarter scroll capture."
+                        title: "Local server URL",
+                        detail: service.browserExtensionServerURL,
+                        isMono: true
                     )
                 }
             }

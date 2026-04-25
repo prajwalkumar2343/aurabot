@@ -200,6 +200,58 @@ class AppService: ObservableObject {
         NSWorkspace.shared.openApplication(at: chromeURL, configuration: configuration) { _, _ in }
     }
 
+    func installChromeExtension() {
+        guard let chromeURL = NSWorkspace.shared.urlForApplication(withBundleIdentifier: "com.google.Chrome") else {
+            openChromeExtensionsPage()
+            return
+        }
+
+        guard let extensionDirectoryURL = chromeExtensionDirectoryURL else {
+            openChromeExtensionsPage()
+            return
+        }
+
+        let configuration = NSWorkspace.OpenConfiguration()
+        configuration.activates = true
+        configuration.arguments = [
+            "--load-extension=\(extensionDirectoryURL.path)",
+            "chrome://extensions/"
+        ]
+
+        NSWorkspace.shared.openApplication(at: chromeURL, configuration: configuration) { _, _ in }
+    }
+
+    var hasChromeExtensionBundle: Bool {
+        chromeExtensionDirectoryURL != nil
+    }
+
+    private var chromeExtensionDirectoryURL: URL? {
+        let fileManager = FileManager.default
+
+        let bundledCandidates = [
+            Bundle.module.resourceURL?.appendingPathComponent("BrowserExtension/chromium", isDirectory: true),
+            Bundle.module.resourceURL?.appendingPathComponent("chromium", isDirectory: true),
+            Bundle.main.resourceURL?.appendingPathComponent("BrowserExtension/chromium", isDirectory: true),
+            Bundle.main.resourceURL?.appendingPathComponent("chromium", isDirectory: true)
+        ].compactMap { $0 }
+
+        for candidate in bundledCandidates where fileManager.fileExists(atPath: candidate.path) {
+            return candidate
+        }
+
+        let sourceRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+
+        let repoCandidate = sourceRoot.appendingPathComponent("BrowserExtension/chromium", isDirectory: true)
+        if fileManager.fileExists(atPath: repoCandidate.path) {
+            return repoCandidate
+        }
+
+        return nil
+    }
+
     private func applyConfiguration(_ newConfig: AppConfig) {
         config = newConfig
         llmService = LLMService(config: newConfig.llm)
