@@ -88,16 +88,12 @@ class AppService: ObservableObject {
         isBackendConnected = isLLMConnected && isMemoryConnected
     }
     
-    func stop() {
+    func stop() async {
         status = .stopped
         stopContextProcessing()
         browserExtensionServer?.stop()
-        Task {
-            await memoryBackendSupervisor.stop()
-        }
-        Task {
-            await captureService?.stop()
-        }
+        await memoryBackendSupervisor.stop()
+        await captureService?.stop()
     }
     
     func toggleCapture() {
@@ -141,7 +137,7 @@ class AppService: ObservableObject {
     func saveConfiguration(_ newConfig: AppConfig) async throws {
         let wasRunning = status == .running
         if wasRunning {
-            stop()
+            await stop()
         }
 
         try newConfig.save(to: AppConfig.defaultURL.path)

@@ -27,10 +27,10 @@ const SENSITIVE_HOST_PATTERNS = [
   /(^|\.)login\.microsoftonline\.com$/i
 ];
 const SENSITIVE_HOST_KEYWORDS = [
-  /bank/i,
-  /broker/i,
-  /medical/i,
-  /health/i
+  /(^|\.)banks?(?=\.|$)/i,
+  /(^|\.)broker(?=\.|$)/i,
+  /(^|\.)medical(?=\.|$)/i,
+  /(^|\.)health(?=\.|$)/i
 ];
 
 let scheduledCapture = null;

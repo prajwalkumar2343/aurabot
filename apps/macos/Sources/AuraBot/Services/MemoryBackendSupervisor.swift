@@ -55,6 +55,7 @@ actor MemoryBackendSupervisor {
         }
 
         process.terminate()
+        process.waitUntilExit()
         self.process = nil
     }
 
@@ -234,8 +235,6 @@ actor MemoryBackendSupervisor {
 
     private func defaultPort(for scheme: String?) -> Int? {
         switch scheme {
-        case "http":
-            return 80
         case "https":
             return 443
         default:

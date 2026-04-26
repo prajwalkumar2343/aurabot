@@ -8,13 +8,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     var overlayWindow: OverlayWindow?
     var quickEnhancePanel: QuickEnhancePanel?
     let service = AppService(config: AppConfig.loadDefault())
+    private var isTerminating = false
     
     func applicationDidFinishLaunching(_ notification: Notification) {
         setupStatusItem()
 
-        Task {
-            await service.start()
-        }
+        service.start()
 
         overlayWindow = OverlayWindow()
         overlayWindow?.onClick = { [weak self] in
@@ -24,10 +23,18 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
     
-    func applicationWillTerminate(_ notification: Notification) {
+    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        guard !isTerminating else {
+            return .terminateNow
+        }
+
+        isTerminating = true
         Task {
             await service.stop()
+            NSApp.reply(toApplicationShouldTerminate: true)
         }
+
+        return .terminateLater
     }
     
     private func setupStatusItem() {
