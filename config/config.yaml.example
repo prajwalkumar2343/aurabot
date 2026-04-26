@@ -37,8 +37,7 @@ embeddings:
 # Memory API configuration
 memory:
   api_key: ""                   # Optional bearer token
-  base_url: "http://localhost:8000"  # Memory API server URL
-  database_url: ""              # Postgres connection string
+  base_url: "http://127.0.0.1:8766"  # Managed local PGlite Memory v2 URL
   user_id: "default_user"
   collection_name: "screen_memories"
 
