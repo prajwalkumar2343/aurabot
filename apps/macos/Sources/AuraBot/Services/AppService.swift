@@ -1,6 +1,7 @@
 import Foundation
 import Combine
 import CoreGraphics
+import AppKit
 
 @available(macOS 14.0, *)
 @MainActor
@@ -13,10 +14,13 @@ class AppService: ObservableObject {
     @Published var isMemoryConnected: Bool = false
     @Published var isBackendConnected: Bool = false
     @Published var captureInterval: Int = 30
+    @Published var capturePermissionMessage: String?
+    @Published private(set) var permissionStatuses: [AppPermissionStatus] = PermissionCenter.allStatuses()
     
     @Published private(set) var config: AppConfig
     private var llmService: LLMService
     private var memoryService: MemoryService
+    private var memoryBackendSupervisor: MemoryBackendSupervisor
     private var browserContextService: BrowserContextService
     private var contextRouter: ContextRouter
     private var browserExtensionServer: BrowserExtensionServer?
@@ -28,6 +32,7 @@ class AppService: ObservableObject {
         self.config = config
         self.llmService = LLMService(config: config.llm)
         self.memoryService = MemoryService(config: config.memory)
+        self.memoryBackendSupervisor = MemoryBackendSupervisor(config: config.memory)
         self.browserContextService = BrowserContextService(config: config.browserExtension)
         self.contextRouter = ContextRouter(
             captureConfig: config.capture,
@@ -41,12 +46,15 @@ class AppService: ObservableObject {
             config: config.capture,
             browserContextService: browserContextService
         )
+
+        refreshPermissionStatuses()
     }
     
     func start() {
         status = .running
         captureEnabled = config.capture.enabled
         captureInterval = config.capture.intervalSeconds
+        refreshPermissionStatuses()
         browserExtensionServer?.start()
         
         if captureEnabled {
@@ -54,6 +62,7 @@ class AppService: ObservableObject {
         }
         
         Task {
+            _ = await memoryBackendSupervisor.start()
             await refreshMemories()
             await updateHealthStatus()
         }
@@ -70,9 +79,13 @@ class AppService: ObservableObject {
     
     private func updateHealthStatus() async {
         let health = await checkHealth()
+        if !health.memory {
+            _ = await memoryBackendSupervisor.start()
+        }
         isLLMConnected = health.llm
-        isMemoryConnected = health.memory
-        isBackendConnected = health.llm && health.memory
+        let memoryHealth = health.memory ? true : await memoryService.checkHealth()
+        isMemoryConnected = memoryHealth
+        isBackendConnected = isLLMConnected && isMemoryConnected
     }
     
     func stop() {
@@ -80,11 +93,23 @@ class AppService: ObservableObject {
         stopContextProcessing()
         browserExtensionServer?.stop()
         Task {
+            await memoryBackendSupervisor.stop()
+        }
+        Task {
             await captureService?.stop()
         }
     }
     
     func toggleCapture() {
+        refreshPermissionStatuses()
+
+        guard requiredPermissionsGranted else {
+            capturePermissionMessage = permissionGuidanceMessage
+            return
+        }
+
+        capturePermissionMessage = nil
+
         captureEnabled.toggle()
         if captureEnabled {
             startContextProcessing()
@@ -127,10 +152,121 @@ class AppService: ObservableObject {
         }
     }
 
+    var requiredPermissionStatuses: [AppPermissionStatus] {
+        permissionStatuses.filter { $0.kind.isRequired }
+    }
+
+    var requiredPermissionsGranted: Bool {
+        requiredPermissionStatuses.allSatisfy { $0.isGranted }
+    }
+
+    var needsOnboarding: Bool {
+        !requiredPermissionsGranted
+    }
+
+    var permissionGuidanceMessage: String? {
+        guard !requiredPermissionsGranted else { return nil }
+
+        if requiredPermissionStatuses.contains(where: { $0.kind == .screenRecording && $0.state == .pendingRestart }) {
+            return "Screen Recording was requested. After enabling it in System Settings, restart Aura, then click Refresh Status."
+        }
+
+        return "Grant Screen Recording and Accessibility to enable capture."
+    }
+
+    func refreshPermissionStatuses() {
+        permissionStatuses = PermissionCenter.allStatuses()
+        capturePermissionMessage = permissionGuidanceMessage
+    }
+
+    func openSystemSettings(for kind: AppPermissionKind) {
+        PermissionCenter.openSystemSettings(for: kind)
+    }
+
+    func requestPermission(_ kind: AppPermissionKind) {
+        PermissionCenter.requestAccess(for: kind)
+        refreshPermissionStatuses()
+    }
+
+    var browserExtensionServerURL: String {
+        "http://127.0.0.1:\(config.browserExtension.port)"
+    }
+
+    var browserExtensionConfigured: Bool {
+        !config.browserExtension.apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    func openChromeExtensionsPage() {
+        if let url = URL(string: "googlechrome://extensions"),
+           NSWorkspace.shared.open(url) {
+            return
+        }
+
+        guard let chromeURL = NSWorkspace.shared.urlForApplication(withBundleIdentifier: "com.google.Chrome") else {
+            return
+        }
+
+        let configuration = NSWorkspace.OpenConfiguration()
+        NSWorkspace.shared.openApplication(at: chromeURL, configuration: configuration) { _, _ in }
+    }
+
+    func installChromeExtension() {
+        guard let chromeURL = NSWorkspace.shared.urlForApplication(withBundleIdentifier: "com.google.Chrome") else {
+            openChromeExtensionsPage()
+            return
+        }
+
+        guard let extensionDirectoryURL = chromeExtensionDirectoryURL else {
+            openChromeExtensionsPage()
+            return
+        }
+
+        let configuration = NSWorkspace.OpenConfiguration()
+        configuration.activates = true
+        configuration.arguments = [
+            "--load-extension=\(extensionDirectoryURL.path)",
+            "chrome://extensions/"
+        ]
+
+        NSWorkspace.shared.openApplication(at: chromeURL, configuration: configuration) { _, _ in }
+    }
+
+    var hasChromeExtensionBundle: Bool {
+        chromeExtensionDirectoryURL != nil
+    }
+
+    private var chromeExtensionDirectoryURL: URL? {
+        let fileManager = FileManager.default
+
+        let bundledCandidates = [
+            Bundle.module.resourceURL?.appendingPathComponent("BrowserExtension/chromium", isDirectory: true),
+            Bundle.module.resourceURL?.appendingPathComponent("chromium", isDirectory: true),
+            Bundle.main.resourceURL?.appendingPathComponent("BrowserExtension/chromium", isDirectory: true),
+            Bundle.main.resourceURL?.appendingPathComponent("chromium", isDirectory: true)
+        ].compactMap { $0 }
+
+        for candidate in bundledCandidates where fileManager.fileExists(atPath: candidate.path) {
+            return candidate
+        }
+
+        let sourceRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+
+        let repoCandidate = sourceRoot.appendingPathComponent("BrowserExtension/chromium", isDirectory: true)
+        if fileManager.fileExists(atPath: repoCandidate.path) {
+            return repoCandidate
+        }
+
+        return nil
+    }
+
     private func applyConfiguration(_ newConfig: AppConfig) {
         config = newConfig
         llmService = LLMService(config: newConfig.llm)
         memoryService = MemoryService(config: newConfig.memory)
+        memoryBackendSupervisor = MemoryBackendSupervisor(config: newConfig.memory)
         browserContextService = BrowserContextService(config: newConfig.browserExtension)
         contextRouter = ContextRouter(
             captureConfig: newConfig.capture,
@@ -194,6 +330,7 @@ class AppService: ObservableObject {
 
     private func processContextTick(force: Bool) async {
         guard config.app.processOnCapture else { return }
+        guard requiredPermissionsGranted else { return }
 
         let plan = await contextRouter.capturePlan(force: force)
 

@@ -145,10 +145,40 @@ struct ContextCollectorRewriteModelRule: Codable, Equatable, Sendable {
 }
 
 struct MemoryConfig: Codable {
+    static let managedPgliteBaseURL = "http://127.0.0.1:8766"
+
     var apiKey: String = ""
-    var baseURL: String = "http://localhost:8000"
+    var baseURL: String = MemoryConfig.managedPgliteBaseURL
     var userID: String = "default_user"
     var collectionName: String = "screen_memories_v3"
+
+    enum CodingKeys: String, CodingKey {
+        case apiKey
+        case baseURL
+        case userID
+        case collectionName
+    }
+
+    init() {}
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        apiKey = try container.decodeIfPresent(String.self, forKey: .apiKey) ?? ""
+        baseURL = try container.decodeIfPresent(String.self, forKey: .baseURL) ?? Self.managedPgliteBaseURL
+        userID = try container.decodeIfPresent(String.self, forKey: .userID) ?? "default_user"
+        collectionName = try container.decodeIfPresent(String.self, forKey: .collectionName) ?? "screen_memories_v3"
+
+        if Self.isLegacyDefaultMemoryURL(baseURL) {
+            baseURL = Self.managedPgliteBaseURL
+        }
+    }
+
+    private static func isLegacyDefaultMemoryURL(_ value: String) -> Bool {
+        let normalized = value.trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+            .trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+        return normalized == "http://localhost:8000" || normalized == "http://127.0.0.1:8000"
+    }
 }
 
 struct AppSettings: Codable {

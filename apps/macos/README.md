@@ -101,6 +101,7 @@ Sources/AuraBot/
 - **Vapor** - HTTP server for browser extension API
 - **KeyboardShortcuts** - Global hotkey handling
 - **ScreenCaptureKit** - Native screen capture (built-in)
+- **Memory PGlite** - Managed local Memory v2 backend for storage, search, graph extraction, and markdown brain indexing
 
 ## Configuration
 
@@ -128,7 +129,7 @@ Config is stored at `~/.aurabot/config.json`:
     }
   },
   "memory": {
-    "baseURL": "http://localhost:8000",
+    "baseURL": "http://127.0.0.1:8766",
     "apiKey": "memory-api-token"
   },
   "extension": {
@@ -143,6 +144,8 @@ Config is stored at `~/.aurabot/config.json`:
   }
 }
 ```
+
+AuraBot starts the local PGlite memory backend automatically. In packaged builds, `scripts/build-app.sh` bundles the built `services/memory-pglite` service into the app resources so users can launch AuraBot like a normal macOS app.
 
 ### Browser Extension Context API
 

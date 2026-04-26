@@ -3,10 +3,22 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import { resolveBrainDir } from "./brain/index.js";
 import { graphQuery, type GraphDirection } from "./graph/index.js";
+import { processGraphExtractionJobs } from "./graph/jobs.js";
 import { openMemoryDatabase, type MemoryPgliteDatabase } from "./database/index.js";
-import type { RelationType } from "./contracts/index.js";
+import type { MemorySource, RecentContextEventInput, RecentContextSource, RelationType } from "./contracts/index.js";
 import { RELATION_TYPES } from "./contracts/index.js";
-import { summarizeRecentContext, type SummarizeRecentContextInput } from "./recent/summaries.js";
+import {
+  deleteRecentContextEvent,
+  getRecentContextEvents,
+  insertRecentContextEvent,
+  recentContextListResponse,
+} from "./recent/events.js";
+import {
+  getCurrentContextPacket,
+  summarizeRecentContext,
+  type CurrentContextOptions,
+  type SummarizeRecentContextInput,
+} from "./recent/summaries.js";
 import { searchMemory, type SearchScope } from "./search/index.js";
 
 const DEFAULT_HOST = "127.0.0.1";
@@ -26,6 +38,7 @@ export interface ListenOptions extends MemoryPgliteServerOptions {
 export interface MemoryPgliteRequest {
   method: string;
   path: string;
+  query?: Record<string, string | undefined>;
   body?: unknown;
 }
 
@@ -46,9 +59,23 @@ interface GraphQueryRequest {
 interface SearchMemoryRequest {
   query: string;
   user_id: string;
+  agent_id?: string;
   scopes?: SearchScope[];
   limit?: number;
   debug?: boolean;
+}
+
+interface RecentContextQueryRequest {
+  user_id: string;
+  agent_id?: string;
+  started_at?: string;
+  ended_at?: string;
+  source?: string;
+  app?: string;
+  domain?: string;
+  repo_path?: string;
+  file_path?: string;
+  limit?: number;
 }
 
 interface SummarizeRecentContextRequest {
@@ -128,6 +155,7 @@ async function handleRequest(
     {
       method: request.method ?? "GET",
       path: url.pathname,
+      query: Object.fromEntries(url.searchParams.entries()),
       body,
     },
     options,
@@ -170,8 +198,25 @@ export async function handleMemoryPgliteRequest(
     return handleSearchMemory(database, request.body);
   }
 
+  if (request.method === "POST" && request.path === "/v2/recent-context") {
+    return handleInsertRecentContext(database, request.body);
+  }
+
+  if (request.method === "GET" && request.path === "/v2/recent-context") {
+    return handleListRecentContext(database, request.query ?? {});
+  }
+
+  if (request.method === "GET" && request.path === "/v2/current-context") {
+    return handleCurrentContext(database, request.query ?? {});
+  }
+
   if (request.method === "POST" && request.path === "/v2/recent-context/summaries") {
     return handleSummarizeRecentContext(database, request.body, options);
+  }
+
+  const deleteMatch = request.path.match(/^\/v2\/memories\/([^/]+)\/([^/]+)$/);
+  if (request.method === "DELETE" && deleteMatch) {
+    return handleDeleteMemory(database, deleteMatch[1] ?? "", deleteMatch[2] ?? "", request.query ?? {});
   }
 
   return {
@@ -184,6 +229,177 @@ export async function handleMemoryPgliteRequest(
       },
     },
   };
+}
+
+async function handleInsertRecentContext(
+  database: MemoryPgliteDatabase,
+  body: unknown,
+): Promise<MemoryPgliteResponse> {
+  try {
+    const input = parseRecentContextEventInput(body);
+    const event = await insertRecentContextEvent(database, input);
+    await processGraphExtractionJobs(database, { limit: 10 });
+    return {
+      status: 200,
+      body: {
+        schema_version: "memory-v2",
+        event,
+      },
+    };
+  } catch (error) {
+    return {
+      status: 400,
+      body: {
+        schema_version: "memory-v2",
+        error: {
+          code: "invalid_recent_context",
+          message: error instanceof Error ? error.message : "Recent context insert failed",
+        },
+      },
+    };
+  }
+}
+
+async function handleListRecentContext(
+  database: MemoryPgliteDatabase,
+  query: Record<string, string | undefined>,
+): Promise<MemoryPgliteResponse> {
+  try {
+    const input = parseRecentContextQueryRequest(query);
+    const recentQuery: Parameters<typeof getRecentContextEvents>[1] = {
+      userId: input.user_id,
+    };
+    if (input.agent_id) {
+      recentQuery.agentId = input.agent_id;
+    }
+    if (input.started_at) {
+      recentQuery.startedAt = input.started_at;
+    }
+    if (input.ended_at) {
+      recentQuery.endedAt = input.ended_at;
+    }
+    if (input.source) {
+      recentQuery.source = input.source;
+    }
+    if (input.app) {
+      recentQuery.app = input.app;
+    }
+    if (input.domain) {
+      recentQuery.domain = input.domain;
+    }
+    if (input.repo_path) {
+      recentQuery.repoPath = input.repo_path;
+    }
+    if (input.file_path) {
+      recentQuery.filePath = input.file_path;
+    }
+    if (input.limit !== undefined) {
+      recentQuery.limit = input.limit;
+    }
+
+    const result = await getRecentContextEvents(database, recentQuery);
+    return { status: 200, body: recentContextListResponse(result) };
+  } catch (error) {
+    return {
+      status: 400,
+      body: {
+        schema_version: "memory-v2",
+        error: {
+          code: "invalid_recent_context_query",
+          message: error instanceof Error ? error.message : "Recent context query failed",
+        },
+      },
+    };
+  }
+}
+
+async function handleCurrentContext(
+  database: MemoryPgliteDatabase,
+  query: Record<string, string | undefined>,
+): Promise<MemoryPgliteResponse> {
+  try {
+    const userId = requiredString(query.user_id, "user_id");
+    const input: CurrentContextOptions = {
+      userId,
+    };
+    const agentId = optionalString(query.agent_id);
+    if (agentId) {
+      input.agentId = agentId;
+    }
+    if (query.hours !== undefined) {
+      input.hours = optionalNumber(query.hours, "hours");
+    }
+    if (query.limit !== undefined) {
+      input.recentEventsLimit = optionalInteger(query.limit, "limit");
+    }
+
+    const result = await getCurrentContextPacket(database, input);
+    return { status: 200, body: result };
+  } catch (error) {
+    return {
+      status: 400,
+      body: {
+        schema_version: "memory-v2",
+        error: {
+          code: "invalid_current_context",
+          message: error instanceof Error ? error.message : "Current context query failed",
+        },
+      },
+    };
+  }
+}
+
+async function handleDeleteMemory(
+  database: MemoryPgliteDatabase,
+  source: string,
+  id: string,
+  query: Record<string, string | undefined>,
+): Promise<MemoryPgliteResponse> {
+  try {
+    const decodedSource = decodeURIComponent(source) as MemorySource;
+    const decodedId = decodeURIComponent(id);
+    const userId = requiredString(query.user_id, "user_id");
+
+    if (decodedSource !== "recent_context") {
+      return {
+        status: 400,
+        body: {
+          schema_version: "memory-v2",
+          error: {
+            code: "unsupported_delete_source",
+            message: `Delete is not supported for source: ${decodedSource}`,
+          },
+        },
+      };
+    }
+
+    const deleted = await deleteRecentContextEvent(database, {
+      userId,
+      id: decodedId,
+    });
+
+    return {
+      status: deleted ? 200 : 404,
+      body: {
+        schema_version: "memory-v2",
+        deleted,
+        source: decodedSource,
+        id: decodedId,
+        generated_at: new Date().toISOString(),
+      },
+    };
+  } catch (error) {
+    return {
+      status: 400,
+      body: {
+        schema_version: "memory-v2",
+        error: {
+          code: "invalid_delete",
+          message: error instanceof Error ? error.message : "Delete failed",
+        },
+      },
+    };
+  }
 }
 
 async function handleSummarizeRecentContext(
@@ -365,6 +581,9 @@ function parseSearchMemoryRequest(value: unknown): SearchMemoryRequest {
     user_id: requiredString(value.user_id, "user_id"),
   };
 
+  if (value.agent_id !== undefined) {
+    request.agent_id = requiredString(value.agent_id, "agent_id");
+  }
   const scopes = optionalStringArray(value.scopes, "scopes");
   if (scopes) {
     request.scopes = scopes.map((scope) => {
@@ -382,6 +601,61 @@ function parseSearchMemoryRequest(value: unknown): SearchMemoryRequest {
       throw new RequestError("debug must be a boolean", 400);
     }
     request.debug = value.debug;
+  }
+
+  return request;
+}
+
+function parseRecentContextEventInput(value: unknown): RecentContextEventInput {
+  if (!isRecord(value)) {
+    throw new RequestError("Request body must be an object", 400);
+  }
+
+  const source = requiredString(value.source, "source") as RecentContextSource;
+  if (!["screen", "app", "browser", "repo", "file", "terminal", "system"].includes(source)) {
+    throw new RequestError(`Unsupported recent context source: ${source}`, 400);
+  }
+
+  const metadata = isRecord(value.metadata) ? value.metadata : {};
+  const input: RecentContextEventInput = {
+    user_id: requiredString(value.user_id, "user_id"),
+    idempotency_key: requiredString(value.idempotency_key, "idempotency_key"),
+    source,
+    content: requiredString(value.content, "content"),
+    occurred_at: requiredString(value.occurred_at, "occurred_at"),
+    metadata: metadata as RecentContextEventInput["metadata"],
+  };
+
+  if (value.agent_id !== undefined) {
+    input.agent_id = requiredString(value.agent_id, "agent_id");
+  }
+  if (value.ttl_seconds !== undefined) {
+    input.ttl_seconds = optionalInteger(value.ttl_seconds, "ttl_seconds");
+  }
+  if (value.importance !== undefined) {
+    input.importance = optionalNumber(value.importance, "importance");
+  }
+
+  return input;
+}
+
+function parseRecentContextQueryRequest(
+  value: Record<string, string | undefined>,
+): RecentContextQueryRequest {
+  const request: RecentContextQueryRequest = {
+    user_id: requiredString(value.user_id, "user_id"),
+  };
+
+  assignOptionalString(request, "agent_id", value.agent_id);
+  assignOptionalString(request, "started_at", value.started_at);
+  assignOptionalString(request, "ended_at", value.ended_at);
+  assignOptionalString(request, "source", value.source);
+  assignOptionalString(request, "app", value.app);
+  assignOptionalString(request, "domain", value.domain);
+  assignOptionalString(request, "repo_path", value.repo_path);
+  assignOptionalString(request, "file_path", value.file_path);
+  if (value.limit !== undefined) {
+    request.limit = optionalInteger(value.limit, "limit");
   }
 
   return request;
@@ -451,7 +725,7 @@ async function readJsonBody(request: IncomingMessage): Promise<unknown> {
 function sendJson(response: ServerResponse, status: number, payload: unknown): void {
   response.writeHead(status, {
     "Access-Control-Allow-Headers": "authorization, content-type",
-    "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+    "Access-Control-Allow-Methods": "GET, POST, DELETE, OPTIONS",
     "Access-Control-Allow-Origin": "*",
     "Content-Type": "application/json",
   });
@@ -481,6 +755,29 @@ function optionalInteger(value: unknown, field: string): number {
     throw new RequestError(`${field} must be an integer`, 400);
   }
   return numberValue;
+}
+
+function optionalNumber(value: unknown, field: string): number {
+  const numberValue = Number(value);
+  if (!Number.isFinite(numberValue)) {
+    throw new RequestError(`${field} must be a number`, 400);
+  }
+  return numberValue;
+}
+
+function optionalString(value: unknown): string | undefined {
+  return typeof value === "string" && value.trim() ? value.trim() : undefined;
+}
+
+function assignOptionalString<T extends object, K extends keyof T>(
+  target: T,
+  key: K,
+  value: unknown,
+): void {
+  const normalized = optionalString(value);
+  if (normalized) {
+    target[key] = normalized as T[K];
+  }
 }
 
 function optionalBoolean(value: unknown, field: string): boolean {

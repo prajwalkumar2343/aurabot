@@ -24,7 +24,8 @@ let package = Package(
                 .product(name: "KeyboardShortcuts", package: "KeyboardShortcuts"),
             ],
             resources: [
-                .copy("Resources/ComputerUseSkills")
+                .copy("Resources/ComputerUseSkills"),
+                .copy("Resources/BrowserExtension/chromium")
             ],
             swiftSettings: [
                 .enableExperimentalFeature("StrictConcurrency")

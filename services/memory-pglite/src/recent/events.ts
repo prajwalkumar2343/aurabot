@@ -247,6 +247,48 @@ export async function getRecentContextEventById(
   return row ? rowToRecentContextEvent(row) : null;
 }
 
+export async function deleteRecentContextEvent(
+  database: MemoryPgliteDatabase,
+  options: { userId: string; id: string },
+): Promise<boolean> {
+  const id = requiredString(options.id, "id");
+  const userId = requiredString(options.userId, "userId");
+
+  await database.transaction(async () => {
+    await database.query(
+      `
+        DELETE FROM ${TABLES.entityLinks}
+        WHERE user_id = $1
+          AND evidence_source_type = 'recent_context'
+          AND evidence_source_id = $2
+      `,
+      [userId, id],
+    );
+
+    await database.query(
+      `
+        DELETE FROM ${TABLES.memoryJobs}
+        WHERE user_id = $1
+          AND payload->>'source' = 'recent_context'
+          AND payload->>'source_id' = $2
+      `,
+      [userId, id],
+    );
+  });
+
+  const result = await database.query<DeletedRow>(
+    `
+      DELETE FROM ${TABLES.recentContextEvents}
+      WHERE id = $1
+        AND user_id = $2
+      RETURNING id
+    `,
+    [id, userId],
+  );
+
+  return result.rows.length > 0;
+}
+
 export async function cleanupExpiredRecentContext(
   database: MemoryPgliteDatabase,
   options: { olderThanHours?: number; now?: string; dryRun?: boolean } = {},

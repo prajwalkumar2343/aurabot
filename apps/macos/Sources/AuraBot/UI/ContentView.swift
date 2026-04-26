@@ -1,4 +1,5 @@
 import SwiftUI
+import AppKit
 
 @available(macOS 14.0, *)
 struct ContentView: View {
@@ -65,15 +66,18 @@ struct MainContentView: View {
             SidebarView(selectedTab: $selectedTab, service: service)
             
             ZStack {
-                switch selectedTab {
-                case .dashboard:
-                    DashboardView(service: service)
-                case .memories:
-                    MemoriesView(service: service)
-                case .chat:
-                    ChatView(service: service)
-                case .settings:
-                    SettingsView(service: service)
+                if service.needsOnboarding {
+                    PermissionOnboardingView(service: service)
+                        .transition(.opacity.combined(with: .scale(scale: 0.98)))
+                } else {
+                    switch selectedTab {
+                    case .dashboard:
+                        DashboardView(service: service)
+                    case .memories:
+                        MemoriesView(service: service)
+                    case .settings:
+                        SettingsView(service: service)
+                    }
                 }
             }
             .background(Colors.background)
@@ -82,6 +86,17 @@ struct MainContentView: View {
             .padding(.trailing, Spacing.lg)
         }
         .background(Colors.background)
+        .onAppear {
+            service.refreshPermissionStatuses()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+            service.refreshPermissionStatuses()
+        }
+        .onChange(of: service.needsOnboarding) { _, needsOnboarding in
+            if !needsOnboarding {
+                selectedTab = .dashboard
+            }
+        }
     }
 }
 
