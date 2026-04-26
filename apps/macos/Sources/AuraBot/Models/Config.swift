@@ -145,35 +145,10 @@ struct ContextCollectorRewriteModelRule: Codable, Equatable, Sendable {
 }
 
 struct MemoryConfig: Codable {
-    var mode: MemoryMode = .embedded
     var apiKey: String = ""
-    var baseURL: String = "http://127.0.0.1:8000"
+    var baseURL: String = "http://localhost:8000"
     var userID: String = "default_user"
     var collectionName: String = "screen_memories_v3"
-
-    enum CodingKeys: String, CodingKey {
-        case mode
-        case apiKey
-        case baseURL
-        case userID
-        case collectionName
-    }
-
-    init() {}
-
-    init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        mode = try container.decodeIfPresent(MemoryMode.self, forKey: .mode) ?? .embedded
-        apiKey = try container.decodeIfPresent(String.self, forKey: .apiKey) ?? ""
-        baseURL = try container.decodeIfPresent(String.self, forKey: .baseURL) ?? "http://127.0.0.1:8000"
-        userID = try container.decodeIfPresent(String.self, forKey: .userID) ?? "default_user"
-        collectionName = try container.decodeIfPresent(String.self, forKey: .collectionName) ?? "screen_memories_v3"
-    }
-}
-
-enum MemoryMode: String, Codable, CaseIterable {
-    case embedded
-    case external
 }
 
 struct AppSettings: Codable {

@@ -3,14 +3,12 @@ import Foundation
 
 actor MemoryService {
     private let config: MemoryConfig
-    private let embeddedStore: EmbeddedMemoryStore
     private let session: URLSession
     private let decoder: JSONDecoder
     private let encoder: JSONEncoder
 
     init(config: MemoryConfig) {
         self.config = config
-        self.embeddedStore = .shared
         self.session = URLSession.shared
         self.decoder = MemoryV2JSON.makeDecoder()
         self.encoder = MemoryV2JSON.makeEncoder()
@@ -28,10 +26,6 @@ actor MemoryService {
             importance: 0.5,
             metadata: metadata
         )
-
-        if config.mode == .embedded {
-            return try await embeddedStore.add(payload)
-        }
 
         var request = try makeRequest(path: "/v2/recent-context", method: "POST")
         request.httpBody = try encoder.encode(payload)
@@ -52,15 +46,6 @@ actor MemoryService {
             debug: false
         )
 
-        if config.mode == .embedded {
-            return try await embeddedStore.search(
-                query: query,
-                userID: config.userID,
-                agentID: normalizedAgentID,
-                limit: limit
-            )
-        }
-
         var request = try makeRequest(path: "/v2/search", method: "POST")
         request.httpBody = try encoder.encode(payload)
 
@@ -71,14 +56,6 @@ actor MemoryService {
     }
 
     func getRecent(limit: Int = 10) async throws -> [Memory] {
-        if config.mode == .embedded {
-            return try await embeddedStore.recent(
-                userID: config.userID,
-                agentID: normalizedAgentID,
-                limit: limit
-            )
-        }
-
         var queryItems = [
             URLQueryItem(name: "user_id", value: config.userID),
             URLQueryItem(name: "limit", value: String(limit))
@@ -96,13 +73,6 @@ actor MemoryService {
     }
 
     func getCurrentContext() async throws -> CurrentContextPacket {
-        if config.mode == .embedded {
-            return try await embeddedStore.currentContext(
-                userID: config.userID,
-                agentID: normalizedAgentID
-            )
-        }
-
         var queryItems = [
             URLQueryItem(name: "user_id", value: config.userID)
         ]
@@ -119,16 +89,6 @@ actor MemoryService {
     }
 
     func delete(memoryID: String, source: MemorySource = .recentContext) async throws {
-        if config.mode == .embedded {
-            _ = try await embeddedStore.delete(
-                userID: config.userID,
-                agentID: normalizedAgentID,
-                memoryID: memoryID,
-                source: source
-            )
-            return
-        }
-
         let encodedSource = source.rawValue.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? source.rawValue
         let encodedID = memoryID.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? memoryID
         let queryItems = [
@@ -145,10 +105,6 @@ actor MemoryService {
     }
 
     func checkHealth() async -> Bool {
-        if config.mode == .embedded {
-            return await embeddedStore.checkHealth()
-        }
-
         do {
             let request = try makeRequest(path: "/v2/health")
             let data = try await performRequest(request)
@@ -263,11 +219,6 @@ actor MemoryService {
     private func stableFingerprint(_ value: String) -> String {
         let digest = SHA256.hash(data: Data(value.utf8))
         return digest.prefix(12).map { String(format: "%02x", $0) }.joined()
-    }
-
-    private var normalizedAgentID: String? {
-        let trimmed = config.collectionName.trimmingCharacters(in: .whitespacesAndNewlines)
-        return trimmed.isEmpty ? nil : trimmed
     }
 }
 
