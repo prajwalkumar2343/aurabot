@@ -12,7 +12,7 @@ struct SettingsView: View {
     @State private var visionModel = ""
     @State private var chatModel = ""
     @State private var contextCollectorRewriteEnabled = false
-    @State private var memoryURL = "http://localhost:8000"
+    @State private var memoryURL = MemoryConfig.managedPgliteBaseURL
     @State private var memoryAPIKey = ""
     @State private var memoryUserID = "default_user"
     @State private var memoryCollection = "screen_memories_v3"
@@ -366,7 +366,7 @@ struct AISettingsSection: View {
                 
                 CustomTextField(
                     title: "Memory API URL",
-                    placeholder: "http://localhost:8000",
+                    placeholder: MemoryConfig.managedPgliteBaseURL,
                     text: $memoryURL,
                     icon: "server.rack"
                 )

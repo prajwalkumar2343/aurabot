@@ -20,6 +20,7 @@ class AppService: ObservableObject {
     @Published private(set) var config: AppConfig
     private var llmService: LLMService
     private var memoryService: MemoryService
+    private var memoryBackendSupervisor: MemoryBackendSupervisor
     private var browserContextService: BrowserContextService
     private var contextRouter: ContextRouter
     private var browserExtensionServer: BrowserExtensionServer?
@@ -31,6 +32,7 @@ class AppService: ObservableObject {
         self.config = config
         self.llmService = LLMService(config: config.llm)
         self.memoryService = MemoryService(config: config.memory)
+        self.memoryBackendSupervisor = MemoryBackendSupervisor(config: config.memory)
         self.browserContextService = BrowserContextService(config: config.browserExtension)
         self.contextRouter = ContextRouter(
             captureConfig: config.capture,
@@ -60,6 +62,7 @@ class AppService: ObservableObject {
         }
         
         Task {
+            _ = await memoryBackendSupervisor.start()
             await refreshMemories()
             await updateHealthStatus()
         }
@@ -76,15 +79,22 @@ class AppService: ObservableObject {
     
     private func updateHealthStatus() async {
         let health = await checkHealth()
+        if !health.memory {
+            _ = await memoryBackendSupervisor.start()
+        }
         isLLMConnected = health.llm
-        isMemoryConnected = health.memory
-        isBackendConnected = health.llm && health.memory
+        let memoryHealth = health.memory ? true : await memoryService.checkHealth()
+        isMemoryConnected = memoryHealth
+        isBackendConnected = isLLMConnected && isMemoryConnected
     }
     
     func stop() {
         status = .stopped
         stopContextProcessing()
         browserExtensionServer?.stop()
+        Task {
+            await memoryBackendSupervisor.stop()
+        }
         Task {
             await captureService?.stop()
         }
@@ -256,6 +266,7 @@ class AppService: ObservableObject {
         config = newConfig
         llmService = LLMService(config: newConfig.llm)
         memoryService = MemoryService(config: newConfig.memory)
+        memoryBackendSupervisor = MemoryBackendSupervisor(config: newConfig.memory)
         browserContextService = BrowserContextService(config: newConfig.browserExtension)
         contextRouter = ContextRouter(
             captureConfig: newConfig.capture,
