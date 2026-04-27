@@ -185,6 +185,40 @@ struct AppSettings: Codable {
     var verbose: Bool = false
     var processOnCapture: Bool = true
     var memoryWindow: Int = 10
+    var overlayPosition: OverlayPosition = .bottomRight
+
+    enum CodingKeys: String, CodingKey {
+        case verbose
+        case processOnCapture
+        case memoryWindow
+        case overlayPosition
+    }
+
+    init() {}
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        verbose = try container.decodeIfPresent(Bool.self, forKey: .verbose) ?? false
+        processOnCapture = try container.decodeIfPresent(Bool.self, forKey: .processOnCapture) ?? true
+        memoryWindow = try container.decodeIfPresent(Int.self, forKey: .memoryWindow) ?? 10
+        overlayPosition = try container.decodeIfPresent(OverlayPosition.self, forKey: .overlayPosition) ?? .bottomRight
+    }
+}
+
+enum OverlayPosition: String, Codable, CaseIterable, Identifiable, Sendable {
+    case topRight = "top_right"
+    case bottomRight = "bottom_right"
+
+    var id: String { rawValue }
+
+    var displayName: String {
+        switch self {
+        case .topRight:
+            return "Top Right"
+        case .bottomRight:
+            return "Bottom Right"
+        }
+    }
 }
 
 struct ExtensionConfig: Codable {

@@ -17,6 +17,7 @@ struct SettingsView: View {
     @State private var memoryUserID = "default_user"
     @State private var memoryCollection = "screen_memories_v3"
     @State private var browserExtensionAPIKey = ""
+    @State private var overlayPosition: OverlayPosition = .bottomRight
     @State private var showSavedToast = false
     @State private var appearAnimation = false
     @State private var isSaving = false
@@ -33,7 +34,8 @@ struct SettingsView: View {
                 CaptureSettingsSection(
                     captureEnabled: $captureEnabled,
                     captureInterval: $captureInterval,
-                    captureQuality: $captureQuality
+                    captureQuality: $captureQuality,
+                    overlayPosition: $overlayPosition
                 )
                 .opacity(appearAnimation ? 1 : 0)
                 .offset(y: appearAnimation ? 0 : 20)
@@ -106,6 +108,7 @@ struct SettingsView: View {
         memoryUserID = config.memory.userID
         memoryCollection = config.memory.collectionName
         browserExtensionAPIKey = config.browserExtension.apiKey
+        overlayPosition = config.app.overlayPosition
     }
 
     private func saveSettings() {
@@ -126,6 +129,7 @@ struct SettingsView: View {
             updatedConfig.memory.userID = memoryUserID.trimmingCharacters(in: .whitespacesAndNewlines)
             updatedConfig.memory.collectionName = memoryCollection.trimmingCharacters(in: .whitespacesAndNewlines)
             updatedConfig.browserExtension.apiKey = browserExtensionAPIKey.trimmingCharacters(in: .whitespacesAndNewlines)
+            updatedConfig.app.overlayPosition = overlayPosition
 
             do {
                 try await service.saveConfiguration(updatedConfig)
@@ -172,10 +176,16 @@ struct CaptureSettingsSection: View {
     @Binding var captureEnabled: Bool
     @Binding var captureInterval: Double
     @Binding var captureQuality: Double
+    @Binding var overlayPosition: OverlayPosition
     
     var body: some View {
         SettingsSection(title: "Capture", icon: "camera.fill") {
             VStack(spacing: Spacing.xl) {
+                OverlayPositionPicker(position: $overlayPosition)
+
+                Divider()
+                    .background(Colors.glassBorder)
+
                 // Enable toggle
                 CustomToggle(
                     title: "Screen Capture",
@@ -269,6 +279,42 @@ struct CaptureSettingsSection: View {
                     .foregroundColor(Colors.textMuted)
                 }
             }
+        }
+    }
+}
+
+@available(macOS 14.0, *)
+struct OverlayPositionPicker: View {
+    @Binding var position: OverlayPosition
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: Spacing.md) {
+            HStack(spacing: Spacing.md) {
+                Image(systemName: "rectangle.on.rectangle")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundColor(Colors.primary)
+
+                VStack(alignment: .leading, spacing: Spacing.xs) {
+                    Text("Overlay Position")
+                        .font(Typography.subheadline)
+                        .fontWeight(.medium)
+                        .foregroundColor(Colors.textPrimary)
+
+                    Text("Choose where Aura stays available above other apps.")
+                        .font(Typography.caption)
+                        .foregroundColor(Colors.textMuted)
+                }
+
+                Spacer()
+            }
+
+            Picker("Overlay Position", selection: $position) {
+                ForEach(OverlayPosition.allCases) { option in
+                    Text(option.displayName).tag(option)
+                }
+            }
+            .pickerStyle(.segmented)
+            .labelsHidden()
         }
     }
 }
