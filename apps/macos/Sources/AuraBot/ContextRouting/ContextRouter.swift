@@ -5,34 +5,59 @@ actor ContextRouter {
     private let activeAppCollector = ActiveAppCollector()
     private let browserCollector: BrowserContextCollector
     private let gitCollector = GitContextCollector()
+    private var capturePolicy: CapturePolicy
 
     private var lastEventFingerprint: String?
     private var lastEventAt: Date?
     private var lastVisualFallbackAt: Date?
 
-    init(captureConfig: CaptureConfig, browserContextService: BrowserContextService) {
+    init(
+        captureConfig: CaptureConfig,
+        browserContextService: BrowserContextService,
+        capturePolicy: CapturePolicy = .hostDefault
+    ) {
         self.captureConfig = captureConfig
         self.browserCollector = BrowserContextCollector(browserContextService: browserContextService)
+        self.capturePolicy = capturePolicy
+    }
+
+    func updateCapturePolicy(_ capturePolicy: CapturePolicy) {
+        self.capturePolicy = capturePolicy
     }
 
     func capturePlan(force: Bool = false) async -> ContextCapturePlan {
         let now = Date()
+        let policy = capturePolicy
 
         guard let activeApp = await activeAppCollector.collect() else {
-            return visualFallbackPlan(now: now, force: force, activeApp: nil, reason: "no_active_app")
+            return visualFallbackPlan(
+                now: now,
+                force: force,
+                activeApp: nil,
+                reason: "no_active_app",
+                policy: policy
+            )
         }
 
-        if let browserContext = await browserCollector.collect(),
+        if policy.allowsBrowserContext,
+           let browserContext = await browserCollector.collect(),
            isChromiumBrowser(bundleIdentifier: activeApp.bundleIdentifier ?? browserContext.bundleIdentifier) {
             return planBrowserContext(browserContext, activeApp: activeApp, now: now, force: force)
         }
 
-        if isCodeApp(bundleIdentifier: activeApp.bundleIdentifier, appName: activeApp.name) {
+        if policy.allowsAppMetadata,
+           isCodeApp(bundleIdentifier: activeApp.bundleIdentifier, appName: activeApp.name) {
             let gitContext = await gitCollector.collect()
             return planCodingContext(activeApp: activeApp, gitContext: gitContext, now: now, force: force)
         }
 
-        return visualFallbackPlan(now: now, force: force, activeApp: activeApp, reason: "screen_context_fallback")
+        return visualFallbackPlan(
+            now: now,
+            force: force,
+            activeApp: activeApp,
+            reason: "screen_context_fallback",
+            policy: policy
+        )
     }
 
     private func planBrowserContext(
@@ -156,8 +181,20 @@ actor ContextRouter {
         now: Date,
         force: Bool,
         activeApp: ActiveAppSnapshot?,
-        reason: String
+        reason: String,
+        policy: CapturePolicy
     ) -> ContextCapturePlan {
+        guard policy.allowsVisualFallback else {
+            return ContextCapturePlan(
+                mode: .idleOrDuplicate,
+                confidence: 0.2,
+                screenshotDirective: .skip,
+                event: nil,
+                browserContext: nil,
+                reason: "capture_policy_no_visual_fallback"
+            )
+        }
+
         let minGap = TimeInterval(max(captureConfig.minCaptureGapSeconds, 1))
         if !force,
            let lastVisualFallbackAt,
