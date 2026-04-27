@@ -1,4 +1,5 @@
 import Foundation
+import Darwin
 
 actor MemoryBackendSupervisor {
     private let config: MemoryConfig
@@ -48,15 +49,36 @@ actor MemoryBackendSupervisor {
         }
     }
 
-    func stop() {
+    func stop() async {
         guard let process, process.isRunning else {
             self.process = nil
             return
         }
 
         process.terminate()
-        process.waitUntilExit()
+        let exited = await waitForExit(process, timeoutSeconds: 5)
+        if !exited, process.isRunning {
+            kill(process.processIdentifier, SIGKILL)
+            _ = await waitForExit(process, timeoutSeconds: 2)
+        }
         self.process = nil
+    }
+
+    private func waitForExit(_ process: Process, timeoutSeconds: TimeInterval) async -> Bool {
+        if !process.isRunning {
+            return true
+        }
+
+        return await withCheckedContinuation { continuation in
+            let box = ProcessWaitContinuationBox(continuation)
+            DispatchQueue.global(qos: .utility).async {
+                process.waitUntilExit()
+                box.resume(true)
+            }
+            DispatchQueue.global(qos: .utility).asyncAfter(deadline: .now() + timeoutSeconds) {
+                box.resume(false)
+            }
+        }
     }
 
     private func waitForHealth() async -> Bool {
@@ -240,6 +262,25 @@ actor MemoryBackendSupervisor {
         default:
             return nil
         }
+    }
+}
+
+private final class ProcessWaitContinuationBox: @unchecked Sendable {
+    private let lock = NSLock()
+    private var didResume = false
+    private let continuation: CheckedContinuation<Bool, Never>
+
+    init(_ continuation: CheckedContinuation<Bool, Never>) {
+        self.continuation = continuation
+    }
+
+    func resume(_ value: Bool) {
+        lock.lock()
+        defer { lock.unlock() }
+
+        guard !didResume else { return }
+        didResume = true
+        continuation.resume(returning: value)
     }
 }
 

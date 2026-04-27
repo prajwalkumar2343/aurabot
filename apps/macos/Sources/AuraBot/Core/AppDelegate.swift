@@ -9,6 +9,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     var quickEnhancePanel: QuickEnhancePanel?
     let service = AppService(config: AppConfig.loadDefault())
     private var isTerminating = false
+    private var terminationReplySent = false
     
     func applicationDidFinishLaunching(_ notification: Notification) {
         setupStatusItem()
@@ -29,12 +30,22 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         isTerminating = true
-        Task {
+        Task { @MainActor in
             await service.stop()
-            NSApp.reply(toApplicationShouldTerminate: true)
+            replyToTerminationIfNeeded()
+        }
+        Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 5_000_000_000)
+            replyToTerminationIfNeeded()
         }
 
         return .terminateLater
+    }
+
+    private func replyToTerminationIfNeeded() {
+        guard !terminationReplySent else { return }
+        terminationReplySent = true
+        NSApp.reply(toApplicationShouldTerminate: true)
     }
     
     private func setupStatusItem() {

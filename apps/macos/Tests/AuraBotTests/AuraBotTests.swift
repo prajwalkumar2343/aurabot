@@ -53,10 +53,10 @@ final class AuraBotCoreTests: XCTestCase {
     }
 
     @MainActor
-    func testAppServiceAppliesWorkspacePluginPresentationAndRollback() throws {
+    func testAppServiceAppliesWorkspacePluginPresentationAndRollback() async throws {
         let service = AppService()
 
-        try service.activateWorkspacePlugin(makeWorkspacePluginDescriptor())
+        try await service.activateWorkspacePlugin(makeWorkspacePluginDescriptor())
 
         XCTAssertEqual(
             service.appPresentation,
@@ -64,7 +64,7 @@ final class AuraBotCoreTests: XCTestCase {
         )
         XCTAssertEqual(service.windowPolicy.presentation, .floatingOverlay)
 
-        service.deactivateWorkspacePlugin(pluginID: "com.aurabot.ai-tutor")
+        await service.deactivateWorkspacePlugin(pluginID: "com.aurabot.ai-tutor")
 
         XCTAssertEqual(service.appPresentation, .hostDefault)
         XCTAssertEqual(service.windowPolicy, .hostDefault)

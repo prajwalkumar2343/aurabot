@@ -145,7 +145,7 @@ class AppService: ObservableObject {
         }
 
         try newConfig.save(to: AppConfig.defaultURL.path)
-        applyConfiguration(newConfig)
+        await applyConfiguration(newConfig)
 
         if wasRunning {
             start()
@@ -192,14 +192,14 @@ class AppService: ObservableObject {
         "http://127.0.0.1:\(config.browserExtension.port)"
     }
 
-    func activateWorkspacePlugin(_ descriptor: WorkspacePluginDescriptor) throws {
+    func activateWorkspacePlugin(_ descriptor: WorkspacePluginDescriptor) async throws {
         try pluginHost.activateWorkspace(descriptor)
-        applyActivePluginPolicies()
+        await applyActivePluginPolicies()
     }
 
-    func deactivateWorkspacePlugin(pluginID: String? = nil) {
+    func deactivateWorkspacePlugin(pluginID: String? = nil) async {
         pluginHost.deactivateWorkspace(pluginID: pluginID)
-        applyActivePluginPolicies()
+        await applyActivePluginPolicies()
     }
 
     var browserExtensionConfigured: Bool {
@@ -272,7 +272,7 @@ class AppService: ObservableObject {
         return nil
     }
 
-    private func applyConfiguration(_ newConfig: AppConfig) {
+    private func applyConfiguration(_ newConfig: AppConfig) async {
         config = newConfig
         llmService = LLMService(config: newConfig.llm)
         memoryService = MemoryService(config: newConfig.memory)
@@ -292,17 +292,17 @@ class AppService: ObservableObject {
         )
         captureEnabled = newConfig.capture.enabled
         captureInterval = newConfig.capture.intervalSeconds
-        applyActivePluginPolicies()
+        await applyActivePluginPolicies()
     }
 
-    private func applyActivePluginPolicies() {
+    private func applyActivePluginPolicies() async {
         let capturePolicy = pluginHost.activeCapturePolicy
-        appPresentation = pluginHost.activeAppPresentation
-        windowPolicy = pluginHost.activeWindowPolicy
+        let nextPresentation = pluginHost.activeAppPresentation
+        let nextWindowPolicy = pluginHost.activeWindowPolicy
 
-        Task {
-            await contextRouter.updateCapturePolicy(capturePolicy)
-        }
+        await contextRouter.updateCapturePolicy(capturePolicy)
+        appPresentation = nextPresentation
+        windowPolicy = nextWindowPolicy
     }
     
     func enhance(text: String) async throws -> EnhancementResult {

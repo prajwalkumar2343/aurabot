@@ -129,7 +129,9 @@ struct PluginWorkspaceView: View {
                 Spacer()
 
                 Button("Return to Aura") {
-                    service.deactivateWorkspacePlugin(pluginID: pluginID)
+                    Task {
+                        await service.deactivateWorkspacePlugin(pluginID: pluginID)
+                    }
                 }
                 .buttonStyle(.borderedProminent)
             }
