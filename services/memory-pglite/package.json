@@ -7,7 +7,7 @@
   "scripts": {
     "build": "tsc",
     "typecheck": "tsc --noEmit",
-    "test": "npm run build && node --test dist/tests/*.test.js dist/tests/schema/*.test.js dist/tests/recent/*.test.js dist/tests/brain/*.test.js dist/tests/indexing/*.test.js dist/tests/graph/*.test.js dist/tests/search/*.test.js dist/tests/server/*.test.js",
+    "test": "npm run build && node --test dist/tests/*.test.js dist/tests/schema/*.test.js dist/tests/plugins/*.test.js dist/tests/recent/*.test.js dist/tests/brain/*.test.js dist/tests/indexing/*.test.js dist/tests/graph/*.test.js dist/tests/search/*.test.js dist/tests/server/*.test.js",
     "smoke": "npm run build && node dist/src/cli.js smoke",
     "schema:check": "npm run build && node dist/src/cli.js schema:check",
     "brain:init": "npm run build && node dist/src/cli.js brain:init",
