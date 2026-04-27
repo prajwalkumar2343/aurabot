@@ -69,6 +69,13 @@ struct MainContentView: View {
                 if service.needsOnboarding {
                     PermissionOnboardingView(service: service)
                         .transition(.opacity.combined(with: .scale(scale: 0.98)))
+                } else if case let .pluginWorkspace(pluginID, name) = service.appPresentation.mode {
+                    PluginWorkspaceView(
+                        pluginID: pluginID,
+                        pluginName: name,
+                        service: service
+                    )
+                    .transition(.opacity.combined(with: .scale(scale: 0.98)))
                 } else {
                     switch selectedTab {
                     case .dashboard:
@@ -97,6 +104,54 @@ struct MainContentView: View {
                 selectedTab = .dashboard
             }
         }
+    }
+}
+
+@available(macOS 14.0, *)
+struct PluginWorkspaceView: View {
+    let pluginID: String
+    let pluginName: String
+    @ObservedObject var service: AppService
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: Spacing.lg) {
+            HStack {
+                VStack(alignment: .leading, spacing: Spacing.xs) {
+                    Text(pluginName)
+                        .font(Typography.title1)
+                        .foregroundColor(Colors.textPrimary)
+
+                    Text(pluginID)
+                        .font(Typography.caption)
+                        .foregroundColor(Colors.textSecondary)
+                }
+
+                Spacer()
+
+                Button("Return to Aura") {
+                    service.deactivateWorkspacePlugin(pluginID: pluginID)
+                }
+                .buttonStyle(.borderedProminent)
+            }
+
+            GlassCard {
+                VStack(alignment: .leading, spacing: Spacing.md) {
+                    Text("Plugin workspace active")
+                        .font(Typography.title2)
+                        .foregroundColor(Colors.textPrimary)
+
+                    Text("This workspace is controlled by the active plugin through host-owned policies. Native plugin UI rendering and IPC will attach here.")
+                        .font(Typography.body)
+                        .foregroundColor(Colors.textSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+
+            Spacer()
+        }
+        .padding(Spacing.xl)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
 }
 

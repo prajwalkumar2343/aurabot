@@ -16,8 +16,11 @@ class AppService: ObservableObject {
     @Published var captureInterval: Int = 30
     @Published var capturePermissionMessage: String?
     @Published private(set) var permissionStatuses: [AppPermissionStatus] = PermissionCenter.allStatuses()
+    @Published private(set) var appPresentation: AppPresentationPolicy = .hostDefault
+    @Published private(set) var windowPolicy: WindowPolicy = .hostDefault
     
     @Published private(set) var config: AppConfig
+    private let pluginHost = PluginHost()
     private var llmService: LLMService
     private var memoryService: MemoryService
     private var memoryBackendSupervisor: MemoryBackendSupervisor
@@ -36,7 +39,8 @@ class AppService: ObservableObject {
         self.browserContextService = BrowserContextService(config: config.browserExtension)
         self.contextRouter = ContextRouter(
             captureConfig: config.capture,
-            browserContextService: browserContextService
+            browserContextService: browserContextService,
+            capturePolicy: pluginHost.activeCapturePolicy
         )
         self.browserExtensionServer = config.browserExtension.enabled
             ? BrowserExtensionServer(config: config.browserExtension, browserContextService: browserContextService)
@@ -88,16 +92,12 @@ class AppService: ObservableObject {
         isBackendConnected = isLLMConnected && isMemoryConnected
     }
     
-    func stop() {
+    func stop() async {
         status = .stopped
         stopContextProcessing()
         browserExtensionServer?.stop()
-        Task {
-            await memoryBackendSupervisor.stop()
-        }
-        Task {
-            await captureService?.stop()
-        }
+        await memoryBackendSupervisor.stop()
+        await captureService?.stop()
     }
     
     func toggleCapture() {
@@ -141,7 +141,7 @@ class AppService: ObservableObject {
     func saveConfiguration(_ newConfig: AppConfig) async throws {
         let wasRunning = status == .running
         if wasRunning {
-            stop()
+            await stop()
         }
 
         try newConfig.save(to: AppConfig.defaultURL.path)
@@ -190,6 +190,16 @@ class AppService: ObservableObject {
 
     var browserExtensionServerURL: String {
         "http://127.0.0.1:\(config.browserExtension.port)"
+    }
+
+    func activateWorkspacePlugin(_ descriptor: WorkspacePluginDescriptor) throws {
+        try pluginHost.activateWorkspace(descriptor)
+        applyActivePluginPolicies()
+    }
+
+    func deactivateWorkspacePlugin(pluginID: String? = nil) {
+        pluginHost.deactivateWorkspace(pluginID: pluginID)
+        applyActivePluginPolicies()
     }
 
     var browserExtensionConfigured: Bool {
@@ -270,7 +280,8 @@ class AppService: ObservableObject {
         browserContextService = BrowserContextService(config: newConfig.browserExtension)
         contextRouter = ContextRouter(
             captureConfig: newConfig.capture,
-            browserContextService: browserContextService
+            browserContextService: browserContextService,
+            capturePolicy: pluginHost.activeCapturePolicy
         )
         browserExtensionServer = newConfig.browserExtension.enabled
             ? BrowserExtensionServer(config: newConfig.browserExtension, browserContextService: browserContextService)
@@ -281,6 +292,17 @@ class AppService: ObservableObject {
         )
         captureEnabled = newConfig.capture.enabled
         captureInterval = newConfig.capture.intervalSeconds
+        applyActivePluginPolicies()
+    }
+
+    private func applyActivePluginPolicies() {
+        let capturePolicy = pluginHost.activeCapturePolicy
+        appPresentation = pluginHost.activeAppPresentation
+        windowPolicy = pluginHost.activeWindowPolicy
+
+        Task {
+            await contextRouter.updateCapturePolicy(capturePolicy)
+        }
     }
     
     func enhance(text: String) async throws -> EnhancementResult {

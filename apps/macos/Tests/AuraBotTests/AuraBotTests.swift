@@ -4,6 +4,72 @@ import XCTest
 
 @available(macOS 14.0, *)
 final class AuraBotCoreTests: XCTestCase {
+    func testPluginHostActivatesWorkspaceTakeoverPolicies() throws {
+        let host = PluginHost()
+        let descriptor = makeWorkspacePluginDescriptor()
+
+        try host.activateWorkspace(descriptor)
+
+        XCTAssertEqual(host.activeWorkspacePlugin?.pluginID, "com.aurabot.ai-tutor")
+        XCTAssertEqual(
+            host.activeAppPresentation,
+            AppPresentationPolicy(mode: .pluginWorkspace(pluginID: "com.aurabot.ai-tutor", name: "AI Tutor"))
+        )
+        XCTAssertEqual(host.activeCapturePolicy.priority, [.browserDOM, .browserTranscript, .appMetadata])
+        XCTAssertEqual(host.activeWindowPolicy.presentation, .floatingOverlay)
+    }
+
+    func testPluginHostReturnsHostDefaultsAfterWorkspaceDeactivation() throws {
+        let host = PluginHost()
+
+        try host.activateWorkspace(makeWorkspacePluginDescriptor())
+        host.deactivateWorkspace(pluginID: "com.aurabot.ai-tutor")
+
+        XCTAssertNil(host.activeWorkspacePlugin)
+        XCTAssertEqual(host.activeAppPresentation, .hostDefault)
+        XCTAssertEqual(host.activeCapturePolicy, .hostDefault)
+        XCTAssertEqual(host.activeWindowPolicy, .hostDefault)
+    }
+
+    func testPluginHostIgnoresDeactivateForDifferentPlugin() throws {
+        let host = PluginHost()
+
+        try host.activateWorkspace(makeWorkspacePluginDescriptor())
+        host.deactivateWorkspace(pluginID: "com.example.other")
+
+        XCTAssertEqual(host.activeWorkspacePlugin?.pluginID, "com.aurabot.ai-tutor")
+    }
+
+    func testCapturePolicyDisablesVisualFallbackWhenPluginRequestsStructuredOnlyCapture() {
+        let policy = CapturePolicy(
+            priority: [.browserDOM, .browserTranscript, .appMetadata],
+            fallback: .none,
+            redaction: .strict
+        )
+
+        XCTAssertTrue(policy.allowsBrowserContext)
+        XCTAssertTrue(policy.allowsAppMetadata)
+        XCTAssertFalse(policy.allowsVisualFallback)
+    }
+
+    @MainActor
+    func testAppServiceAppliesWorkspacePluginPresentationAndRollback() throws {
+        let service = AppService()
+
+        try service.activateWorkspacePlugin(makeWorkspacePluginDescriptor())
+
+        XCTAssertEqual(
+            service.appPresentation,
+            AppPresentationPolicy(mode: .pluginWorkspace(pluginID: "com.aurabot.ai-tutor", name: "AI Tutor"))
+        )
+        XCTAssertEqual(service.windowPolicy.presentation, .floatingOverlay)
+
+        service.deactivateWorkspacePlugin(pluginID: "com.aurabot.ai-tutor")
+
+        XCTAssertEqual(service.appPresentation, .hostDefault)
+        XCTAssertEqual(service.windowPolicy, .hostDefault)
+    }
+
     func testMemoryV2SearchFixtureDecodes() throws {
         let response = try decodeMemoryFixture("search-response", as: SearchMemoryResponse.self)
 
@@ -920,6 +986,41 @@ final class AuraBotCoreTests: XCTestCase {
             ]
         )
     }
+}
+
+@available(macOS 14.0, *)
+private func makeWorkspacePluginDescriptor() -> WorkspacePluginDescriptor {
+    WorkspacePluginDescriptor(
+        pluginID: "com.aurabot.ai-tutor",
+        name: "AI Tutor",
+        takeover: PluginTakeoverPolicy(
+            ui: .replace,
+            agent: .replace,
+            context: .replace,
+            capture: .replace,
+            memory: .augment,
+            retrieval: .replace,
+            window: .replace,
+            commands: .replace,
+            settings: .augment
+        ),
+        appBehavior: AppBehaviorPolicy(
+            navigation: .pluginWorkspace,
+            commands: .pluginWorkspace,
+            fallback: .hostDefault
+        ),
+        capturePolicy: CapturePolicy(
+            priority: [.browserDOM, .browserTranscript, .appMetadata],
+            fallback: .none,
+            redaction: .strict
+        ),
+        windowPolicy: WindowPolicy(
+            presentation: .floatingOverlay,
+            level: .alwaysOnTop,
+            hideWhen: [.screenSharing, .sensitiveApp],
+            excludePluginUIFromCapture: true
+        )
+    )
 }
 
 @available(macOS 14.0, *)

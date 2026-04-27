@@ -254,7 +254,7 @@ export async function deleteRecentContextEvent(
   const id = requiredString(options.id, "id");
   const userId = requiredString(options.userId, "userId");
 
-  await database.transaction(async () => {
+  const result = await database.transaction(async () => {
     await database.query(
       `
         DELETE FROM ${TABLES.entityLinks}
@@ -274,17 +274,17 @@ export async function deleteRecentContextEvent(
       `,
       [userId, id],
     );
-  });
 
-  const result = await database.query<DeletedRow>(
-    `
-      DELETE FROM ${TABLES.recentContextEvents}
-      WHERE id = $1
-        AND user_id = $2
-      RETURNING id
-    `,
-    [id, userId],
-  );
+    return await database.query<DeletedRow>(
+      `
+        DELETE FROM ${TABLES.recentContextEvents}
+        WHERE id = $1
+          AND user_id = $2
+        RETURNING id
+      `,
+      [id, userId],
+    );
+  });
 
   return result.rows.length > 0;
 }
