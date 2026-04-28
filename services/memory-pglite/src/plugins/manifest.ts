@@ -54,6 +54,7 @@ export const WINDOW_PERMISSIONS = [
 ] as const;
 export const TOOL_PERMISSIONS = ["invoke", "mutate_data", "external_side_effect"] as const;
 export const BACKGROUND_JOB_PERMISSIONS = ["scheduled", "event_triggered"] as const;
+export const HOST_PERMISSION_VALUES = ["screenRecording", "accessibility", "microphone"] as const;
 
 const PERMISSION_VALUES = {
   context_sources: CONTEXT_SOURCE_PERMISSIONS,
@@ -86,6 +87,7 @@ export type AppBehaviorPermission = (typeof APP_BEHAVIOR_PERMISSIONS)[number];
 export type WindowPermission = (typeof WINDOW_PERMISSIONS)[number];
 export type ToolPermission = (typeof TOOL_PERMISSIONS)[number];
 export type BackgroundJobPermission = (typeof BACKGROUND_JOB_PERMISSIONS)[number];
+export type HostPermission = (typeof HOST_PERMISSION_VALUES)[number];
 
 export interface PluginAuthor {
   name: string;
@@ -114,6 +116,7 @@ export interface PluginModelPermissions {
 }
 
 export interface PluginPermissions {
+  host_permissions?: HostPermission[];
   context_sources?: ContextSourcePermission[];
   capture_methods?: CaptureMethodPermission[];
   memory?: MemoryPermission[];
@@ -154,6 +157,21 @@ export interface PluginExtensions {
 export interface PluginInstall {
   migrations?: string[];
   default_enabled?: boolean;
+  requires_host_relaunch?: boolean;
+}
+
+export interface PluginOnboarding {
+  required: boolean;
+  title: string;
+  detail: string;
+  required_host_permissions?: HostPermission[];
+  steps?: string[];
+}
+
+export interface PluginPresentation {
+  workspace_title: string;
+  workspace_icon: string;
+  workspace_sections: string[];
 }
 
 export interface PluginIntegrity {
@@ -174,7 +192,9 @@ export interface PluginManifest {
   entrypoints: Record<string, string>;
   permissions: PluginPermissions;
   extensions: PluginExtensions;
+  onboarding?: PluginOnboarding;
   install?: PluginInstall;
+  presentation?: PluginPresentation;
   integrity?: PluginIntegrity;
 }
 
@@ -224,7 +244,9 @@ export function parsePluginManifest(input: unknown): PluginManifest {
   validateEntrypoints(manifest.entrypoints, issues);
   validatePermissions(manifest.permissions, issues);
   validateExtensions(manifest.extensions, issues);
+  validateOnboarding(manifest.onboarding, issues);
   validateInstall(manifest.install, issues);
+  validatePresentation(manifest.presentation, issues);
   validateIntegrity(manifest.integrity, issues);
   validateTakeover(manifest.takeover, kind as PluginKind, manifest.permissions, issues);
 
@@ -336,6 +358,7 @@ function validatePermissions(input: unknown, issues: string[]): void {
   for (const [group, allowedValues] of Object.entries(PERMISSION_VALUES)) {
     validateStringArray(input[group], `permissions.${group}`, allowedValues, issues);
   }
+  validateStringArray(input.host_permissions, "permissions.host_permissions", HOST_PERMISSION_VALUES, issues);
   validateNetworkPermissions(input.network, issues);
   validateFilesystemPermissions(input.filesystem, issues);
   validateModelPermissions(input.models, issues);
@@ -463,6 +486,39 @@ function validateInstall(input: unknown, issues: string[]): void {
   if (input.default_enabled !== undefined && typeof input.default_enabled !== "boolean") {
     issues.push("install.default_enabled must be boolean");
   }
+  if (input.requires_host_relaunch !== undefined && typeof input.requires_host_relaunch !== "boolean") {
+    issues.push("install.requires_host_relaunch must be boolean");
+  }
+}
+
+function validateOnboarding(input: unknown, issues: string[]): void {
+  if (input === undefined) {
+    return;
+  }
+  if (!isObject(input)) {
+    issues.push("onboarding must be an object");
+    return;
+  }
+  if (typeof input.required !== "boolean") {
+    issues.push("onboarding.required must be boolean");
+  }
+  requireString(input, "title", issues, "onboarding.title");
+  requireString(input, "detail", issues, "onboarding.detail");
+  validateStringArray(input.required_host_permissions, "onboarding.required_host_permissions", HOST_PERMISSION_VALUES, issues);
+  validateStringArray(input.steps, "onboarding.steps", undefined, issues);
+}
+
+function validatePresentation(input: unknown, issues: string[]): void {
+  if (input === undefined) {
+    return;
+  }
+  if (!isObject(input)) {
+    issues.push("presentation must be an object");
+    return;
+  }
+  requireString(input, "workspace_title", issues, "presentation.workspace_title");
+  requireString(input, "workspace_icon", issues, "presentation.workspace_icon");
+  validateStringArray(input.workspace_sections, "presentation.workspace_sections", undefined, issues);
 }
 
 function validateIntegrity(input: unknown, issues: string[]): void {

@@ -40,6 +40,17 @@ final class AuraBotCoreTests: XCTestCase {
         XCTAssertEqual(host.activeWorkspacePlugin?.pluginID, "com.aurabot.ai-tutor")
     }
 
+    @MainActor
+    func testOnboardingGateUsesPersistedCompletionOnly() {
+        var incompleteConfig = AppConfig.default
+        incompleteConfig.app.onboardingCompleted = false
+        XCTAssertTrue(AppService(config: incompleteConfig).needsOnboarding)
+
+        var completedConfig = AppConfig.default
+        completedConfig.app.onboardingCompleted = true
+        XCTAssertFalse(AppService(config: completedConfig).needsOnboarding)
+    }
+
     func testCapturePolicyDisablesVisualFallbackWhenPluginRequestsStructuredOnlyCapture() {
         let policy = CapturePolicy(
             priority: [.browserDOM, .browserTranscript, .appMetadata],
@@ -53,10 +64,10 @@ final class AuraBotCoreTests: XCTestCase {
     }
 
     @MainActor
-    func testAppServiceAppliesWorkspacePluginPresentationAndRollback() throws {
+    func testAppServiceAppliesWorkspacePluginPresentationAndRollback() async throws {
         let service = AppService()
 
-        try service.activateWorkspacePlugin(makeWorkspacePluginDescriptor())
+        try await service.activateWorkspacePlugin(makeWorkspacePluginDescriptor())
 
         XCTAssertEqual(
             service.appPresentation,
@@ -64,7 +75,7 @@ final class AuraBotCoreTests: XCTestCase {
         )
         XCTAssertEqual(service.windowPolicy.presentation, .floatingOverlay)
 
-        service.deactivateWorkspacePlugin(pluginID: "com.aurabot.ai-tutor")
+        await service.deactivateWorkspacePlugin(pluginID: "com.aurabot.ai-tutor")
 
         XCTAssertEqual(service.appPresentation, .hostDefault)
         XCTAssertEqual(service.windowPolicy, .hostDefault)

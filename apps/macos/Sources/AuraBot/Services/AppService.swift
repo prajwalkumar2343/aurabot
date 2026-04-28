@@ -18,6 +18,10 @@ class AppService: ObservableObject {
     @Published private(set) var permissionStatuses: [AppPermissionStatus] = PermissionCenter.allStatuses()
     @Published private(set) var appPresentation: AppPresentationPolicy = .hostDefault
     @Published private(set) var windowPolicy: WindowPolicy = .hostDefault
+    @Published private(set) var availablePlugins: [WorkspacePluginCatalogItem] = WorkspacePluginCatalog.developmentFallback
+    @Published private(set) var installedPlugins: [InstalledPluginRecord] = []
+    @Published private(set) var pluginCatalogStatus: PluginCatalogStatus = .idle
+    @Published private(set) var activePlugin: InstalledPluginRecord?
     
     @Published private(set) var config: AppConfig
     private let pluginHost = PluginHost()
@@ -28,8 +32,10 @@ class AppService: ObservableObject {
     private var contextRouter: ContextRouter
     private var browserExtensionServer: BrowserExtensionServer?
     private var captureService: ScreenCaptureService?
+    private let pluginInstaller = PluginInstaller()
     
     private var contextProcessingTask: Task<Void, Never>?
+    private var permissionRefreshTask: Task<Void, Never>?
     
     init(config: AppConfig = .default) {
         self.config = config
@@ -52,6 +58,7 @@ class AppService: ObservableObject {
         )
 
         refreshPermissionStatuses()
+        installedPlugins = pluginInstaller.installedPlugins
     }
     
     func start() {
@@ -60,6 +67,10 @@ class AppService: ObservableObject {
         captureInterval = config.capture.intervalSeconds
         refreshPermissionStatuses()
         browserExtensionServer?.start()
+        Task {
+            await refreshPluginCatalog()
+            await restoreActivePluginIfNeeded()
+        }
         
         if captureEnabled {
             startContextProcessing()
@@ -145,7 +156,7 @@ class AppService: ObservableObject {
         }
 
         try newConfig.save(to: AppConfig.defaultURL.path)
-        applyConfiguration(newConfig)
+        await applyConfiguration(newConfig)
 
         if wasRunning {
             start()
@@ -161,7 +172,7 @@ class AppService: ObservableObject {
     }
 
     var needsOnboarding: Bool {
-        !requiredPermissionsGranted
+        !config.app.onboardingCompleted
     }
 
     var permissionGuidanceMessage: String? {
@@ -186,20 +197,87 @@ class AppService: ObservableObject {
     func requestPermission(_ kind: AppPermissionKind) {
         PermissionCenter.requestAccess(for: kind)
         refreshPermissionStatuses()
+        schedulePermissionStatusRefreshes()
+    }
+
+    func completeOnboarding() async throws {
+        guard requiredPermissionsGranted else {
+            refreshPermissionStatuses()
+            return
+        }
+
+        var updatedConfig = config
+        updatedConfig.app.onboardingCompleted = true
+        try updatedConfig.save(to: AppConfig.defaultURL.path)
+        config = updatedConfig
+        refreshPermissionStatuses()
+    }
+
+    private func schedulePermissionStatusRefreshes() {
+        permissionRefreshTask?.cancel()
+        permissionRefreshTask = Task { [weak self] in
+            let delays: [UInt64] = [
+                500_000_000,
+                1_500_000_000,
+                3_000_000_000,
+                6_000_000_000
+            ]
+
+            for delay in delays {
+                try? await Task.sleep(nanoseconds: delay)
+                guard !Task.isCancelled else { return }
+                self?.refreshPermissionStatuses()
+            }
+        }
     }
 
     var browserExtensionServerURL: String {
         "http://127.0.0.1:\(config.browserExtension.port)"
     }
 
-    func activateWorkspacePlugin(_ descriptor: WorkspacePluginDescriptor) throws {
+    func activateWorkspacePlugin(_ descriptor: WorkspacePluginDescriptor) async throws {
         try pluginHost.activateWorkspace(descriptor)
-        applyActivePluginPolicies()
+        await applyActivePluginPolicies()
     }
 
-    func deactivateWorkspacePlugin(pluginID: String? = nil) {
+    func installWorkspacePlugin(pluginID: String) async throws {
+        guard let plugin = availablePlugins.first(where: { $0.id == pluginID }) else {
+            throw PluginInstallError.pluginNotFound
+        }
+
+        let record = try await pluginInstaller.install(plugin)
+        installedPlugins = pluginInstaller.installedPlugins
+        try await activateInstalledPlugin(record)
+
+        if record.manifest.install.requiresHostRelaunch {
+            relaunchHost()
+        }
+    }
+
+    func deactivateWorkspacePlugin(pluginID: String? = nil) async {
         pluginHost.deactivateWorkspace(pluginID: pluginID)
-        applyActivePluginPolicies()
+        activePlugin = nil
+        await persistActivePluginID(nil)
+        await applyActivePluginPolicies()
+    }
+
+    func refreshPluginCatalog() async {
+        pluginCatalogStatus = .loading
+
+        do {
+            availablePlugins = try await pluginInstaller.refreshCatalog()
+            pluginCatalogStatus = .loaded
+        } catch {
+            availablePlugins = WorkspacePluginCatalog.developmentFallback
+            pluginCatalogStatus = .failed("Could not load remote plugin catalog. Showing development plugins.")
+        }
+    }
+
+    func completeActivePluginOnboarding() async throws {
+        guard let activePlugin else { return }
+        let updated = try pluginInstaller.markOnboardingCompleted(pluginID: activePlugin.pluginID)
+        installedPlugins = pluginInstaller.installedPlugins
+        self.activePlugin = updated ?? activePlugin
     }
 
     var browserExtensionConfigured: Bool {
@@ -272,7 +350,7 @@ class AppService: ObservableObject {
         return nil
     }
 
-    private func applyConfiguration(_ newConfig: AppConfig) {
+    private func applyConfiguration(_ newConfig: AppConfig) async {
         config = newConfig
         llmService = LLMService(config: newConfig.llm)
         memoryService = MemoryService(config: newConfig.memory)
@@ -292,16 +370,52 @@ class AppService: ObservableObject {
         )
         captureEnabled = newConfig.capture.enabled
         captureInterval = newConfig.capture.intervalSeconds
-        applyActivePluginPolicies()
+        await applyActivePluginPolicies()
     }
 
-    private func applyActivePluginPolicies() {
+    private func applyActivePluginPolicies() async {
         let capturePolicy = pluginHost.activeCapturePolicy
-        appPresentation = pluginHost.activeAppPresentation
-        windowPolicy = pluginHost.activeWindowPolicy
+        let nextPresentation = pluginHost.activeAppPresentation
+        let nextWindowPolicy = pluginHost.activeWindowPolicy
 
-        Task {
-            await contextRouter.updateCapturePolicy(capturePolicy)
+        await contextRouter.updateCapturePolicy(capturePolicy)
+        appPresentation = nextPresentation
+        windowPolicy = nextWindowPolicy
+    }
+
+    private func activateInstalledPlugin(_ record: InstalledPluginRecord) async throws {
+        try await activateWorkspacePlugin(record.manifest.workspaceDescriptor)
+        activePlugin = record
+        await persistActivePluginID(record.pluginID)
+    }
+
+    private func restoreActivePluginIfNeeded() async {
+        guard let pluginID = config.app.activePluginID,
+              let record = installedPlugins.first(where: { $0.pluginID == pluginID }) else {
+            return
+        }
+
+        try? await activateInstalledPlugin(record)
+    }
+
+    private func persistActivePluginID(_ pluginID: String?) async {
+        var updatedConfig = config
+        updatedConfig.app.activePluginID = pluginID
+
+        do {
+            try updatedConfig.save(to: AppConfig.defaultURL.path)
+            config = updatedConfig
+        } catch {
+            print("Failed to persist active plugin: \(error)")
+        }
+    }
+
+    private func relaunchHost() {
+        guard let bundleURL = Bundle.main.bundleURL as URL? else { return }
+
+        let configuration = NSWorkspace.OpenConfiguration()
+        NSWorkspace.shared.openApplication(at: bundleURL, configuration: configuration) { _, _ in
+            NSApp.terminate(nil)
         }
     }
     
@@ -437,6 +551,21 @@ class AppService: ObservableObject {
             print("Failed to process capture: \(error)")
         }
     }
+}
+
+enum PluginInstallError: Error, Equatable {
+    case pluginNotFound
+    case unsupportedSchema
+    case invalidPluginID
+    case downloadFailed(statusCode: Int)
+    case checksumMismatch(expected: String, actual: String)
+}
+
+enum PluginCatalogStatus: Equatable {
+    case idle
+    case loading
+    case loaded
+    case failed(String)
 }
 
 enum ServiceStatus: String {

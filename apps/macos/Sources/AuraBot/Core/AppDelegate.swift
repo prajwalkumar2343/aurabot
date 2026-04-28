@@ -1,4 +1,5 @@
 import Cocoa
+import Combine
 import SwiftUI
 
 @available(macOS 14.0, *)
@@ -9,18 +10,30 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     var quickEnhancePanel: QuickEnhancePanel?
     let service = AppService(config: AppConfig.loadDefault())
     private var isTerminating = false
+    private var terminationReplySent = false
+    private var cancellables = Set<AnyCancellable>()
     
     func applicationDidFinishLaunching(_ notification: Notification) {
         setupStatusItem()
 
         service.start()
 
-        overlayWindow = OverlayWindow()
+        overlayWindow = OverlayWindow(position: service.config.app.overlayPosition)
         overlayWindow?.onClick = { [weak self] in
             Task { @MainActor in
                 self?.showQuickEnhance()
             }
         }
+        overlayWindow?.showPersistent()
+
+        service.$config
+            .map(\.app.overlayPosition)
+            .removeDuplicates()
+            .sink { [weak self] position in
+                self?.overlayWindow?.update(position: position)
+                self?.overlayWindow?.showPersistent()
+            }
+            .store(in: &cancellables)
     }
     
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
@@ -29,12 +42,22 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         isTerminating = true
-        Task {
+        Task { @MainActor in
             await service.stop()
-            NSApp.reply(toApplicationShouldTerminate: true)
+            replyToTerminationIfNeeded()
+        }
+        Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 5_000_000_000)
+            replyToTerminationIfNeeded()
         }
 
         return .terminateLater
+    }
+
+    private func replyToTerminationIfNeeded() {
+        guard !terminationReplySent else { return }
+        terminationReplySent = true
+        NSApp.reply(toApplicationShouldTerminate: true)
     }
     
     private func setupStatusItem() {
@@ -77,25 +100,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                     pasteboard.setString(original, forType: .string)
                 }
                 
-                // Show overlay at cursor
-                self?.showOverlay()
+                self?.overlayWindow?.showPersistent()
                 
                 // Show quick enhance panel
                 self?.showQuickEnhance(text: selectedText)
-            }
-        }
-    }
-    
-    private func showOverlay() {
-        guard let overlay = overlayWindow else { return }
-        
-        let mouseLoc = NSEvent.mouseLocation
-        overlay.show(at: mouseLoc)
-        
-        // Auto hide after 3 seconds
-        DispatchQueue.main.asyncAfter(deadline: .now() + 3) { [weak self] in
-            Task { @MainActor in
-                self?.overlayWindow?.hide()
             }
         }
     }

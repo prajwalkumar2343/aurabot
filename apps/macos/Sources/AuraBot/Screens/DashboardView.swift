@@ -3,98 +3,158 @@ import SwiftUI
 @available(macOS 14.0, *)
 struct DashboardView: View {
     @ObservedObject var service: AppService
-    @State private var showingNewMemory = false
-    @State private var isRefreshing = false
+    @State private var installingPluginID: String?
+    @State private var installError: String?
     
     var body: some View {
         ScrollView(showsIndicators: false) {
-            VStack(alignment: .leading, spacing: Spacing.xxl) {
-                DashboardHeader(
-                    service: service,
-                    showingNewMemory: $showingNewMemory,
-                    isRefreshing: $isRefreshing
-                )
-                
-                StatsGrid(service: service)
-                
-                RecentMemoriesSection(service: service)
+            VStack(alignment: .leading, spacing: Spacing.xxxl) {
+                VStack(alignment: .leading, spacing: Spacing.sm) {
+                    Text("Plugins")
+                        .font(Typography.title1)
+                        .foregroundColor(Colors.textPrimary)
+
+                    Text("Install one plugin to shape the Aura interface.")
+                        .font(Typography.callout)
+                        .foregroundColor(Colors.textSecondary)
+                }
+
+                HStack(spacing: Spacing.md) {
+                    Button {
+                        Task {
+                            await service.refreshPluginCatalog()
+                        }
+                    } label: {
+                        Label(catalogRefreshTitle, systemImage: "arrow.clockwise")
+                    }
+                    .buttonStyle(SecondaryButtonStyle())
+
+                    if case let .failed(message) = service.pluginCatalogStatus {
+                        Text(message)
+                            .font(Typography.caption)
+                            .foregroundColor(Colors.warning)
+                    }
+                }
+
+                LazyVGrid(
+                    columns: [GridItem(.adaptive(minimum: 260), spacing: Spacing.lg)],
+                    alignment: .leading,
+                    spacing: Spacing.lg
+                ) {
+                    ForEach(service.availablePlugins) { plugin in
+                        PluginInstallCard(
+                            plugin: plugin,
+                            installedVersion: service.installedPlugins.first(where: { $0.pluginID == plugin.id })?.version,
+                            isInstalling: installingPluginID == plugin.id
+                        ) {
+                            install(plugin)
+                        }
+                    }
+                }
+
+                if let installError {
+                    Text(installError)
+                        .font(Typography.caption)
+                        .foregroundColor(Colors.danger)
+                }
             }
             .padding(Spacing.xxxl)
         }
         .background(Color.clear)
-        .sheet(isPresented: $showingNewMemory) {
-            NewMemorySheet(service: service)
+    }
+
+    private var catalogRefreshTitle: String {
+        switch service.pluginCatalogStatus {
+        case .loading:
+            return "Refreshing"
+        default:
+            return "Refresh Catalog"
+        }
+    }
+
+    private func install(_ plugin: WorkspacePluginCatalogItem) {
+        guard installingPluginID == nil else { return }
+        installingPluginID = plugin.id
+        installError = nil
+
+        Task {
+            do {
+                try await service.installWorkspacePlugin(pluginID: plugin.id)
+                await MainActor.run {
+                    installingPluginID = nil
+                }
+            } catch {
+                await MainActor.run {
+                    installingPluginID = nil
+                    installError = "Could not install \(plugin.name)."
+                }
+            }
         }
     }
 }
 
 @available(macOS 14.0, *)
-struct DashboardHeader: View {
-    @ObservedObject var service: AppService
-    @Binding var showingNewMemory: Bool
-    @Binding var isRefreshing: Bool
-    
-    var body: some View {
-        HStack(alignment: .center, spacing: Spacing.xl) {
-            VStack(alignment: .leading, spacing: Spacing.xs) {
-                Text("Aura")
-                    .font(Typography.title1)
-                    .foregroundColor(Colors.textPrimary)
-                
-                HStack(spacing: Spacing.sm) {
-                    StatusBadge(
-                        title: service.captureEnabled ? "Capturing" : "Paused",
-                        icon: service.captureEnabled ? "record.circle" : "pause.circle",
-                        color: service.captureEnabled ? Colors.success : Colors.textTertiary
-                    )
+struct PluginInstallCard: View {
+    let plugin: WorkspacePluginCatalogItem
+    let installedVersion: String?
+    let isInstalling: Bool
+    let onInstall: () -> Void
 
-                    StatusBadge(
-                        title: service.isBackendConnected ? "Backend online" : "Backend offline",
-                        icon: service.isBackendConnected ? "checkmark.seal" : "exclamationmark.triangle",
-                        color: service.isBackendConnected ? Colors.primary : Colors.warning
-                    )
-                }
-
-                if let message = service.capturePermissionMessage {
-                    InlinePermissionNotice(message: message)
-                }
-            }
-            
-            Spacer()
-
-            Toggle("Capture", isOn: .init(
-                get: { service.captureEnabled },
-                set: { _ in service.toggleCapture() }
-            ))
-            .toggleStyle(SwitchToggleStyle(tint: Colors.success))
-            
-            Button {
-                refresh()
-            } label: {
-                Label(isRefreshing ? "Refreshing" : "Refresh", systemImage: "arrow.clockwise")
-            }
-            .buttonStyle(SecondaryButtonStyle())
-            .disabled(isRefreshing)
-
-            Button {
-                showingNewMemory = true
-            } label: {
-                Label("New Memory", systemImage: "plus")
-            }
-            .buttonStyle(PrimaryButtonStyle())
-        }
-        .frame(minHeight: 56)
+    private var isInstalled: Bool {
+        installedVersion != nil
     }
 
-    private func refresh() {
-        guard !isRefreshing else { return }
-        isRefreshing = true
-        Task {
-            await service.refreshMemories()
-            await MainActor.run {
-                isRefreshing = false
+    var body: some View {
+        VStack(alignment: .leading, spacing: Spacing.xl) {
+            HStack {
+                Image(systemName: plugin.icon)
+                    .font(.system(size: 20, weight: .semibold))
+                    .foregroundColor(Colors.primary)
+                    .frame(width: 40, height: 40)
+                    .background(Colors.primaryMuted)
+                    .cornerRadius(Radius.md)
+
+                Spacer()
+
+                Text(isInstalled ? "Installed" : "Available")
+                    .font(Typography.caption.weight(.semibold))
+                    .foregroundColor(isInstalled ? Colors.success : Colors.textSecondary)
             }
+
+            VStack(alignment: .leading, spacing: Spacing.sm) {
+                Text(plugin.name)
+                    .font(Typography.title3)
+                    .foregroundColor(Colors.textPrimary)
+
+                Text(plugin.summary)
+                    .font(Typography.callout)
+                    .foregroundColor(Colors.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                Text(isInstalled ? "Installed \(installedVersion ?? plugin.version)" : "Version \(plugin.version)")
+                    .font(Typography.caption)
+                    .foregroundColor(Colors.textTertiary)
+            }
+
+            Spacer()
+
+            Button {
+                onInstall()
+            } label: {
+                Label(isInstalling ? "Installing" : (isInstalled ? "Open" : "Install"), systemImage: isInstalling ? "hourglass" : (isInstalled ? "arrow.right.circle" : "arrow.down.circle"))
+            }
+            .buttonStyle(PrimaryButtonStyle())
+            .disabled(isInstalling)
         }
+        .frame(maxWidth: .infinity, minHeight: 220, alignment: .leading)
+        .padding(Spacing.xl)
+        .background(Colors.surface)
+        .overlay(
+            RoundedRectangle(cornerRadius: Radius.xl)
+                .stroke(isInstalled ? Colors.success.opacity(0.32) : Colors.border, lineWidth: 1)
+        )
+        .cornerRadius(Radius.xl)
+        .shadow(color: Shadows.sm.color, radius: Shadows.sm.radius, x: Shadows.sm.x, y: Shadows.sm.y)
     }
 }
 

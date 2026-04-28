@@ -57,10 +57,98 @@ Relevant sources:
 - For takeover behavior, declare `takeover` with each replaced or augmented surface.
 - Declare `compatibility.host_api` and `compatibility.memory_api`.
 - Declare every entry point, extension id, and requested permission.
+- Declare plugin-owned onboarding in `onboarding`.
+- Declare plugin workspace shell metadata in `presentation`.
+- Declare whether installation requires host relaunch with `install.requires_host_relaunch`.
 - Keep all paths local to the plugin package.
 - Namespace every extension id internally as `<plugin_id>/<extension_id>`.
 - Prefer a minimal manifest first. Add permissions only when a concrete extension needs them.
 - Do not treat install as activation. Workspace takeover must be explicitly activated and reversible.
+
+## Remote Catalog Contract
+
+AuraBot installs plugins from a hardcoded external catalog URL in the macOS host code. The catalog is hosted by the plugin publisher and points to plugin manifests and optional downloadable packages. To change the production catalog, update `PluginInstaller.catalogURLString`.
+
+Minimal `catalog.json`:
+
+```json
+{
+  "schema_version": "aurabot-plugin-catalog-v1",
+  "plugins": [
+    {
+      "plugin_id": "com.example.ai-tutor",
+      "name": "AI Tutor",
+      "version": "0.1.0",
+      "summary": "Turns Aura into an adaptive learning workspace.",
+      "icon": "graduationcap",
+      "manifest_url": "https://example.com/plugins/ai-tutor/aurabot.plugin.json",
+      "package_url": "https://example.com/plugins/ai-tutor/ai-tutor-0.1.0.zip",
+      "sha256": "optional-dev-checksum"
+    }
+  ]
+}
+```
+
+Rules:
+
+- `manifest_url` is required and must return an `aurabot-plugin-v1` manifest.
+- `package_url` is optional for the current host slice; future UI runtimes will load bundled assets from the installed package.
+- Relative URLs are resolved against the catalog URL.
+- The host records installs under `~/.aurabot/plugins` and persists the active plugin id in app config.
+
+## Current Host Manifest Fields
+
+Current macOS host support expects these manifest fields for install, hot reload, relaunch, and plugin-owned onboarding:
+
+```json
+{
+  "schema_version": "aurabot-plugin-v1",
+  "plugin_id": "com.example.ai-tutor",
+  "name": "AI Tutor",
+  "version": "0.1.0",
+  "description": "Turns Aura into an adaptive learning workspace.",
+  "kind": "workspace",
+  "compatibility": {
+    "host_api": "^1.0.0",
+    "memory_api": "memory-v2"
+  },
+  "entrypoints": {
+    "ui": "ui/dist/index.html"
+  },
+  "permissions": {
+    "host_permissions": ["screenRecording", "accessibility"],
+    "context_sources": ["browser", "app"],
+    "memory": ["read_core", "search_core", "write_plugin_namespace"],
+    "network": {
+      "mode": "host_brokered",
+      "domains": []
+    }
+  },
+  "onboarding": {
+    "required": true,
+    "title": "AI Tutor setup",
+    "detail": "AI Tutor needs learning context before its workspace is ready.",
+    "required_host_permissions": ["screenRecording", "accessibility"],
+    "steps": ["Confirm learning sources", "Enable context capture", "Open the tutor workspace"]
+  },
+  "install": {
+    "default_enabled": true,
+    "requires_host_relaunch": false
+  },
+  "presentation": {
+    "workspace_title": "Study Queue",
+    "workspace_icon": "graduationcap",
+    "workspace_sections": ["Current concept", "Practice prompts", "Session recap"]
+  }
+}
+```
+
+Behavior:
+
+- If `install.requires_host_relaunch` is `false`, the app hot-swaps to the plugin interface immediately after install.
+- If `install.requires_host_relaunch` is `true`, the host persists the active plugin id, relaunches Aura, and restores the plugin on startup.
+- If `onboarding.required` is `true`, plugin onboarding appears inside the plugin workspace. The host onboarding remains only for base app requirements.
+- The plugin owns the wording and setup steps; the host owns actual macOS permission requests and status checks.
 
 ## Extension Mapping
 
