@@ -1,3 +1,4 @@
+import CryptoKit
 import Foundation
 
 struct PluginRegistryStore {
@@ -146,6 +147,13 @@ final class PluginInstaller: @unchecked Sendable {
         let (downloadedURL, response) = try await session.download(from: url)
         try validateHTTPResponse(response)
 
+        if let expectedDigest = normalizedSHA256(sha256) {
+            let actualDigest = try sha256Digest(for: downloadedURL)
+            guard actualDigest == expectedDigest else {
+                throw PluginInstallError.checksumMismatch(expected: expectedDigest, actual: actualDigest)
+            }
+        }
+
         let cacheDirectory = registryStore.pluginsDirectory
             .appendingPathComponent(pluginID, isDirectory: true)
             .appendingPathComponent("downloads", isDirectory: true)
@@ -156,12 +164,22 @@ final class PluginInstaller: @unchecked Sendable {
             try fileManager.removeItem(at: destination)
         }
         try fileManager.moveItem(at: downloadedURL, to: destination)
+    }
 
-        if let sha256, !sha256.isEmpty {
-            // Integrity verification is modeled now; cryptographic digest validation should be added
-            // before enabling third-party package execution.
-            _ = sha256
-        }
+    private func normalizedSHA256(_ value: String?) -> String? {
+        let normalized = value?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+
+        guard let normalized, !normalized.isEmpty else { return nil }
+        return normalized.hasPrefix("sha256:") ? String(normalized.dropFirst("sha256:".count)) : normalized
+    }
+
+    private func sha256Digest(for fileURL: URL) throws -> String {
+        let data = try Data(contentsOf: fileURL)
+        return SHA256.hash(data: data)
+            .map { String(format: "%02x", $0) }
+            .joined()
     }
 
     private func validate(_ manifest: PluginManifest) throws {

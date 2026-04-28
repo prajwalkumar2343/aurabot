@@ -338,6 +338,9 @@ struct PermissionOnboardingView: View {
         Task {
             do {
                 try await service.completeOnboarding()
+                await MainActor.run {
+                    isCompleting = false
+                }
             } catch {
                 await MainActor.run {
                     completionError = "Could not save onboarding state. Try again."

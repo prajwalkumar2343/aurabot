@@ -558,6 +558,7 @@ enum PluginInstallError: Error, Equatable {
     case unsupportedSchema
     case invalidPluginID
     case downloadFailed(statusCode: Int)
+    case checksumMismatch(expected: String, actual: String)
 }
 
 enum PluginCatalogStatus: Equatable {
