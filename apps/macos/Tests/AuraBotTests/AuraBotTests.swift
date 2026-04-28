@@ -40,6 +40,17 @@ final class AuraBotCoreTests: XCTestCase {
         XCTAssertEqual(host.activeWorkspacePlugin?.pluginID, "com.aurabot.ai-tutor")
     }
 
+    @MainActor
+    func testOnboardingGateUsesPersistedCompletionOnly() {
+        var incompleteConfig = AppConfig.default
+        incompleteConfig.app.onboardingCompleted = false
+        XCTAssertTrue(AppService(config: incompleteConfig).needsOnboarding)
+
+        var completedConfig = AppConfig.default
+        completedConfig.app.onboardingCompleted = true
+        XCTAssertFalse(AppService(config: completedConfig).needsOnboarding)
+    }
+
     func testCapturePolicyDisablesVisualFallbackWhenPluginRequestsStructuredOnlyCapture() {
         let policy = CapturePolicy(
             priority: [.browserDOM, .browserTranscript, .appMetadata],

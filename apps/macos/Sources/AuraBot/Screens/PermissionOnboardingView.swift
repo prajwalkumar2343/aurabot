@@ -178,6 +178,11 @@ enum PermissionCenter {
     }
 
     static func requestAccess(for kind: AppPermissionKind) {
+        guard !isGranted(kind) else {
+            requestedKinds.remove(kind)
+            return
+        }
+
         switch kind {
         case .screenRecording:
             requestedKinds.insert(kind)
@@ -847,7 +852,10 @@ struct PermissionChecklistRow: View {
     @State private var isHovered = false
 
     var body: some View {
-        Button(action: onTap) {
+        Button {
+            guard !status.isGranted else { return }
+            onTap()
+        } label: {
             HStack(spacing: Spacing.lg) {
                 ZStack {
                     RoundedRectangle(cornerRadius: 16)
@@ -906,7 +914,7 @@ struct PermissionChecklistRow: View {
             )
         }
         .buttonStyle(.plain)
-        .scaleEffect(isHovered ? 1.01 : 1.0)
+        .scaleEffect(isHovered && !status.isGranted ? 1.01 : 1.0)
         .animation(AnimationPresets.hover, value: isHovered)
         .onHover { isHovered = $0 }
     }

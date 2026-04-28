@@ -35,6 +35,7 @@ class AppService: ObservableObject {
     private let pluginInstaller = PluginInstaller()
     
     private var contextProcessingTask: Task<Void, Never>?
+    private var permissionRefreshTask: Task<Void, Never>?
     
     init(config: AppConfig = .default) {
         self.config = config
@@ -171,7 +172,7 @@ class AppService: ObservableObject {
     }
 
     var needsOnboarding: Bool {
-        !requiredPermissionsGranted || !config.app.onboardingCompleted
+        !config.app.onboardingCompleted
     }
 
     var permissionGuidanceMessage: String? {
@@ -196,6 +197,7 @@ class AppService: ObservableObject {
     func requestPermission(_ kind: AppPermissionKind) {
         PermissionCenter.requestAccess(for: kind)
         refreshPermissionStatuses()
+        schedulePermissionStatusRefreshes()
     }
 
     func completeOnboarding() async throws {
@@ -209,6 +211,24 @@ class AppService: ObservableObject {
         try updatedConfig.save(to: AppConfig.defaultURL.path)
         config = updatedConfig
         refreshPermissionStatuses()
+    }
+
+    private func schedulePermissionStatusRefreshes() {
+        permissionRefreshTask?.cancel()
+        permissionRefreshTask = Task { [weak self] in
+            let delays: [UInt64] = [
+                500_000_000,
+                1_500_000_000,
+                3_000_000_000,
+                6_000_000_000
+            ]
+
+            for delay in delays {
+                try? await Task.sleep(nanoseconds: delay)
+                guard !Task.isCancelled else { return }
+                self?.refreshPermissionStatuses()
+            }
+        }
     }
 
     var browserExtensionServerURL: String {
