@@ -3,7 +3,7 @@ import AppKit
 import AVFoundation
 import CoreGraphics
 
-enum AppPermissionKind: String, CaseIterable, Identifiable, Hashable {
+enum AppPermissionKind: String, CaseIterable, Identifiable, Hashable, Codable, Sendable {
     case screenRecording
     case accessibility
     case microphone
@@ -208,7 +208,11 @@ enum PermissionCenter {
 @available(macOS 14.0, *)
 struct PermissionOnboardingView: View {
     @ObservedObject var service: AppService
-    @State private var appear = false
+    @State private var selectedStep: OnboardingStep = .welcome
+    @State private var isCompleting = false
+    @State private var completionError: String?
+
+    private let statusTimer = Timer.publish(every: 1.5, on: .main, in: .common).autoconnect()
 
     private var requiredStatuses: [AppPermissionStatus] {
         service.permissionStatuses.filter { $0.kind.isRequired }
@@ -223,130 +227,74 @@ struct PermissionOnboardingView: View {
         return Double(completedRequiredCount) / Double(requiredStatuses.count)
     }
 
+    private var allRequiredGranted: Bool {
+        completedRequiredCount == requiredStatuses.count
+    }
+
     var body: some View {
-        ScrollView(showsIndicators: false) {
-            VStack(alignment: .leading, spacing: Spacing.xxxl) {
-                HStack(alignment: .top, spacing: Spacing.xxxxl) {
-                    VStack(alignment: .leading, spacing: Spacing.xl) {
-                        permissionEyebrow
+        VStack(spacing: 0) {
+            OnboardingStepHeader(selectedStep: selectedStep, completedRequiredCount: completedRequiredCount, totalRequiredCount: requiredStatuses.count)
+                .padding(.horizontal, Spacing.xxxxl)
+                .padding(.top, Spacing.xxxxl)
 
-                        VStack(alignment: .leading, spacing: Spacing.md) {
-                            Text("Finish setup before Aura starts observing your workspace.")
-                                .font(Typography.largeTitle)
-                                .foregroundColor(Colors.textPrimary)
-                                .fixedSize(horizontal: false, vertical: true)
-
-                            Text("Enable the required macOS permissions below. Each checklist item jumps straight into the matching system privacy panel.")
-                                .font(Typography.body)
-                                .foregroundColor(Colors.textSecondary)
-                                .frame(maxWidth: 540, alignment: .leading)
-                        }
-
-                        HStack(spacing: Spacing.md) {
-                            GradientButton("Refresh Status", icon: "arrow.clockwise") {
-                                service.refreshPermissionStatuses()
-                            }
-
-                            SecondaryButton("Open Settings", icon: "gearshape") {
-                                service.openSystemSettings(for: .screenRecording)
-                            }
-                        }
-
-                        Text(service.permissionGuidanceMessage ?? "Aura unlocks once Screen Recording and Accessibility are enabled.")
-                            .font(Typography.caption)
-                            .foregroundColor(Colors.textMuted)
-                    }
-
-                    Spacer(minLength: 0)
-
-                    PermissionProgressCard(
-                        completedCount: completedRequiredCount,
-                        totalCount: requiredStatuses.count,
-                        progressValue: progressValue
+            ZStack {
+                switch selectedStep {
+                case .welcome:
+                    OnboardingWelcomeScreen(
+                        progressValue: progressValue,
+                        completedRequiredCount: completedRequiredCount,
+                        totalRequiredCount: requiredStatuses.count,
+                        onContinue: { move(to: .permissions) }
                     )
-                    .frame(width: 240)
-                }
-
-                GlassCard(padding: Spacing.xxl, cornerRadius: 28, shadow: Shadows.xl, showBorder: true) {
-                    VStack(alignment: .leading, spacing: Spacing.lg) {
-                        HStack {
-                            Text("Permission Checklist")
-                                .font(Typography.title2)
-                                .foregroundColor(Colors.textPrimary)
-
-                            Spacer()
-
-                            Text("\(completedRequiredCount)/\(requiredStatuses.count) required")
-                                .font(Typography.caption)
-                                .foregroundColor(Colors.primary)
-                                .padding(.horizontal, Spacing.sm)
-                                .padding(.vertical, Spacing.xs)
-                                .background(Colors.primaryMuted)
-                                .cornerRadius(Radius.full)
+                    .transition(.opacity.combined(with: .move(edge: .leading)))
+                case .permissions:
+                    OnboardingPermissionsScreen(
+                        statuses: service.permissionStatuses,
+                        completedRequiredCount: completedRequiredCount,
+                        totalRequiredCount: requiredStatuses.count,
+                        progressValue: progressValue,
+                        guidanceMessage: service.permissionGuidanceMessage,
+                        onRequest: { kind in
+                            service.requestPermission(kind)
+                        },
+                        onRefresh: {
+                            service.refreshPermissionStatuses()
+                        },
+                        onContinue: {
+                            move(to: .browserExtension)
                         }
-
-                        ForEach(Array(service.permissionStatuses.enumerated()), id: \.element.id) { index, status in
-                            PermissionChecklistRow(
-                                status: status,
-                                onTap: { service.requestPermission(status.kind) }
-                            )
-                            .opacity(appear ? 1 : 0)
-                            .offset(y: appear ? 0 : 12)
-                            .animation(
-                                AnimationPresets.spring.delay(0.08 + Double(index) * 0.05),
-                                value: appear
-                            )
-                        }
-                    }
+                    )
+                    .transition(.opacity)
+                case .browserExtension:
+                    OnboardingBrowserScreen(
+                        service: service,
+                        canFinish: allRequiredGranted,
+                        isCompleting: isCompleting,
+                        completionError: completionError,
+                        onBack: { move(to: .permissions) },
+                        onFinish: finishOnboarding
+                    )
+                    .transition(.opacity.combined(with: .move(edge: .trailing)))
                 }
-
-                BrowserExtensionSetupCard(service: service)
-
-                HStack(spacing: Spacing.md) {
-                    Image(systemName: "sparkles")
-                        .foregroundColor(Colors.primary)
-
-                    Text("The checklist stays available in Settings after onboarding, so you can revisit permissions later.")
-                        .font(Typography.callout)
-                        .foregroundColor(Colors.textSecondary)
-                }
-                .padding(.horizontal, Spacing.sm)
             }
-            .padding(Spacing.xxxxl)
+            .padding(.horizontal, Spacing.xxxxl)
+            .padding(.bottom, Spacing.xxxxl)
         }
         .background(onboardingBackground)
         .onAppear {
             service.refreshPermissionStatuses()
-            withAnimation(AnimationPresets.appear) {
-                appear = true
-            }
+            selectedStep = service.requiredPermissionsGranted ? .browserExtension : .welcome
         }
-    }
-
-    private var permissionEyebrow: some View {
-        HStack(spacing: Spacing.sm) {
-            Circle()
-                .fill(Colors.primary)
-                .frame(width: 8, height: 8)
-
-            Text("Onboarding")
-                .font(Typography.caption)
-                .foregroundColor(Colors.textSecondary)
-
-            Text("Privacy setup")
-                .font(Typography.caption)
-                .foregroundColor(Colors.primary)
+        .onReceive(statusTimer) { _ in
+            service.refreshPermissionStatuses()
         }
-        .padding(.horizontal, Spacing.md)
-        .padding(.vertical, Spacing.sm)
-        .background(
-            Capsule()
-                .fill(Colors.surface)
-                .overlay(
-                    Capsule()
-                        .stroke(Colors.border, lineWidth: 1)
-                )
-        )
+        .onChange(of: allRequiredGranted) { _, granted in
+            guard granted, selectedStep == .permissions else { return }
+            move(to: .browserExtension)
+        }
+        .onChange(of: selectedStep) { _, _ in
+            completionError = nil
+        }
     }
 
     private var onboardingBackground: some View {
@@ -355,27 +303,323 @@ struct PermissionOnboardingView: View {
 
             LinearGradient(
                 colors: [
-                    Colors.primary.opacity(0.12),
-                    Colors.secondary.opacity(0.08),
+                    Colors.primary.opacity(0.08),
+                    Colors.secondary.opacity(0.05),
                     Color.clear
                 ],
                 startPoint: .topLeading,
                 endPoint: .bottomTrailing
             )
-
-            Circle()
-                .fill(Colors.primary.opacity(0.10))
-                .frame(width: 380, height: 380)
-                .blur(radius: 60)
-                .offset(x: -260, y: -180)
-
-            Circle()
-                .fill(Colors.secondary.opacity(0.09))
-                .frame(width: 300, height: 300)
-                .blur(radius: 50)
-                .offset(x: 320, y: -140)
         }
     }
+
+    private func move(to step: OnboardingStep) {
+        withAnimation(AnimationPresets.spring) {
+            selectedStep = step
+        }
+    }
+
+    private func finishOnboarding() {
+        guard allRequiredGranted, !isCompleting else {
+            if !allRequiredGranted {
+                move(to: .permissions)
+            }
+            return
+        }
+
+        isCompleting = true
+        completionError = nil
+
+        Task {
+            do {
+                try await service.completeOnboarding()
+            } catch {
+                await MainActor.run {
+                    completionError = "Could not save onboarding state. Try again."
+                    isCompleting = false
+                }
+            }
+        }
+    }
+}
+
+@available(macOS 14.0, *)
+private enum OnboardingStep: Int, CaseIterable, Identifiable {
+    case welcome
+    case permissions
+    case browserExtension
+
+    var id: Int { rawValue }
+
+    var number: Int { rawValue + 1 }
+
+    var title: String {
+        switch self {
+        case .welcome:
+            return "Welcome"
+        case .permissions:
+            return "Permissions"
+        case .browserExtension:
+            return "Browser"
+        }
+    }
+}
+
+@available(macOS 14.0, *)
+private struct OnboardingStepHeader: View {
+    let selectedStep: OnboardingStep
+    let completedRequiredCount: Int
+    let totalRequiredCount: Int
+
+    var body: some View {
+        HStack(spacing: Spacing.lg) {
+            ForEach(OnboardingStep.allCases) { step in
+                HStack(spacing: Spacing.sm) {
+                    Text("\(step.number)")
+                        .font(Typography.caption.weight(.bold))
+                        .foregroundColor(step.rawValue <= selectedStep.rawValue ? Colors.textInverse : Colors.textSecondary)
+                        .frame(width: 24, height: 24)
+                        .background(
+                            Circle()
+                                .fill(step.rawValue <= selectedStep.rawValue ? Colors.primary : Colors.surfaceTertiary)
+                        )
+
+                    Text(step.title)
+                        .font(Typography.subheadline.weight(step == selectedStep ? .semibold : .regular))
+                        .foregroundColor(step == selectedStep ? Colors.textPrimary : Colors.textSecondary)
+                }
+
+                if step != OnboardingStep.allCases.last {
+                    Rectangle()
+                        .fill(step.rawValue < selectedStep.rawValue ? Colors.primary.opacity(0.55) : Colors.border)
+                        .frame(height: 1)
+                }
+            }
+
+            Spacer()
+
+            Text("\(completedRequiredCount)/\(totalRequiredCount) required")
+                .font(Typography.caption.weight(.semibold))
+                .foregroundColor(completedRequiredCount == totalRequiredCount ? Colors.success : Colors.primary)
+                .padding(.horizontal, Spacing.sm)
+                .padding(.vertical, Spacing.xs)
+                .background(
+                    Capsule()
+                        .fill(completedRequiredCount == totalRequiredCount ? Colors.success.opacity(0.12) : Colors.primaryMuted)
+                )
+        }
+    }
+}
+
+@available(macOS 14.0, *)
+private struct OnboardingWelcomeScreen: View {
+    let progressValue: Double
+    let completedRequiredCount: Int
+    let totalRequiredCount: Int
+    let onContinue: () -> Void
+
+    var body: some View {
+        OnboardingScreenContainer {
+            HStack(alignment: .center, spacing: Spacing.xxxxl) {
+                VStack(alignment: .leading, spacing: Spacing.xl) {
+                    onboardingBadge("Setup", icon: "sparkles")
+
+                    VStack(alignment: .leading, spacing: Spacing.md) {
+                        Text("Set up Aura in three steps.")
+                            .font(Typography.largeTitle)
+                            .foregroundColor(Colors.textPrimary)
+                            .fixedSize(horizontal: false, vertical: true)
+
+                        Text("Aura needs a small set of macOS permissions before it can understand your workspace. The next screen updates automatically as each permission is granted.")
+                            .font(Typography.body)
+                            .foregroundColor(Colors.textSecondary)
+                            .frame(maxWidth: 560, alignment: .leading)
+                    }
+
+                    GradientButton("Continue", icon: "arrow.right") {
+                        onContinue()
+                    }
+                }
+
+                PermissionProgressCard(
+                    completedCount: completedRequiredCount,
+                    totalCount: totalRequiredCount,
+                    progressValue: progressValue
+                )
+                .frame(width: 260)
+            }
+        }
+    }
+}
+
+@available(macOS 14.0, *)
+private struct OnboardingPermissionsScreen: View {
+    let statuses: [AppPermissionStatus]
+    let completedRequiredCount: Int
+    let totalRequiredCount: Int
+    let progressValue: Double
+    let guidanceMessage: String?
+    let onRequest: (AppPermissionKind) -> Void
+    let onRefresh: () -> Void
+    let onContinue: () -> Void
+
+    private var allRequiredGranted: Bool {
+        completedRequiredCount == totalRequiredCount
+    }
+
+    var body: some View {
+        OnboardingScreenContainer {
+            HStack(alignment: .top, spacing: Spacing.xxxl) {
+                VStack(alignment: .leading, spacing: Spacing.xl) {
+                    onboardingBadge("Live Status", icon: "arrow.triangle.2.circlepath")
+
+                    VStack(alignment: .leading, spacing: Spacing.sm) {
+                        Text("Grant required permissions.")
+                            .font(Typography.title1)
+                            .foregroundColor(Colors.textPrimary)
+
+                        Text(guidanceMessage ?? "Aura unlocks once Screen Recording and Accessibility are enabled.")
+                            .font(Typography.callout)
+                            .foregroundColor(Colors.textSecondary)
+                    }
+
+                    GlassCard(padding: Spacing.xl, cornerRadius: Radius.xl, shadow: Shadows.md, showBorder: true) {
+                        VStack(spacing: Spacing.md) {
+                            ForEach(statuses) { status in
+                                PermissionChecklistRow(status: status) {
+                                    onRequest(status.kind)
+                                }
+                            }
+                        }
+                    }
+                }
+
+                VStack(alignment: .leading, spacing: Spacing.lg) {
+                    PermissionProgressCard(
+                        completedCount: completedRequiredCount,
+                        totalCount: totalRequiredCount,
+                        progressValue: progressValue
+                    )
+
+                    HStack(spacing: Spacing.md) {
+                        SecondaryButton("Refresh", icon: "arrow.clockwise") {
+                            onRefresh()
+                        }
+
+                        GradientButton(allRequiredGranted ? "Continue" : "Waiting", icon: allRequiredGranted ? "arrow.right" : "hourglass") {
+                            guard allRequiredGranted else {
+                                onRefresh()
+                                return
+                            }
+                            onContinue()
+                        }
+                    }
+                }
+                .frame(width: 260)
+            }
+        }
+    }
+}
+
+@available(macOS 14.0, *)
+private struct OnboardingBrowserScreen: View {
+    @ObservedObject var service: AppService
+    let canFinish: Bool
+    let isCompleting: Bool
+    let completionError: String?
+    let onBack: () -> Void
+    let onFinish: () -> Void
+
+    var body: some View {
+        OnboardingScreenContainer {
+            VStack(alignment: .leading, spacing: Spacing.xl) {
+                HStack(alignment: .top) {
+                    VStack(alignment: .leading, spacing: Spacing.md) {
+                        onboardingBadge("Final Step", icon: "puzzlepiece.extension")
+
+                        Text("Connect browser context.")
+                            .font(Typography.title1)
+                            .foregroundColor(Colors.textPrimary)
+
+                        Text("This step is optional, but Chrome context gives Aura better page awareness. You can finish now and revisit extension setup from Settings.")
+                            .font(Typography.callout)
+                            .foregroundColor(Colors.textSecondary)
+                            .frame(maxWidth: 620, alignment: .leading)
+                    }
+
+                    Spacer()
+
+                    Text(canFinish ? "Ready" : "Permissions needed")
+                        .font(Typography.caption.weight(.semibold))
+                        .foregroundColor(canFinish ? Colors.success : Colors.warning)
+                        .padding(.horizontal, Spacing.sm)
+                        .padding(.vertical, Spacing.xs)
+                        .background(
+                            Capsule()
+                                .fill(canFinish ? Colors.success.opacity(0.12) : Colors.warning.opacity(0.12))
+                        )
+                }
+
+                BrowserExtensionSetupCard(service: service)
+
+                if let completionError {
+                    Text(completionError)
+                        .font(Typography.caption)
+                        .foregroundColor(Colors.danger)
+                }
+
+                HStack(spacing: Spacing.md) {
+                    SecondaryButton("Back", icon: "chevron.left") {
+                        onBack()
+                    }
+
+                    Spacer()
+
+                    GradientButton(isCompleting ? "Finishing..." : "Finish Setup", icon: isCompleting ? "hourglass" : "checkmark") {
+                        onFinish()
+                    }
+                    .opacity(canFinish ? 1 : 0.55)
+                }
+            }
+        }
+    }
+}
+
+@available(macOS 14.0, *)
+private struct OnboardingScreenContainer<Content: View>: View {
+    @ViewBuilder let content: Content
+
+    var body: some View {
+        ScrollView(showsIndicators: false) {
+            content
+                .padding(.top, Spacing.xxxl)
+                .padding(.bottom, Spacing.xxxl)
+                .frame(maxWidth: .infinity, alignment: .topLeading)
+        }
+    }
+}
+
+@available(macOS 14.0, *)
+private func onboardingBadge(_ title: String, icon: String) -> some View {
+    HStack(spacing: Spacing.sm) {
+        Image(systemName: icon)
+            .font(.system(size: 12, weight: .semibold))
+            .foregroundColor(Colors.primary)
+
+        Text(title)
+            .font(Typography.caption.weight(.semibold))
+            .foregroundColor(Colors.textSecondary)
+    }
+    .padding(.horizontal, Spacing.md)
+    .padding(.vertical, Spacing.sm)
+    .background(
+        Capsule()
+            .fill(Colors.surface)
+            .overlay(
+                Capsule()
+                    .stroke(Colors.border, lineWidth: 1)
+            )
+    )
 }
 
 @available(macOS 14.0, *)
