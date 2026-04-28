@@ -44,6 +44,7 @@ const baseManifest: PluginManifest = {
   },
   permissions: {
     context_sources: ["browser", "app", "screen"],
+    host_permissions: ["screenRecording", "accessibility"],
     capture_methods: ["browser_dom", "browser_transcript", "app_metadata", "screen_vision"],
     memory: ["read_core", "search_core", "write_plugin_namespace"],
     app_behavior: ["workspace_takeover", "replace_navigation", "replace_commands", "replace_agent"],
@@ -86,6 +87,19 @@ const baseManifest: PluginManifest = {
   install: {
     migrations: ["migrations/001-init.json"],
     default_enabled: false,
+    requires_host_relaunch: true,
+  },
+  onboarding: {
+    required: true,
+    title: "AI Tutor setup",
+    detail: "Enable the permissions and learning sources AI Tutor needs.",
+    required_host_permissions: ["screenRecording", "accessibility"],
+    steps: ["Confirm learning sources", "Enable context capture"],
+  },
+  presentation: {
+    workspace_title: "Study Queue",
+    workspace_icon: "graduationcap",
+    workspace_sections: ["Current concept", "Practice prompts", "Session recap"],
   },
 };
 
@@ -95,7 +109,31 @@ describe("plugin manifest validation", () => {
 
     assert.equal(manifest.plugin_id, "com.aurabot.ai-tutor");
     assert.equal(manifest.kind, "workspace");
+    assert.equal(manifest.install?.requires_host_relaunch, true);
+    assert.equal(manifest.onboarding?.required, true);
     assert.equal(takeoverRequiresActivation(manifest), true);
+  });
+
+  it("rejects malformed plugin onboarding and relaunch declarations", () => {
+    const result = validatePluginManifest({
+      ...baseManifest,
+      install: {
+        requires_host_relaunch: "yes",
+      },
+      onboarding: {
+        required: "yes",
+        title: "",
+        detail: "Setup",
+        required_host_permissions: ["root"],
+      },
+    });
+
+    assert.equal(result.ok, false);
+    if (!result.ok) {
+      assert.match(result.issues.join("\n"), /install.requires_host_relaunch must be boolean/);
+      assert.match(result.issues.join("\n"), /onboarding.required must be boolean/);
+      assert.match(result.issues.join("\n"), /onboarding.required_host_permissions\[0\] is not allowed/);
+    }
   });
 
   it("returns structured validation failures without throwing", () => {
