@@ -35,6 +35,8 @@ struct PluginRegistryStore {
 }
 
 final class PluginInstaller: @unchecked Sendable {
+    static let catalogURLString = "https://prajwalkumar2343.github.io/aurabot/plugins/catalog.json"
+
     private let session: URLSession
     private let fileManager: FileManager
     private let registryStore: PluginRegistryStore
@@ -53,8 +55,8 @@ final class PluginInstaller: @unchecked Sendable {
         registryStore.load()
     }
 
-    func refreshCatalog(from catalogURLString: String) async throws -> [WorkspacePluginCatalogItem] {
-        let trimmed = catalogURLString.trimmingCharacters(in: .whitespacesAndNewlines)
+    func refreshCatalog() async throws -> [WorkspacePluginCatalogItem] {
+        let trimmed = Self.catalogURLString.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty, let catalogURL = URL(string: trimmed) else {
             return WorkspacePluginCatalog.developmentFallback
         }

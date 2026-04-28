@@ -270,7 +270,7 @@ Required manifest rules:
 
 ## Remote Catalog Format
 
-The macOS host can load installable plugins from a catalog URL configured in Settings. The catalog is publisher-hosted JSON; each item points to the canonical plugin manifest and optionally to a downloadable package archive.
+The macOS host can load installable plugins from a hardcoded catalog URL in `PluginInstaller.catalogURLString`. The catalog is publisher-hosted JSON; each item points to the canonical plugin manifest and optionally to a downloadable package archive.
 
 ```json
 {

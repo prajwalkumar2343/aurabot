@@ -187,7 +187,6 @@ struct AppSettings: Codable {
     var memoryWindow: Int = 10
     var overlayPosition: OverlayPosition = .bottomRight
     var onboardingCompleted: Bool = false
-    var pluginCatalogURL: String = ""
     var activePluginID: String?
 
     enum CodingKeys: String, CodingKey {
@@ -196,7 +195,6 @@ struct AppSettings: Codable {
         case memoryWindow
         case overlayPosition
         case onboardingCompleted
-        case pluginCatalogURL
         case activePluginID
     }
 
@@ -209,7 +207,6 @@ struct AppSettings: Codable {
         memoryWindow = try container.decodeIfPresent(Int.self, forKey: .memoryWindow) ?? 10
         overlayPosition = try container.decodeIfPresent(OverlayPosition.self, forKey: .overlayPosition) ?? .bottomRight
         onboardingCompleted = try container.decodeIfPresent(Bool.self, forKey: .onboardingCompleted) ?? false
-        pluginCatalogURL = try container.decodeIfPresent(String.self, forKey: .pluginCatalogURL) ?? ""
         activePluginID = try container.decodeIfPresent(String.self, forKey: .activePluginID)
     }
 }

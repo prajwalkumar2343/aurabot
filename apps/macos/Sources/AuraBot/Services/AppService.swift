@@ -245,7 +245,7 @@ class AppService: ObservableObject {
         pluginCatalogStatus = .loading
 
         do {
-            availablePlugins = try await pluginInstaller.refreshCatalog(from: config.app.pluginCatalogURL)
+            availablePlugins = try await pluginInstaller.refreshCatalog()
             pluginCatalogStatus = .loaded
         } catch {
             availablePlugins = WorkspacePluginCatalog.developmentFallback

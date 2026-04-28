@@ -67,7 +67,7 @@ Relevant sources:
 
 ## Remote Catalog Contract
 
-AuraBot installs plugins from an external catalog URL configured in the app Settings screen. The catalog is hosted by the plugin publisher and points to plugin manifests and optional downloadable packages.
+AuraBot installs plugins from a hardcoded external catalog URL in the macOS host code. The catalog is hosted by the plugin publisher and points to plugin manifests and optional downloadable packages. To change the production catalog, update `PluginInstaller.catalogURLString`.
 
 Minimal `catalog.json`:
 

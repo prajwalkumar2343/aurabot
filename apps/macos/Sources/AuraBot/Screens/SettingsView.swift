@@ -18,7 +18,6 @@ struct SettingsView: View {
     @State private var memoryCollection = "screen_memories_v3"
     @State private var browserExtensionAPIKey = ""
     @State private var overlayPosition: OverlayPosition = .bottomRight
-    @State private var pluginCatalogURL = ""
     @State private var showSavedToast = false
     @State private var appearAnimation = false
     @State private var isSaving = false
@@ -62,10 +61,6 @@ struct SettingsView: View {
                     .opacity(appearAnimation ? 1 : 0)
                     .offset(y: appearAnimation ? 0 : 20)
 
-                PluginSettingsSection(pluginCatalogURL: $pluginCatalogURL)
-                    .opacity(appearAnimation ? 1 : 0)
-                    .offset(y: appearAnimation ? 0 : 20)
-                
                 // Save button
                 SaveSection(
                     isSaving: $isSaving,
@@ -114,7 +109,6 @@ struct SettingsView: View {
         memoryCollection = config.memory.collectionName
         browserExtensionAPIKey = config.browserExtension.apiKey
         overlayPosition = config.app.overlayPosition
-        pluginCatalogURL = config.app.pluginCatalogURL
     }
 
     private func saveSettings() {
@@ -136,7 +130,6 @@ struct SettingsView: View {
             updatedConfig.memory.collectionName = memoryCollection.trimmingCharacters(in: .whitespacesAndNewlines)
             updatedConfig.browserExtension.apiKey = browserExtensionAPIKey.trimmingCharacters(in: .whitespacesAndNewlines)
             updatedConfig.app.overlayPosition = overlayPosition
-            updatedConfig.app.pluginCatalogURL = pluginCatalogURL.trimmingCharacters(in: .whitespacesAndNewlines)
 
             do {
                 try await service.saveConfiguration(updatedConfig)
@@ -470,23 +463,6 @@ struct AISettingsSection: View {
     }
 }
 
-@available(macOS 14.0, *)
-struct PluginSettingsSection: View {
-    @Binding var pluginCatalogURL: String
-
-    var body: some View {
-        SettingsSection(title: "Plugins", icon: "puzzlepiece.extension") {
-            CustomTextField(
-                title: "Plugin Catalog URL",
-                placeholder: "https://your-site.example/plugins/catalog.json",
-                text: $pluginCatalogURL,
-                icon: "globe"
-            )
-        }
-    }
-}
-
-@available(macOS 14.0, *)
 struct PermissionsSection: View {
     @ObservedObject var service: AppService
 
