@@ -199,6 +199,21 @@ enum PermissionCenter {
         CGPreflightScreenCaptureAccess() || screenCaptureProbeGranted
     }
 
+    static var appIdentityWarning: String? {
+        let bundle = Bundle.main
+        let bundleURL = bundle.bundleURL
+
+        guard bundleURL.pathExtension == "app", bundle.bundleIdentifier != nil else {
+            return "Aura is running from a development executable. Open the installed AuraBot.app so macOS grants permissions to one stable app entry."
+        }
+
+        guard bundleURL.path.hasPrefix("/Applications/") else {
+            return "Aura is running outside Applications. Move AuraBot.app to Applications and open that copy before granting permissions to avoid duplicate macOS privacy entries."
+        }
+
+        return nil
+    }
+
     static func requestAccess(for kind: AppPermissionKind) {
         guard !isGranted(kind) else {
             requestedKinds.remove(kind)
