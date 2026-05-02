@@ -12,7 +12,7 @@ describe("Memory PGlite recent context routes", () => {
         dataDir: join(dir, "pglite"),
         embeddingDimensions: 3,
       });
-      const occurredAt = new Date().toISOString();
+      const occurredAt = new Date(Date.now() - 60_000).toISOString(); // Fresh enough for TTL, stable relative to request time.
 
       try {
         const insert = await handleMemoryPgliteRequest(database, {

@@ -863,6 +863,10 @@ struct PermissionProgressCard: View {
     let totalCount: Int
     let progressValue: Double
 
+    private var visibleProgressValue: Double {
+        max(0.02, progressValue)
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: Spacing.lg) {
             ZStack {
@@ -870,7 +874,7 @@ struct PermissionProgressCard: View {
                     .stroke(Colors.border, lineWidth: 14)
 
                 Circle()
-                    .trim(from: 0, to: progressValue)
+                    .trim(from: 0, to: visibleProgressValue)
                     .stroke(
                         AngularGradient(
                             colors: [Colors.primary, Colors.secondary, Colors.primary],

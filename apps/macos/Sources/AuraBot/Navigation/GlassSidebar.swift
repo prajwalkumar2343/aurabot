@@ -37,7 +37,7 @@ struct SidebarView: View {
                     icon: "gear",
                     tab: .settings,
                     selectedTab: $selectedTab,
-                    isDisabled: service.needsOnboarding
+                    isDisabled: false
                 )
             }
             .padding(.horizontal, Spacing.sm)
