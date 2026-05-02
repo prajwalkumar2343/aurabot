@@ -233,7 +233,21 @@ enum PermissionCenter {
                 openSystemSettings(for: kind)
             }
         case .microphone:
-            AVCaptureDevice.requestAccess(for: .audio) { _ in }
+            switch AVCaptureDevice.authorizationStatus(for: .audio) {
+            case .notDetermined:
+                AVCaptureDevice.requestAccess(for: .audio) { granted in
+                    guard !granted else { return }
+                    Task { @MainActor in
+                        openSystemSettings(for: kind)
+                    }
+                }
+            case .denied, .restricted:
+                openSystemSettings(for: kind)
+            case .authorized:
+                requestedKinds.remove(kind)
+            @unknown default:
+                openSystemSettings(for: kind)
+            }
         }
     }
 
