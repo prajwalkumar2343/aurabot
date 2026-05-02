@@ -289,7 +289,12 @@ struct PermissionOnboardingView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            OnboardingStepHeader(selectedStep: selectedStep, completedRequiredCount: completedRequiredCount, totalRequiredCount: requiredStatuses.count)
+            OnboardingStepHeader(
+                selectedStep: selectedStep,
+                completedRequiredCount: completedRequiredCount,
+                totalRequiredCount: requiredStatuses.count,
+                onSelectStep: move(to:)
+            )
                 .padding(.horizontal, Spacing.xxxxl)
                 .padding(.top, Spacing.xxxxl)
 
@@ -429,24 +434,30 @@ private struct OnboardingStepHeader: View {
     let selectedStep: OnboardingStep
     let completedRequiredCount: Int
     let totalRequiredCount: Int
+    let onSelectStep: (OnboardingStep) -> Void
 
     var body: some View {
         HStack(spacing: Spacing.lg) {
             ForEach(OnboardingStep.allCases) { step in
-                HStack(spacing: Spacing.sm) {
-                    Text("\(step.number)")
-                        .font(Typography.caption.weight(.bold))
-                        .foregroundColor(step.rawValue <= selectedStep.rawValue ? Colors.textInverse : Colors.textSecondary)
-                        .frame(width: 24, height: 24)
-                        .background(
-                            Circle()
-                                .fill(step.rawValue <= selectedStep.rawValue ? Colors.primary : Colors.surfaceTertiary)
-                        )
+                Button {
+                    onSelectStep(step)
+                } label: {
+                    HStack(spacing: Spacing.sm) {
+                        Text("\(step.number)")
+                            .font(Typography.caption.weight(.bold))
+                            .foregroundColor(step.rawValue <= selectedStep.rawValue ? Colors.textInverse : Colors.textSecondary)
+                            .frame(width: 24, height: 24)
+                            .background(
+                                Circle()
+                                    .fill(step.rawValue <= selectedStep.rawValue ? Colors.primary : Colors.surfaceTertiary)
+                            )
 
-                    Text(step.title)
-                        .font(Typography.subheadline.weight(step == selectedStep ? .semibold : .regular))
-                        .foregroundColor(step == selectedStep ? Colors.textPrimary : Colors.textSecondary)
+                        Text(step.title)
+                            .font(Typography.subheadline.weight(step == selectedStep ? .semibold : .regular))
+                            .foregroundColor(step == selectedStep ? Colors.textPrimary : Colors.textSecondary)
+                    }
                 }
+                .buttonStyle(.plain)
 
                 if step != OnboardingStep.allCases.last {
                     Rectangle()
