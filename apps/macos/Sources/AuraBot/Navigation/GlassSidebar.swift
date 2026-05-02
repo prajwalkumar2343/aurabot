@@ -20,21 +20,24 @@ struct SidebarView: View {
                     title: "Dashboard",
                     icon: "square.grid.2x2",
                     tab: .dashboard,
-                    selectedTab: $selectedTab
+                    selectedTab: $selectedTab,
+                    isDisabled: service.needsOnboarding
                 )
                 
                 NavButton(
                     title: "Memories",
                     icon: "bubble.left.and.bubble.right",
                     tab: .memories,
-                    selectedTab: $selectedTab
+                    selectedTab: $selectedTab,
+                    isDisabled: service.needsOnboarding
                 )
 
                 NavButton(
                     title: "Settings",
                     icon: "gear",
                     tab: .settings,
-                    selectedTab: $selectedTab
+                    selectedTab: $selectedTab,
+                    isDisabled: service.needsOnboarding
                 )
             }
             .padding(.horizontal, Spacing.sm)
@@ -88,6 +91,7 @@ struct NavButton: View {
     let icon: String
     let tab: SidebarTab
     @Binding var selectedTab: SidebarTab
+    var isDisabled = false
     
     @State private var isHovered = false
     
@@ -97,6 +101,7 @@ struct NavButton: View {
     
     var body: some View {
         Button(action: {
+            guard !isDisabled else { return }
             withAnimation(.easeOut(duration: 0.2)) {
                 selectedTab = tab
             }
@@ -128,6 +133,8 @@ struct NavButton: View {
             )
         }
         .buttonStyle(.plain)
+        .disabled(isDisabled)
+        .opacity(isDisabled && !isSelected ? 0.45 : 1)
         .animation(.easeOut(duration: 0.15), value: isHovered)
         .animation(.easeOut(duration: 0.2), value: isSelected)
         .onHover { hovering in
