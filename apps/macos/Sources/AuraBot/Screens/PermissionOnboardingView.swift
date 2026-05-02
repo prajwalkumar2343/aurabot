@@ -475,7 +475,7 @@ private struct OnboardingWelcomeScreen: View {
                             .foregroundColor(Colors.textPrimary)
                             .fixedSize(horizontal: false, vertical: true)
 
-                        Text("Aura needs a small set of macOS permissions before it can understand your workspace. The next screen updates automatically as each permission is granted.")
+                        Text("Aura needs a small set of macOS permissions before it can understand your workspace. The next screen checks status as you return from System Settings and shows when a restart is needed.")
                             .font(Typography.body)
                             .foregroundColor(Colors.textSecondary)
                             .frame(maxWidth: 560, alignment: .leading)

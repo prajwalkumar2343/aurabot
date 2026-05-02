@@ -183,10 +183,10 @@ class AppService: ObservableObject {
         }
 
         if requiredPermissionStatuses.contains(where: { $0.kind == .screenRecording && $0.state == .pendingRestart }) {
-            return "Screen Recording was requested. After enabling it in System Settings, restart Aura, then click Refresh Status."
+            return "Screen Recording was requested. After enabling it in System Settings, restart Aura from this row, then refresh status if needed."
         }
 
-        return "Grant Screen Recording and Accessibility to enable capture."
+        return "Grant Screen Recording and Accessibility to enable capture. Aura refreshes status when you return from System Settings."
     }
 
     func refreshPermissionStatuses() {
