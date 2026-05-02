@@ -838,7 +838,7 @@ struct PermissionProgressCard: View {
                     .stroke(Colors.border, lineWidth: 14)
 
                 Circle()
-                    .trim(from: 0, to: max(0.02, progressValue))
+                    .trim(from: 0, to: progressValue)
                     .stroke(
                         AngularGradient(
                             colors: [Colors.primary, Colors.secondary, Colors.primary],
