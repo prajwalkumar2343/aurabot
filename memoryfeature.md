@@ -1009,15 +1009,12 @@ Owner: Agent 5
 
 Primary write scope:
 
-- `services/memory-api/src/core/`
-- `services/memory-api/src/api/`
-- `services/memory-api/src/config.py`
-- `services/memory-api/tests/`
+- `services/memory-pglite/src/server.ts`
+- `services/memory-pglite/src/contracts/`
+- `services/memory-pglite/tests/server/`
 - `apps/macos/Sources/AuraBot/Services/MemoryService.swift`
 - `apps/macos/Sources/AuraBot/Models/Memory.swift`
 - `apps/macos/Sources/AuraBot/Screens/`
-- `start.py`
-- `start_server.sh`
 
 Objective:
 
@@ -1029,13 +1026,10 @@ Implementation tasks:
   - `AURABOT_MEMORY_BACKEND=pglite`
   - PGlite is the canonical local backend.
   - Existing Postgres support, if retained temporarily, is only for import, migration, or rollback.
-- Add adapter interface in Python or HTTP bridge:
-  - routes Memory v2 API calls to the PGlite service.
-  - does not need to translate v1 payloads.
 - Add PGlite service startup strategy:
   - embedded child process
   - or documented separate process
-  - health check from Python API
+  - health check from the macOS app supervisor
 - Add canonical v2 endpoints:
   - `GET /v2/health`
   - `POST /v2/recent-context`
@@ -1077,7 +1071,7 @@ Acceptance criteria:
 
 Risks:
 
-- Starting and supervising a TypeScript/Bun sidecar from Python can be brittle. Keep explicit logs and health checks.
+- Starting and supervising the TypeScript/Node sidecar from the macOS app can be brittle. Keep explicit logs and health checks.
 - Swift model changes can cascade through screens. Keep UI changes mechanical and scoped to compiling the new v2 result structures.
 
 ## Part 10: Tests, Migration, Documentation, and Agent Handoff
@@ -1087,7 +1081,6 @@ Owner: Agent 5
 Primary write scope:
 
 - `tests/`
-- `services/memory-api/tests/`
 - `services/memory-pglite/tests/`
 - `README.md`
 - `docs/`
@@ -1229,10 +1222,9 @@ This slice should be treated as the first integration milestone.
 
 ## Open Questions
 
-- Should the PGlite service run as a separate Bun/Node process, or should the Python server supervise it as a child process?
+- Should the PGlite service run as a separate Node process, or should the macOS app supervisor keep owning it as a managed child process?
 - Should markdown promotion require user approval in the macOS UI, or should high-confidence preferences/decisions be auto-promoted?
 - Should graph relations be editable directly in markdown frontmatter, or only derived from page content and timeline evidence?
-- Should the old Python memory server stay as a launcher/supervisor, or should the PGlite service become the primary memory API process?
 - How much of the last-6-hours recent context should be exposed in UI versus only used internally for prompt enhancement?
 
 ## Recommended Defaults

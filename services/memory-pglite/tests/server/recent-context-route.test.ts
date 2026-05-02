@@ -12,6 +12,7 @@ describe("Memory PGlite recent context routes", () => {
         dataDir: join(dir, "pglite"),
         embeddingDimensions: 3,
       });
+      const occurredAt = new Date().toISOString();
 
       try {
         const insert = await handleMemoryPgliteRequest(database, {
@@ -23,7 +24,7 @@ describe("Memory PGlite recent context routes", () => {
             idempotency_key: "server-recent-context-route",
             source: "browser",
             content: "Working on AuraBot graph-aware memory search while reading docs.example.com.",
-            occurred_at: "2026-04-22T10:00:00.000Z",
+            occurred_at: occurredAt,
             ttl_seconds: 21600,
             importance: 0.5,
             metadata: {

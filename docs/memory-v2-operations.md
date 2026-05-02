@@ -9,7 +9,6 @@ Run these from the repository root unless a working directory is listed.
 | Capability | Command | Expected result |
 | --- | --- | --- |
 | Repository contract tests | `python -m unittest discover tests` | GitHub Actions and Memory v2 contract fixtures pass. |
-| Python memory API legacy tests | `cd services/memory-api && python -m unittest discover -s tests -v` | Legacy rollback surface still passes while v2 is being built. |
 | Swift macOS compile | `cd apps/macos && swift build` | AuraBot compiles with v2 memory DTOs. |
 | Swift fixture decode tests | `cd apps/macos && swift test` | Shared Memory v2 JSON fixtures decode into Swift DTOs. |
 | Memory v2 contract check | `memory-pglite contracts:check` | TypeScript DTO validators accept all shared fixtures. |
@@ -191,7 +190,7 @@ Known blockers:
 
 - Agent 1 must provide the PGlite package runner and schema check command.
 - Agents 2-4 must wire engine functions behind these endpoint contracts.
-- The old Python memory API still exists as rollback scaffolding until the PGlite service is complete.
+- The old Python memory API has been removed. PGlite is the Memory v2 runtime.
 
 Integration notes for other agents:
 

@@ -27,7 +27,6 @@ Screen Capture (every 30s) → Vision AI Analysis → Vector Storage → Memory 
 ```text
 apps/macos/             # SwiftUI macOS app
 services/memory-pglite/ # Local-first PGlite Memory v2 service
-services/memory-api/    # Legacy/optional Python memory API service
 tools/                  # Development and demo utilities
 config/                 # Example configuration
 docs/                   # Project documentation

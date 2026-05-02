@@ -130,7 +130,7 @@ Config is stored at `~/.aurabot/config.json`:
   },
   "memory": {
     "baseURL": "http://127.0.0.1:8766",
-    "apiKey": "memory-api-token"
+    "apiKey": "memory-v2-token"
   },
   "extension": {
     "apiKey": "browser-extension-token",
