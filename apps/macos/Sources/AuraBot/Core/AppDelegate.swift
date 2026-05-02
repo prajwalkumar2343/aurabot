@@ -19,11 +19,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         service.start()
 
         overlayWindow = OverlayWindow(position: service.config.app.overlayPosition)
-        overlayWindow?.onClick = { [weak self] in
-            Task { @MainActor in
-                self?.showQuickEnhance()
-            }
-        }
         overlayWindow?.showPersistent()
 
         service.$config

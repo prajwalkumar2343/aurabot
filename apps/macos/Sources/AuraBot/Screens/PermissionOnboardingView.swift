@@ -2,6 +2,7 @@ import SwiftUI
 import AppKit
 import AVFoundation
 import CoreGraphics
+@preconcurrency import ScreenCaptureKit
 
 enum AppPermissionKind: String, CaseIterable, Identifiable, Hashable, Codable, Sendable {
     case screenRecording
@@ -141,6 +142,7 @@ enum AppPermissionState: Equatable {
 @MainActor
 enum PermissionCenter {
     private static var requestedKinds = Set<AppPermissionKind>()
+    private static var screenCaptureProbeGranted = false
 
     static func allStatuses() -> [AppPermissionStatus] {
         AppPermissionKind.allCases.map(status(for:))
@@ -153,7 +155,7 @@ enum PermissionCenter {
     static func state(for kind: AppPermissionKind) -> AppPermissionState {
         switch kind {
         case .screenRecording:
-            if CGPreflightScreenCaptureAccess() {
+            if hasScreenRecordingAccess() {
                 requestedKinds.remove(kind)
                 return .granted
             }
@@ -169,12 +171,47 @@ enum PermissionCenter {
     static func isGranted(_ kind: AppPermissionKind) -> Bool {
         switch kind {
         case .screenRecording:
-            return CGPreflightScreenCaptureAccess()
+            return hasScreenRecordingAccess()
         case .accessibility:
             return SystemAccessibilityPermissionChecker().isTrusted(prompt: false)
         case .microphone:
             return AVCaptureDevice.authorizationStatus(for: .audio) == .authorized
         }
+    }
+
+    static func updateScreenRecordingProbe() async {
+        guard !CGPreflightScreenCaptureAccess() else {
+            screenCaptureProbeGranted = true
+            requestedKinds.remove(.screenRecording)
+            return
+        }
+
+        do {
+            _ = try await SCShareableContent.current
+            screenCaptureProbeGranted = true
+            requestedKinds.remove(.screenRecording)
+        } catch {
+            screenCaptureProbeGranted = false
+        }
+    }
+
+    private static func hasScreenRecordingAccess() -> Bool {
+        CGPreflightScreenCaptureAccess() || screenCaptureProbeGranted
+    }
+
+    static var appIdentityWarning: String? {
+        let bundle = Bundle.main
+        let bundleURL = bundle.bundleURL
+
+        guard bundleURL.pathExtension == "app", bundle.bundleIdentifier != nil else {
+            return "Aura is running from a development executable. Open the installed AuraBot.app so macOS grants permissions to one stable app entry."
+        }
+
+        guard bundleURL.path.hasPrefix("/Applications/") else {
+            return "Aura is running outside Applications. Move AuraBot.app to Applications and open that copy before granting permissions to avoid duplicate macOS privacy entries."
+        }
+
+        return nil
     }
 
     static func requestAccess(for kind: AppPermissionKind) {
@@ -196,7 +233,21 @@ enum PermissionCenter {
                 openSystemSettings(for: kind)
             }
         case .microphone:
-            AVCaptureDevice.requestAccess(for: .audio) { _ in }
+            switch AVCaptureDevice.authorizationStatus(for: .audio) {
+            case .notDetermined:
+                AVCaptureDevice.requestAccess(for: .audio) { granted in
+                    guard !granted else { return }
+                    Task { @MainActor in
+                        openSystemSettings(for: kind)
+                    }
+                }
+            case .denied, .restricted:
+                openSystemSettings(for: kind)
+            case .authorized:
+                requestedKinds.remove(kind)
+            @unknown default:
+                openSystemSettings(for: kind)
+            }
         }
     }
 
@@ -238,7 +289,12 @@ struct PermissionOnboardingView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            OnboardingStepHeader(selectedStep: selectedStep, completedRequiredCount: completedRequiredCount, totalRequiredCount: requiredStatuses.count)
+            OnboardingStepHeader(
+                selectedStep: selectedStep,
+                completedRequiredCount: completedRequiredCount,
+                totalRequiredCount: requiredStatuses.count,
+                onSelectStep: move(to:)
+            )
                 .padding(.horizontal, Spacing.xxxxl)
                 .padding(.top, Spacing.xxxxl)
 
@@ -378,24 +434,30 @@ private struct OnboardingStepHeader: View {
     let selectedStep: OnboardingStep
     let completedRequiredCount: Int
     let totalRequiredCount: Int
+    let onSelectStep: (OnboardingStep) -> Void
 
     var body: some View {
         HStack(spacing: Spacing.lg) {
             ForEach(OnboardingStep.allCases) { step in
-                HStack(spacing: Spacing.sm) {
-                    Text("\(step.number)")
-                        .font(Typography.caption.weight(.bold))
-                        .foregroundColor(step.rawValue <= selectedStep.rawValue ? Colors.textInverse : Colors.textSecondary)
-                        .frame(width: 24, height: 24)
-                        .background(
-                            Circle()
-                                .fill(step.rawValue <= selectedStep.rawValue ? Colors.primary : Colors.surfaceTertiary)
-                        )
+                Button {
+                    onSelectStep(step)
+                } label: {
+                    HStack(spacing: Spacing.sm) {
+                        Text("\(step.number)")
+                            .font(Typography.caption.weight(.bold))
+                            .foregroundColor(step.rawValue <= selectedStep.rawValue ? Colors.textInverse : Colors.textSecondary)
+                            .frame(width: 24, height: 24)
+                            .background(
+                                Circle()
+                                    .fill(step.rawValue <= selectedStep.rawValue ? Colors.primary : Colors.surfaceTertiary)
+                            )
 
-                    Text(step.title)
-                        .font(Typography.subheadline.weight(step == selectedStep ? .semibold : .regular))
-                        .foregroundColor(step == selectedStep ? Colors.textPrimary : Colors.textSecondary)
+                        Text(step.title)
+                            .font(Typography.subheadline.weight(step == selectedStep ? .semibold : .regular))
+                            .foregroundColor(step == selectedStep ? Colors.textPrimary : Colors.textSecondary)
+                    }
                 }
+                .buttonStyle(.plain)
 
                 if step != OnboardingStep.allCases.last {
                     Rectangle()
@@ -438,7 +500,7 @@ private struct OnboardingWelcomeScreen: View {
                             .foregroundColor(Colors.textPrimary)
                             .fixedSize(horizontal: false, vertical: true)
 
-                        Text("Aura needs a small set of macOS permissions before it can understand your workspace. The next screen updates automatically as each permission is granted.")
+                        Text("Aura needs a small set of macOS permissions before it can understand your workspace. The next screen checks status as you return from System Settings and shows when a restart is needed.")
                             .font(Typography.body)
                             .foregroundColor(Colors.textSecondary)
                             .frame(maxWidth: 560, alignment: .leading)
@@ -475,6 +537,14 @@ private struct OnboardingPermissionsScreen: View {
         completedRequiredCount == totalRequiredCount
     }
 
+    private var requiredStatuses: [AppPermissionStatus] {
+        statuses.filter { $0.kind.isRequired }
+    }
+
+    private var optionalStatuses: [AppPermissionStatus] {
+        statuses.filter { !$0.kind.isRequired }
+    }
+
     var body: some View {
         OnboardingScreenContainer {
             HStack(alignment: .top, spacing: Spacing.xxxl) {
@@ -492,10 +562,23 @@ private struct OnboardingPermissionsScreen: View {
                     }
 
                     GlassCard(padding: Spacing.xl, cornerRadius: Radius.xl, shadow: Shadows.md, showBorder: true) {
-                        VStack(spacing: Spacing.md) {
-                            ForEach(statuses) { status in
+                        VStack(alignment: .leading, spacing: Spacing.md) {
+                            ForEach(requiredStatuses) { status in
                                 PermissionChecklistRow(status: status) {
                                     onRequest(status.kind)
+                                }
+                            }
+
+                            if !optionalStatuses.isEmpty {
+                                Text("Optional")
+                                    .font(Typography.caption.weight(.semibold))
+                                    .foregroundColor(Colors.textSecondary)
+                                    .padding(.top, Spacing.xs)
+
+                                ForEach(optionalStatuses) { status in
+                                    PermissionChecklistRow(status: status) {
+                                        onRequest(status.kind)
+                                    }
                                 }
                             }
                         }
@@ -780,6 +863,10 @@ struct PermissionProgressCard: View {
     let totalCount: Int
     let progressValue: Double
 
+    private var visibleProgressValue: Double {
+        max(0.02, progressValue)
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: Spacing.lg) {
             ZStack {
@@ -787,7 +874,7 @@ struct PermissionProgressCard: View {
                     .stroke(Colors.border, lineWidth: 14)
 
                 Circle()
-                    .trim(from: 0, to: max(0.02, progressValue))
+                    .trim(from: 0, to: visibleProgressValue)
                     .stroke(
                         AngularGradient(
                             colors: [Colors.primary, Colors.secondary, Colors.primary],

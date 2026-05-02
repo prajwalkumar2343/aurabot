@@ -5,9 +5,7 @@
 BINARY_NAME=AuraBot
 BUILD_DIR=build
 SWIFT_DIR=apps/macos
-PYTHON_DIR=services/memory-api
 PYTHON ?= python3
-PIP ?= pip3
 
 # ========== Swift/macOS Commands ==========
 
@@ -34,24 +32,6 @@ clean-swift:
 	rm -rf $(SWIFT_DIR)/AuraBot.app
 	rm -f $(SWIFT_DIR)/AuraBot-*.zip
 
-# ========== Python Commands ==========
-
-# Install Python dependencies
-deps-py:
-	$(PIP) install -r $(PYTHON_DIR)/requirements.txt
-
-# Run Python tests
-test-py:
-	cd $(PYTHON_DIR) && $(PYTHON) -m unittest discover -s tests -v
-
-# Run Python memory server
-run-server:
-	python start.py
-
-# Run local model server
-run-local:
-	cd $(PYTHON_DIR)/src && $(PYTHON) local_server.py
-
 # ========== General Commands ==========
 
 # Clean all build artifacts
@@ -59,7 +39,10 @@ clean: clean-swift
 	rm -rf $(BUILD_DIR)
 
 # Run all tests
-test: test-py
+test:
+	$(PYTHON) -m unittest discover tests
+	cd services/memory-pglite && npm test
 
 # Install all dependencies
-deps-all: deps deps-py
+deps-all: deps
+	cd services/memory-pglite && npm install

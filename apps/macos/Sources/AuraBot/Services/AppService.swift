@@ -178,16 +178,27 @@ class AppService: ObservableObject {
     var permissionGuidanceMessage: String? {
         guard !requiredPermissionsGranted else { return nil }
 
-        if requiredPermissionStatuses.contains(where: { $0.kind == .screenRecording && $0.state == .pendingRestart }) {
-            return "Screen Recording was requested. After enabling it in System Settings, restart Aura, then click Refresh Status."
+        if let identityWarning = PermissionCenter.appIdentityWarning {
+            return identityWarning
         }
 
-        return "Grant Screen Recording and Accessibility to enable capture."
+        if requiredPermissionStatuses.contains(where: { $0.kind == .screenRecording && $0.state == .pendingRestart }) {
+            return "Screen Recording was requested. After enabling it in System Settings, restart Aura from this row, then refresh status if needed."
+        }
+
+        return "Grant Screen Recording and Accessibility to enable capture. Aura refreshes status when you return from System Settings."
     }
 
     func refreshPermissionStatuses() {
         permissionStatuses = PermissionCenter.allStatuses()
         capturePermissionMessage = permissionGuidanceMessage
+
+        Task { [weak self] in
+            await PermissionCenter.updateScreenRecordingProbe()
+            guard let self else { return }
+            self.permissionStatuses = PermissionCenter.allStatuses()
+            self.capturePermissionMessage = self.permissionGuidanceMessage
+        }
     }
 
     func openSystemSettings(for kind: AppPermissionKind) {
@@ -195,6 +206,11 @@ class AppService: ObservableObject {
     }
 
     func requestPermission(_ kind: AppPermissionKind) {
+        if kind == .screenRecording, PermissionCenter.state(for: kind) == .pendingRestart {
+            relaunchHost()
+            return
+        }
+
         PermissionCenter.requestAccess(for: kind)
         refreshPermissionStatuses()
         schedulePermissionStatusRefreshes()

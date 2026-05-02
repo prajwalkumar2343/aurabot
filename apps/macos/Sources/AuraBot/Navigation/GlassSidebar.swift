@@ -20,29 +20,30 @@ struct SidebarView: View {
                     title: "Dashboard",
                     icon: "square.grid.2x2",
                     tab: .dashboard,
-                    selectedTab: $selectedTab
+                    selectedTab: $selectedTab,
+                    isDisabled: service.needsOnboarding
                 )
                 
                 NavButton(
                     title: "Memories",
                     icon: "bubble.left.and.bubble.right",
                     tab: .memories,
-                    selectedTab: $selectedTab
+                    selectedTab: $selectedTab,
+                    isDisabled: service.needsOnboarding
                 )
 
                 NavButton(
                     title: "Settings",
                     icon: "gear",
                     tab: .settings,
-                    selectedTab: $selectedTab
+                    selectedTab: $selectedTab,
+                    isDisabled: false
                 )
             }
             .padding(.horizontal, Spacing.sm)
             
             Spacer()
 
-            UserProfileSection()
-                .padding(Spacing.lg)
         }
         .frame(width: 260)
         .background(Colors.surface)
@@ -88,6 +89,7 @@ struct NavButton: View {
     let icon: String
     let tab: SidebarTab
     @Binding var selectedTab: SidebarTab
+    var isDisabled = false
     
     @State private var isHovered = false
     
@@ -97,6 +99,7 @@ struct NavButton: View {
     
     var body: some View {
         Button(action: {
+            guard !isDisabled else { return }
             withAnimation(.easeOut(duration: 0.2)) {
                 selectedTab = tab
             }
@@ -128,50 +131,10 @@ struct NavButton: View {
             )
         }
         .buttonStyle(.plain)
+        .disabled(isDisabled)
+        .opacity(isDisabled && !isSelected ? 0.45 : 1)
         .animation(.easeOut(duration: 0.15), value: isHovered)
         .animation(.easeOut(duration: 0.2), value: isSelected)
-        .onHover { hovering in
-            isHovered = hovering
-        }
-    }
-}
-
-@available(macOS 14.0, *)
-struct UserProfileSection: View {
-    @State private var isHovered = false
-    
-    var body: some View {
-        HStack(spacing: Spacing.md) {
-            Text("JD")
-                .font(.system(size: 12, weight: .semibold))
-                .foregroundColor(Colors.primary)
-                .frame(width: 32, height: 32)
-                .background(Colors.primaryMuted)
-                .cornerRadius(Radius.md)
-            
-            VStack(alignment: .leading, spacing: 2) {
-                Text("John Doe")
-                    .font(Typography.callout)
-                    .fontWeight(.semibold)
-                    .foregroundColor(Colors.textPrimary)
-                
-                Text("Pro Plan")
-                    .font(Typography.caption2)
-                    .foregroundColor(Colors.primary)
-            }
-            
-            Spacer()
-            
-            Image(systemName: "chevron.up.chevron.down")
-                .font(.system(size: 10, weight: .medium))
-                .foregroundColor(Colors.textTertiary)
-        }
-        .padding(Spacing.sm)
-        .background(
-            RoundedRectangle(cornerRadius: Radius.md)
-                .fill(isHovered ? Colors.surfaceTertiary : Color.clear)
-        )
-        .animation(.easeOut(duration: 0.15), value: isHovered)
         .onHover { hovering in
             isHovered = hovering
         }

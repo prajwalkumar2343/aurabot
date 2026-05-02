@@ -38,17 +38,13 @@ class GitHubActionsContractTests(unittest.TestCase):
         self.assertIn("fetch-depth: 0", self.workflow)
         self.assertIn("GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}", self.workflow)
 
-    def test_python_ci_runs_memory_api_and_skill_contract_suites(self):
-        self.assertIn(
-            "python -m unittest discover services/memory-api/tests",
-            self.workflow,
-        )
+    def test_python_ci_runs_skill_contract_suite(self):
         self.assertIn(
             "python -m unittest discover apps/macos/Tests/ComputerUseSkillTests",
             self.workflow,
         )
         self.assertIn(
-            "python -m compileall -q services/memory-api/src tools start.py",
+            "python -m compileall -q tools",
             self.workflow,
         )
 
