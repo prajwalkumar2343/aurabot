@@ -526,6 +526,14 @@ private struct OnboardingPermissionsScreen: View {
         completedRequiredCount == totalRequiredCount
     }
 
+    private var requiredStatuses: [AppPermissionStatus] {
+        statuses.filter { $0.kind.isRequired }
+    }
+
+    private var optionalStatuses: [AppPermissionStatus] {
+        statuses.filter { !$0.kind.isRequired }
+    }
+
     var body: some View {
         OnboardingScreenContainer {
             HStack(alignment: .top, spacing: Spacing.xxxl) {
@@ -543,10 +551,23 @@ private struct OnboardingPermissionsScreen: View {
                     }
 
                     GlassCard(padding: Spacing.xl, cornerRadius: Radius.xl, shadow: Shadows.md, showBorder: true) {
-                        VStack(spacing: Spacing.md) {
-                            ForEach(statuses) { status in
+                        VStack(alignment: .leading, spacing: Spacing.md) {
+                            ForEach(requiredStatuses) { status in
                                 PermissionChecklistRow(status: status) {
                                     onRequest(status.kind)
+                                }
+                            }
+
+                            if !optionalStatuses.isEmpty {
+                                Text("Optional")
+                                    .font(Typography.caption.weight(.semibold))
+                                    .foregroundColor(Colors.textSecondary)
+                                    .padding(.top, Spacing.xs)
+
+                                ForEach(optionalStatuses) { status in
+                                    PermissionChecklistRow(status: status) {
+                                        onRequest(status.kind)
+                                    }
                                 }
                             }
                         }
