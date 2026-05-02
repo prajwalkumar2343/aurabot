@@ -188,6 +188,13 @@ class AppService: ObservableObject {
     func refreshPermissionStatuses() {
         permissionStatuses = PermissionCenter.allStatuses()
         capturePermissionMessage = permissionGuidanceMessage
+
+        Task { [weak self] in
+            await PermissionCenter.updateScreenRecordingProbe()
+            guard let self else { return }
+            self.permissionStatuses = PermissionCenter.allStatuses()
+            self.capturePermissionMessage = self.permissionGuidanceMessage
+        }
     }
 
     func openSystemSettings(for kind: AppPermissionKind) {

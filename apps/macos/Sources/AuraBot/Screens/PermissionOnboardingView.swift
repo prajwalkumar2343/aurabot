@@ -2,6 +2,7 @@ import SwiftUI
 import AppKit
 import AVFoundation
 import CoreGraphics
+@preconcurrency import ScreenCaptureKit
 
 enum AppPermissionKind: String, CaseIterable, Identifiable, Hashable, Codable, Sendable {
     case screenRecording
@@ -141,6 +142,7 @@ enum AppPermissionState: Equatable {
 @MainActor
 enum PermissionCenter {
     private static var requestedKinds = Set<AppPermissionKind>()
+    private static var screenCaptureProbeGranted = false
 
     static func allStatuses() -> [AppPermissionStatus] {
         AppPermissionKind.allCases.map(status(for:))
@@ -153,7 +155,7 @@ enum PermissionCenter {
     static func state(for kind: AppPermissionKind) -> AppPermissionState {
         switch kind {
         case .screenRecording:
-            if CGPreflightScreenCaptureAccess() {
+            if hasScreenRecordingAccess() {
                 requestedKinds.remove(kind)
                 return .granted
             }
@@ -169,12 +171,32 @@ enum PermissionCenter {
     static func isGranted(_ kind: AppPermissionKind) -> Bool {
         switch kind {
         case .screenRecording:
-            return CGPreflightScreenCaptureAccess()
+            return hasScreenRecordingAccess()
         case .accessibility:
             return SystemAccessibilityPermissionChecker().isTrusted(prompt: false)
         case .microphone:
             return AVCaptureDevice.authorizationStatus(for: .audio) == .authorized
         }
+    }
+
+    static func updateScreenRecordingProbe() async {
+        guard !CGPreflightScreenCaptureAccess() else {
+            screenCaptureProbeGranted = true
+            requestedKinds.remove(.screenRecording)
+            return
+        }
+
+        do {
+            _ = try await SCShareableContent.current
+            screenCaptureProbeGranted = true
+            requestedKinds.remove(.screenRecording)
+        } catch {
+            screenCaptureProbeGranted = false
+        }
+    }
+
+    private static func hasScreenRecordingAccess() -> Bool {
+        CGPreflightScreenCaptureAccess() || screenCaptureProbeGranted
     }
 
     static func requestAccess(for kind: AppPermissionKind) {
