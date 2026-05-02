@@ -206,6 +206,11 @@ class AppService: ObservableObject {
     }
 
     func requestPermission(_ kind: AppPermissionKind) {
+        if kind == .screenRecording, PermissionCenter.state(for: kind) == .pendingRestart {
+            relaunchHost()
+            return
+        }
+
         PermissionCenter.requestAccess(for: kind)
         refreshPermissionStatuses()
         schedulePermissionStatusRefreshes()
