@@ -21,6 +21,7 @@ Screen Capture (every 30s) → Vision AI Analysis → Vector Storage → Memory 
 - **macOS App**: `apps/macos` handles screen capture, user interaction, and starts the managed local memory backend
 - **PGlite Memory Backend**: `services/memory-pglite` provides Memory v2 storage, search, graph extraction, and markdown brain indexing
 - **LLM Integration**: OpenRouter for vision and chat capabilities
+- **Computer Use Engine**: AuraBot bundles a reviewed Cua Driver runtime and manages it behind the scenes as part of AuraBot
 
 ### Repository Layout
 
@@ -62,6 +63,7 @@ cd apps/macos && swift run AuraBot
 
 The app starts the PGlite memory backend automatically on `127.0.0.1:8766`.
 Packaged builds include the memory service in the `.app` bundle, so users do not need to run a separate server.
+Packaged builds also include AuraBot Computer Use, powered internally by Cua Driver. AuraBot installs, starts, repairs, and updates that engine from Settings so users only interact with AuraBot.
 
 ## Usage
 

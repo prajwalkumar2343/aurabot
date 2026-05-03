@@ -11,6 +11,7 @@ A complete Swift/macOS rewrite of the AuraBot screen memory assistant.
 - ✅ **Floating Overlay** - System-wide floating button
 - ✅ **SwiftUI Interface** - Native macOS app
 - ✅ **HTTP API** - Browser extension support
+- ✅ **Computer Use** - Bundled AuraBot computer-use engine for app/window automation
 
 ## Requirements
 
@@ -102,6 +103,7 @@ Sources/AuraBot/
 - **KeyboardShortcuts** - Global hotkey handling
 - **ScreenCaptureKit** - Native screen capture (built-in)
 - **Memory PGlite** - Managed local Memory v2 backend for storage, search, graph extraction, and markdown brain indexing
+- **AuraBot Computer Use** - Bundled Cua Driver runtime managed invisibly by AuraBot
 
 ## Configuration
 
@@ -146,6 +148,8 @@ Config is stored at `~/.aurabot/config.json`:
 ```
 
 AuraBot starts the local PGlite memory backend automatically. In packaged builds, `scripts/build-app.sh` bundles the built `services/memory-pglite` service into the app resources so users can launch AuraBot like a normal macOS app.
+
+AuraBot also bundles its computer-use engine into the app resources. On first launch, AuraBot copies the reviewed helper into Application Support and manages launch, repair, permissions, and updates from Settings under the single “Computer Use” surface.
 
 ### Browser Extension Context API
 
