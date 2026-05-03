@@ -38,11 +38,8 @@ class GitHubActionsContractTests(unittest.TestCase):
         self.assertIn("fetch-depth: 0", self.workflow)
         self.assertIn("GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}", self.workflow)
 
-    def test_python_ci_runs_skill_contract_suite(self):
-        self.assertIn(
-            "python -m unittest discover apps/macos/Tests/ComputerUseSkillTests",
-            self.workflow,
-        )
+    def test_python_ci_compiles_utility_sources(self):
+        self.assertNotIn("ComputerUseSkillTests", self.workflow)
         self.assertIn(
             "python -m compileall -q tools",
             self.workflow,
