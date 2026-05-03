@@ -1,0 +1,21 @@
+{
+  "name": "AuraBot Computer Use",
+  "upstream": "trycua/cua cua-driver",
+  "version": "0.1.2",
+  "tag": "cua-driver-v0.1.2",
+  "bundleIdentifier": "com.trycua.driver",
+  "minimumMacOS": "14.0",
+  "license": "MIT",
+  "sourceURL": "https://github.com/trycua/cua",
+  "releaseURL": "https://github.com/trycua/cua/releases/tag/cua-driver-v0.1.2",
+  "artifacts": [
+    {
+      "platform": "darwin",
+      "architecture": "arm64",
+      "archivePath": "0.1.2/darwin-arm64/cua-driver-0.1.2-darwin-arm64.tar.gz",
+      "appPath": "0.1.2/darwin-arm64/CuaDriver.app",
+      "sha256": "bbe83a79f15d3da11b5de94cda414b70727b621b2d5319e6e2fa1a1137157654",
+      "downloadURL": "https://github.com/trycua/cua/releases/download/cua-driver-v0.1.2/cua-driver-0.1.2-darwin-arm64.tar.gz"
+    }
+  ]
+}
