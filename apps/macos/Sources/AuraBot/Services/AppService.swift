@@ -22,6 +22,7 @@ class AppService: ObservableObject {
     @Published private(set) var installedPlugins: [InstalledPluginRecord] = []
     @Published private(set) var pluginCatalogStatus: PluginCatalogStatus = .idle
     @Published private(set) var activePlugin: InstalledPluginRecord?
+    @Published private(set) var computerUseStatus: CuaDriverStatus = .disabled
     
     @Published private(set) var config: AppConfig
     private let pluginHost = PluginHost()
@@ -30,6 +31,7 @@ class AppService: ObservableObject {
     private var memoryBackendSupervisor: MemoryBackendSupervisor
     private var browserContextService: BrowserContextService
     private var contextRouter: ContextRouter
+    private var computerUseService: CuaDriverService
     private var browserExtensionServer: BrowserExtensionServer?
     private var captureService: ScreenCaptureService?
     private let pluginInstaller = PluginInstaller()
@@ -43,6 +45,7 @@ class AppService: ObservableObject {
         self.memoryService = MemoryService(config: config.memory)
         self.memoryBackendSupervisor = MemoryBackendSupervisor(config: config.memory)
         self.browserContextService = BrowserContextService(config: config.browserExtension)
+        self.computerUseService = CuaDriverService(config: config.computerUse)
         self.contextRouter = ContextRouter(
             captureConfig: config.capture,
             browserContextService: browserContextService,
@@ -58,6 +61,15 @@ class AppService: ObservableObject {
         )
 
         refreshPermissionStatuses()
+        computerUseStatus = CuaDriverStatus(
+            state: config.computerUse.enabled ? .installed : .disabled,
+            installedVersion: config.computerUse.installedVersion.isEmpty ? nil : config.computerUse.installedVersion,
+            bundledVersion: nil,
+            updateVersion: nil,
+            daemonRunning: false,
+            permissions: CuaDriverPermissionStatus(accessibility: false, screenRecording: false),
+            message: config.computerUse.enabled ? "Computer Use is ready to install." : "Computer Use is disabled."
+        )
         installedPlugins = pluginInstaller.installedPlugins
     }
     
@@ -67,6 +79,13 @@ class AppService: ObservableObject {
         captureInterval = config.capture.intervalSeconds
         refreshPermissionStatuses()
         browserExtensionServer?.start()
+        Task {
+            await refreshComputerUseStatus()
+            if config.computerUse.enabled {
+                computerUseStatus = await computerUseService.installIfNeeded()
+                await persistComputerUseInstalledVersionIfNeeded()
+            }
+        }
         Task {
             await refreshPluginCatalog()
             await restoreActivePluginIfNeeded()
@@ -107,6 +126,7 @@ class AppService: ObservableObject {
         status = .stopped
         stopContextProcessing()
         browserExtensionServer?.stop()
+        _ = await computerUseService.stopDaemon()
         await memoryBackendSupervisor.stop()
         await captureService?.stop()
     }
@@ -161,6 +181,66 @@ class AppService: ObservableObject {
         if wasRunning {
             start()
         }
+    }
+
+    func enableComputerUse() async {
+        var updatedConfig = config
+        updatedConfig.computerUse.enabled = true
+
+        do {
+            try updatedConfig.save(to: AppConfig.defaultURL.path)
+            await applyConfiguration(updatedConfig)
+            computerUseStatus = await computerUseService.installIfNeeded()
+            await persistComputerUseInstalledVersionIfNeeded()
+        } catch {
+            computerUseStatus = computerUseFailureStatus(error)
+        }
+    }
+
+    func repairComputerUse() async {
+        computerUseStatus = await computerUseService.repair()
+        await persistComputerUseInstalledVersionIfNeeded()
+    }
+
+    func startComputerUse() async {
+        computerUseStatus = CuaDriverStatus(
+            state: .starting,
+            installedVersion: computerUseStatus.installedVersion,
+            bundledVersion: computerUseStatus.bundledVersion,
+            updateVersion: computerUseStatus.updateVersion,
+            daemonRunning: false,
+            permissions: computerUseStatus.permissions,
+            message: "Starting Computer Use."
+        )
+        _ = await computerUseService.startDaemon()
+        computerUseStatus = await computerUseService.refreshStatus()
+    }
+
+    func stopComputerUse() async {
+        _ = await computerUseService.stopDaemon()
+        computerUseStatus = await computerUseService.refreshStatus()
+    }
+
+    func refreshComputerUseStatus() async {
+        computerUseStatus = await computerUseService.refreshStatus()
+    }
+
+    func requestComputerUsePermissions() async {
+        _ = await computerUseService.checkPermissions(prompt: true)
+        computerUseStatus = await computerUseService.refreshStatus()
+    }
+
+    func runComputerUseSmokeTest() async {
+        computerUseStatus = await computerUseService.runSafeSmokeTest()
+    }
+
+    func checkComputerUseUpdates() async {
+        computerUseStatus = await computerUseService.checkForUpdates()
+    }
+
+    func installComputerUseUpdate() async {
+        computerUseStatus = await computerUseService.installUpdate()
+        await persistComputerUseInstalledVersionIfNeeded()
     }
 
     var requiredPermissionStatuses: [AppPermissionStatus] {
@@ -372,6 +452,7 @@ class AppService: ObservableObject {
         memoryService = MemoryService(config: newConfig.memory)
         memoryBackendSupervisor = MemoryBackendSupervisor(config: newConfig.memory)
         browserContextService = BrowserContextService(config: newConfig.browserExtension)
+        computerUseService = CuaDriverService(config: newConfig.computerUse)
         contextRouter = ContextRouter(
             captureConfig: newConfig.capture,
             browserContextService: browserContextService,
@@ -387,6 +468,35 @@ class AppService: ObservableObject {
         captureEnabled = newConfig.capture.enabled
         captureInterval = newConfig.capture.intervalSeconds
         await applyActivePluginPolicies()
+    }
+
+    private func persistComputerUseInstalledVersionIfNeeded() async {
+        guard let version = computerUseStatus.installedVersion,
+              config.computerUse.installedVersion != version else {
+            return
+        }
+
+        var updatedConfig = config
+        updatedConfig.computerUse.installedVersion = version
+
+        do {
+            try updatedConfig.save(to: AppConfig.defaultURL.path)
+            config = updatedConfig
+        } catch {
+            print("Failed to persist Computer Use version: \(error)")
+        }
+    }
+
+    private func computerUseFailureStatus(_ error: Error) -> CuaDriverStatus {
+        CuaDriverStatus(
+            state: .failed,
+            installedVersion: computerUseStatus.installedVersion,
+            bundledVersion: computerUseStatus.bundledVersion,
+            updateVersion: nil,
+            daemonRunning: false,
+            permissions: computerUseStatus.permissions,
+            message: (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+        )
     }
 
     private func applyActivePluginPolicies() async {
