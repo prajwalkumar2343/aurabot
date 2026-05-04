@@ -14,6 +14,8 @@ let package = Package(
         .package(url: "https://github.com/vapor/vapor.git", from: "4.89.0"),
         .package(url: "https://github.com/Alamofire/Alamofire.git", from: "5.8.0"),
         .package(url: "https://github.com/sindresorhus/KeyboardShortcuts.git", exact: "1.10.0"),
+        .package(url: "https://github.com/trycua/cua.git", revision: "91724df9d790a5ea4d8fd033bd6503b8490e742f"),
+        .package(url: "https://github.com/modelcontextprotocol/swift-sdk.git", from: "0.9.0"),
     ],
     targets: [
         .executableTarget(
@@ -22,6 +24,9 @@ let package = Package(
                 .product(name: "Vapor", package: "vapor"),
                 .product(name: "Alamofire", package: "Alamofire"),
                 .product(name: "KeyboardShortcuts", package: "KeyboardShortcuts"),
+                .product(name: "CuaDriverCore", package: "cua"),
+                .product(name: "CuaDriverServer", package: "cua"),
+                .product(name: "MCP", package: "swift-sdk"),
             ],
             resources: [
                 .copy("Resources/BrowserExtension/chromium")
