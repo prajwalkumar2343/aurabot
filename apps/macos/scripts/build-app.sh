@@ -105,7 +105,8 @@ for NODE_LIB_CANDIDATE in \
     "$(dirname "$(dirname "${NODE_BIN}")")/lib"/libnode*.dylib
 do
     if [ -f "${NODE_LIB_CANDIDATE}" ]; then
-        cp "${NODE_LIB_CANDIDATE}" "${MEMORY_BUNDLE_DIR}/node/lib/"
+        rm -f "${MEMORY_BUNDLE_DIR}/node/lib/$(basename "${NODE_LIB_CANDIDATE}")"
+        cp -f "${NODE_LIB_CANDIDATE}" "${MEMORY_BUNDLE_DIR}/node/lib/"
     fi
 done
 
@@ -141,9 +142,16 @@ EOF
 
 echo "APPL????" > "${APP_BUNDLE}/Contents/PkgInfo"
 
-# Ad-hoc sign the app for local distribution.
+# Ad-hoc sign the app for local distribution. The explicit designated
+# requirement keeps the app's local TCC identity stable across rebuilds.
 echo -e "${YELLOW}🔏 Signing app bundle...${NC}"
-codesign --force --deep --sign - --entitlements AuraBot.entitlements "${APP_BUNDLE}"
+codesign \
+    --force \
+    --deep \
+    --sign - \
+    --requirements "=designated => identifier \"${BUNDLE_ID}\"" \
+    --entitlements AuraBot.entitlements \
+    "${APP_BUNDLE}"
 
 # Zip it
 echo -e "${YELLOW}📦 Creating zip...${NC}"
