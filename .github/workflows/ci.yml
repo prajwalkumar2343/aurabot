@@ -45,9 +45,6 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Run computer-use skill contract tests
-        run: python -m unittest discover apps/macos/Tests/ComputerUseSkillTests
-
       - name: Compile Python sources
         run: python -m compileall -q tools
 

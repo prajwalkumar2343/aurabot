@@ -22,6 +22,7 @@ class AppService: ObservableObject {
     @Published private(set) var installedPlugins: [InstalledPluginRecord] = []
     @Published private(set) var pluginCatalogStatus: PluginCatalogStatus = .idle
     @Published private(set) var activePlugin: InstalledPluginRecord?
+    @Published private(set) var computerUseStatus: ComputerUseStatus = .disabled
     
     @Published private(set) var config: AppConfig
     private let pluginHost = PluginHost()
@@ -30,6 +31,7 @@ class AppService: ObservableObject {
     private var memoryBackendSupervisor: MemoryBackendSupervisor
     private var browserContextService: BrowserContextService
     private var contextRouter: ContextRouter
+    private var computerUseService: ComputerUseService
     private var browserExtensionServer: BrowserExtensionServer?
     private var captureService: ScreenCaptureService?
     private let pluginInstaller = PluginInstaller()
@@ -43,6 +45,7 @@ class AppService: ObservableObject {
         self.memoryService = MemoryService(config: config.memory)
         self.memoryBackendSupervisor = MemoryBackendSupervisor(config: config.memory)
         self.browserContextService = BrowserContextService(config: config.browserExtension)
+        self.computerUseService = ComputerUseService(config: config.computerUse)
         self.contextRouter = ContextRouter(
             captureConfig: config.capture,
             browserContextService: browserContextService,
@@ -58,6 +61,11 @@ class AppService: ObservableObject {
         )
 
         refreshPermissionStatuses()
+        computerUseStatus = ComputerUseStatus(
+            state: config.computerUse.enabled ? .starting : .disabled,
+            permissions: ComputerUsePermissionStatus(accessibility: false, screenRecording: false),
+            message: config.computerUse.enabled ? "Checking Computer Use." : "Computer Use is disabled."
+        )
         installedPlugins = pluginInstaller.installedPlugins
     }
     
@@ -67,6 +75,9 @@ class AppService: ObservableObject {
         captureInterval = config.capture.intervalSeconds
         refreshPermissionStatuses()
         browserExtensionServer?.start()
+        Task {
+            await refreshComputerUseStatus()
+        }
         Task {
             await refreshPluginCatalog()
             await restoreActivePluginIfNeeded()
@@ -161,6 +172,37 @@ class AppService: ObservableObject {
         if wasRunning {
             start()
         }
+    }
+
+    func enableComputerUse() async {
+        var updatedConfig = config
+        updatedConfig.computerUse.enabled = true
+
+        do {
+            try updatedConfig.save(to: AppConfig.defaultURL.path)
+            await applyConfiguration(updatedConfig)
+            computerUseStatus = await computerUseService.refreshStatus()
+        } catch {
+            computerUseStatus = computerUseFailureStatus(error)
+        }
+    }
+
+    func refreshComputerUseStatus() async {
+        computerUseStatus = await computerUseService.refreshStatus()
+    }
+
+    func requestComputerUsePermissions() async {
+        do {
+            _ = try await computerUseService.checkPermissions(prompt: true)
+        } catch {
+            computerUseStatus = computerUseFailureStatus(error)
+            return
+        }
+        computerUseStatus = await computerUseService.refreshStatus()
+    }
+
+    func runComputerUseSmokeTest() async {
+        computerUseStatus = await computerUseService.runSafeSmokeTest()
     }
 
     var requiredPermissionStatuses: [AppPermissionStatus] {
@@ -372,6 +414,7 @@ class AppService: ObservableObject {
         memoryService = MemoryService(config: newConfig.memory)
         memoryBackendSupervisor = MemoryBackendSupervisor(config: newConfig.memory)
         browserContextService = BrowserContextService(config: newConfig.browserExtension)
+        computerUseService = ComputerUseService(config: newConfig.computerUse)
         contextRouter = ContextRouter(
             captureConfig: newConfig.capture,
             browserContextService: browserContextService,
@@ -387,6 +430,14 @@ class AppService: ObservableObject {
         captureEnabled = newConfig.capture.enabled
         captureInterval = newConfig.capture.intervalSeconds
         await applyActivePluginPolicies()
+    }
+
+    private func computerUseFailureStatus(_ error: Error) -> ComputerUseStatus {
+        ComputerUseStatus(
+            state: .failed,
+            permissions: computerUseStatus.permissions,
+            message: (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+        )
     }
 
     private func applyActivePluginPolicies() async {

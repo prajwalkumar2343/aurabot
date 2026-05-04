@@ -16,7 +16,12 @@ APP_NAME="AuraBot"
 VERSION="1.0.0"
 BUNDLE_ID="com.yourname.aurabot"
 APP_BUNDLE="${APP_NAME}.app"
+DMG_NAME="${APP_NAME}-${VERSION}.dmg"
+RW_DMG_NAME="${APP_NAME}-${VERSION}-temp.dmg"
 MEMORY_SERVICE_DIR="../../services/memory-pglite"
+STAGING_DIR="$(mktemp -d /tmp/aurabot-dmg.XXXXXX)"
+DMG_DEVICE=""
+DMG_MOUNT_POINT=""
 
 # Check directory
 if [ ! -f "Package.swift" ]; then
@@ -41,8 +46,16 @@ fi
 
 # Clean
 echo -e "${YELLOW}🧹 Cleaning...${NC}"
-rm -rf "${APP_BUNDLE}" "${APP_NAME}-${VERSION}.zip"
+rm -rf "${APP_BUNDLE}" "${APP_NAME}-${VERSION}.zip" "${DMG_NAME}" "${RW_DMG_NAME}"
 swift package clean
+
+cleanup() {
+    if [ -n "${DMG_DEVICE}" ]; then
+        hdiutil detach "${DMG_DEVICE}" >/dev/null 2>&1 || true
+    fi
+    rm -rf "${STAGING_DIR}"
+}
+trap cleanup EXIT
 
 # Build memory backend
 echo -e "${YELLOW}🧠 Building memory backend...${NC}"
@@ -102,9 +115,66 @@ EOF
 
 echo "APPL????" > "${APP_BUNDLE}/Contents/PkgInfo"
 
+# Ad-hoc sign the app for local distribution.
+echo -e "${YELLOW}🔏 Signing app bundle...${NC}"
+codesign --force --deep --sign - --entitlements AuraBot.entitlements "${APP_BUNDLE}"
+
 # Zip it
 echo -e "${YELLOW}📦 Creating zip...${NC}"
 zip -qr "${APP_NAME}-${VERSION}.zip" "${APP_BUNDLE}"
+
+# DMG staging
+echo -e "${YELLOW}💿 Creating DMG...${NC}"
+cp -R "${APP_BUNDLE}" "${STAGING_DIR}/"
+ln -s /Applications "${STAGING_DIR}/Applications"
+
+hdiutil create \
+  -srcfolder "${STAGING_DIR}" \
+  -volname "${APP_NAME}" \
+  -fs HFS+ \
+  -fsargs "-c c=64,a=16,e=16" \
+  -format UDRW \
+  "${RW_DMG_NAME}"
+
+MOUNT_OUTPUT=$(hdiutil attach -readwrite -noverify -noautoopen "${RW_DMG_NAME}")
+DMG_DEVICE=$(echo "${MOUNT_OUTPUT}" | awk '$2 == "Apple_HFS" { print $1; exit }')
+DMG_MOUNT_POINT=$(echo "${MOUNT_OUTPUT}" | awk '$2 == "Apple_HFS" { $1 = ""; $2 = ""; sub(/^[ \t]+/, ""); print; exit }')
+
+if [ -z "${DMG_DEVICE}" ] || [ -z "${DMG_MOUNT_POINT}" ]; then
+    echo -e "${RED}Error: failed to mount temporary DMG${NC}"
+    exit 1
+fi
+
+bless --folder "${DMG_MOUNT_POINT}" --openfolder "${DMG_MOUNT_POINT}" >/dev/null 2>&1 || true
+
+osascript <<EOF
+tell application "Finder"
+    tell disk "$(basename "${DMG_MOUNT_POINT}")"
+        open
+        set current view of container window to icon view
+        set toolbar visible of container window to false
+        set statusbar visible of container window to false
+        set bounds of container window to {120, 120, 920, 600}
+        set theViewOptions to the icon view options of container window
+        set arrangement of theViewOptions to not arranged
+        set icon size of theViewOptions to 180
+        set text size of theViewOptions to 16
+        set position of item "${APP_BUNDLE}" of container window to {220, 260}
+        set position of item "Applications" of container window to {610, 260}
+        update without registering applications
+        delay 1
+        close
+    end tell
+end tell
+EOF
+
+chmod -Rf go-w "${DMG_MOUNT_POINT}" || true
+sync
+hdiutil detach "${DMG_DEVICE}"
+DMG_DEVICE=""
+DMG_MOUNT_POINT=""
+hdiutil convert "${RW_DMG_NAME}" -format UDZO -imagekey zlib-level=9 -o "${DMG_NAME}"
+rm -f "${RW_DMG_NAME}"
 
 echo ""
 echo -e "${GREEN}✅ Done!${NC}"
@@ -112,5 +182,6 @@ echo ""
 echo "Files created:"
 echo "  - ${APP_BUNDLE}/ (test locally)"
 echo "  - ${APP_NAME}-${VERSION}.zip (distribute this)"
+echo "  - ${DMG_NAME} (drag to Applications)"
 echo ""
 echo "Test: open '${APP_BUNDLE}'"

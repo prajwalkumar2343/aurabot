@@ -6,13 +6,15 @@ struct AppConfig: Codable {
     var memory: MemoryConfig
     var app: AppSettings
     var browserExtension: ExtensionConfig
+    var computerUse: ComputerUseConfig
     
     static let `default` = AppConfig(
         capture: CaptureConfig(),
         llm: LLMConfig(),
         memory: MemoryConfig(),
         app: AppSettings(),
-        browserExtension: ExtensionConfig()
+        browserExtension: ExtensionConfig(),
+        computerUse: ComputerUseConfig()
     )
 
     enum CodingKeys: String, CodingKey {
@@ -21,6 +23,33 @@ struct AppConfig: Codable {
         case memory
         case app
         case browserExtension = "extension"
+        case computerUse
+    }
+
+    init(
+        capture: CaptureConfig = CaptureConfig(),
+        llm: LLMConfig = LLMConfig(),
+        memory: MemoryConfig = MemoryConfig(),
+        app: AppSettings = AppSettings(),
+        browserExtension: ExtensionConfig = ExtensionConfig(),
+        computerUse: ComputerUseConfig = ComputerUseConfig()
+    ) {
+        self.capture = capture
+        self.llm = llm
+        self.memory = memory
+        self.app = app
+        self.browserExtension = browserExtension
+        self.computerUse = computerUse
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        capture = try container.decodeIfPresent(CaptureConfig.self, forKey: .capture) ?? CaptureConfig()
+        llm = try container.decodeIfPresent(LLMConfig.self, forKey: .llm) ?? LLMConfig()
+        memory = try container.decodeIfPresent(MemoryConfig.self, forKey: .memory) ?? MemoryConfig()
+        app = try container.decodeIfPresent(AppSettings.self, forKey: .app) ?? AppSettings()
+        browserExtension = try container.decodeIfPresent(ExtensionConfig.self, forKey: .browserExtension) ?? ExtensionConfig()
+        computerUse = try container.decodeIfPresent(ComputerUseConfig.self, forKey: .computerUse) ?? ComputerUseConfig()
     }
 }
 
@@ -208,6 +237,60 @@ struct AppSettings: Codable {
         overlayPosition = try container.decodeIfPresent(OverlayPosition.self, forKey: .overlayPosition) ?? .bottomRight
         onboardingCompleted = try container.decodeIfPresent(Bool.self, forKey: .onboardingCompleted) ?? false
         activePluginID = try container.decodeIfPresent(String.self, forKey: .activePluginID)
+    }
+}
+
+struct ComputerUseConfig: Codable, Equatable {
+    var enabled: Bool = false
+    var recordTrajectories: Bool = false
+    var captureMode: ComputerUseCaptureMode = .som
+    var maxImageDimension: Int = 1600
+
+    enum CodingKeys: String, CodingKey {
+        case enabled
+        case recordTrajectories
+        case captureMode
+        case maxImageDimension
+    }
+
+    init() {}
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        enabled = try container.decodeIfPresent(Bool.self, forKey: .enabled) ?? false
+        recordTrajectories = try container.decodeIfPresent(Bool.self, forKey: .recordTrajectories) ?? false
+        captureMode = try container.decodeIfPresent(ComputerUseCaptureMode.self, forKey: .captureMode) ?? .som
+        maxImageDimension = try container.decodeIfPresent(Int.self, forKey: .maxImageDimension) ?? 1600
+    }
+}
+
+enum ComputerUseCaptureMode: String, Codable, CaseIterable, Identifiable, Sendable {
+    case som
+    case vision
+    case ax
+
+    var id: String { rawValue }
+
+    var displayName: String {
+        switch self {
+        case .som:
+            return "SOM"
+        case .vision:
+            return "Vision"
+        case .ax:
+            return "Accessibility"
+        }
+    }
+
+    var description: String {
+        switch self {
+        case .som:
+            return "Capture screenshots and accessibility structure."
+        case .vision:
+            return "Capture screenshots without indexing controls."
+        case .ax:
+            return "Read accessibility structure without screenshots."
+        }
     }
 }
 
