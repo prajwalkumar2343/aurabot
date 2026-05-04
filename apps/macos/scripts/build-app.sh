@@ -19,9 +19,6 @@ APP_BUNDLE="${APP_NAME}.app"
 DMG_NAME="${APP_NAME}-${VERSION}.dmg"
 RW_DMG_NAME="${APP_NAME}-${VERSION}-temp.dmg"
 MEMORY_SERVICE_DIR="../../services/memory-pglite"
-CUA_DRIVER_VERSION="0.1.2"
-CUA_DRIVER_VENDOR_DIR="Vendor/CuaDriver"
-CUA_DRIVER_ARCH="darwin-arm64"
 STAGING_DIR="$(mktemp -d /tmp/aurabot-dmg.XXXXXX)"
 DMG_DEVICE=""
 DMG_MOUNT_POINT=""
@@ -34,11 +31,6 @@ fi
 
 if [ ! -f "${MEMORY_SERVICE_DIR}/package.json" ]; then
     echo -e "${RED}Error: Memory PGlite service not found at ${MEMORY_SERVICE_DIR}${NC}"
-    exit 1
-fi
-
-if [ ! -d "${CUA_DRIVER_VENDOR_DIR}/${CUA_DRIVER_VERSION}/${CUA_DRIVER_ARCH}/CuaDriver.app" ]; then
-    echo -e "${RED}Error: AuraBot Computer Use engine not found at ${CUA_DRIVER_VENDOR_DIR}/${CUA_DRIVER_VERSION}/${CUA_DRIVER_ARCH}/CuaDriver.app${NC}"
     exit 1
 fi
 
@@ -97,21 +89,6 @@ fi
 cp "$(command -v node)" "${MEMORY_BUNDLE_DIR}/node/bin/node"
 chmod +x "${MEMORY_BUNDLE_DIR}/node/bin/node"
 
-# Bundle the reviewed computer-use engine under AuraBot resources. AuraBot
-# copies this helper into Application Support on first launch so users interact
-# with only AuraBot while still getting stable macOS privacy attribution.
-COMPUTER_USE_BUNDLE_DIR="${APP_BUNDLE}/Contents/Resources/CuaDriver"
-mkdir -p "${COMPUTER_USE_BUNDLE_DIR}/${CUA_DRIVER_VERSION}/${CUA_DRIVER_ARCH}"
-cp "${CUA_DRIVER_VENDOR_DIR}/manifest.json" "${COMPUTER_USE_BUNDLE_DIR}/manifest.json"
-cp -R \
-  "${CUA_DRIVER_VENDOR_DIR}/${CUA_DRIVER_VERSION}/${CUA_DRIVER_ARCH}/CuaDriver.app" \
-  "${COMPUTER_USE_BUNDLE_DIR}/${CUA_DRIVER_VERSION}/${CUA_DRIVER_ARCH}/"
-if [ -f "${CUA_DRIVER_VENDOR_DIR}/${CUA_DRIVER_VERSION}/${CUA_DRIVER_ARCH}/cua-driver-0.1.2-darwin-arm64.tar.gz" ]; then
-    cp \
-      "${CUA_DRIVER_VENDOR_DIR}/${CUA_DRIVER_VERSION}/${CUA_DRIVER_ARCH}/cua-driver-0.1.2-darwin-arm64.tar.gz" \
-      "${COMPUTER_USE_BUNDLE_DIR}/${CUA_DRIVER_VERSION}/${CUA_DRIVER_ARCH}/"
-fi
-
 # Info.plist
 cat > "${APP_BUNDLE}/Contents/Info.plist" <<EOF
 <?xml version="1.0" encoding="UTF-8"?>
@@ -138,9 +115,8 @@ EOF
 
 echo "APPL????" > "${APP_BUNDLE}/Contents/PkgInfo"
 
-# Ad-hoc sign the bundle so the copied app remains launchable after drag install.
+# Ad-hoc sign the app for local distribution.
 echo -e "${YELLOW}🔏 Signing app bundle...${NC}"
-codesign --force --deep --sign - "${COMPUTER_USE_BUNDLE_DIR}/${CUA_DRIVER_VERSION}/${CUA_DRIVER_ARCH}/CuaDriver.app"
 codesign --force --deep --sign - --entitlements AuraBot.entitlements "${APP_BUNDLE}"
 
 # Zip it
