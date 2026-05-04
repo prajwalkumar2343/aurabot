@@ -76,5 +76,60 @@ class GitHubActionsContractTests(unittest.TestCase):
             self.assertNotIn(pattern, self.workflow)
 
 
+class EmbeddedComputerUseContractTests(unittest.TestCase):
+    def test_helper_vendor_bundle_is_not_present(self):
+        self.assertFalse((REPO_ROOT / "apps/macos/Vendor/CuaDriver").exists())
+        self.assertFalse(any((REPO_ROOT / "apps/macos").rglob("CuaDriver.app")))
+
+    def test_helper_process_lifecycle_code_is_not_present(self):
+        forbidden_paths = [
+            "CuaDriverInstallationManager.swift",
+            "CuaDriverProcessRunner.swift",
+        ]
+        swift_files = [
+            path
+            for path in (REPO_ROOT / "apps/macos/Sources/AuraBot").rglob("*.swift")
+        ]
+        self.assertFalse(
+            any(path.name in forbidden_paths for path in swift_files),
+            "helper install/process runner code must not remain in AuraBot sources",
+        )
+
+        computer_use_files = [
+            path
+            for path in (REPO_ROOT / "apps/macos/Sources/AuraBot/ComputerUseEngine").rglob("*.swift")
+        ]
+        config_text = (REPO_ROOT / "apps/macos/Sources/AuraBot/Models/Config.swift").read_text()
+        settings_text = (REPO_ROOT / "apps/macos/Sources/AuraBot/Screens/SettingsView.swift").read_text()
+        app_service_text = (REPO_ROOT / "apps/macos/Sources/AuraBot/Services/AppService.swift").read_text()
+        source_text = "\n".join(path.read_text(errors="ignore") for path in computer_use_files)
+        computer_use_surface = "\n".join([source_text, config_text, settings_text, app_service_text])
+        forbidden_terms = [
+            "CuaDriver.app",
+            "Vendor/CuaDriver",
+            "allowUpdateChecks",
+            "installedVersion",
+            "startDaemon",
+            "stopDaemon",
+            "installUpdate",
+            "--socket",
+        ]
+        for term in forbidden_terms:
+            self.assertNotIn(term, computer_use_surface)
+
+    def test_package_uses_embedded_cua_products(self):
+        manifest = (REPO_ROOT / "apps/macos/Package.swift").read_text()
+        self.assertIn("https://github.com/trycua/cua.git", manifest)
+        self.assertIn("91724df9d790a5ea4d8fd033bd6503b8490e742f", manifest)
+        self.assertIn('name: "CuaDriverCore"', manifest)
+        self.assertIn('name: "CuaDriverServer"', manifest)
+
+    def test_packaging_does_not_copy_or_sign_helper_app(self):
+        script = (REPO_ROOT / "apps/macos/scripts/build-app.sh").read_text()
+        self.assertNotIn("Vendor/CuaDriver", script)
+        self.assertNotIn("CuaDriver.app", script)
+        self.assertNotIn("COMPUTER_USE_BUNDLE_DIR", script)
+
+
 if __name__ == "__main__":
     unittest.main()

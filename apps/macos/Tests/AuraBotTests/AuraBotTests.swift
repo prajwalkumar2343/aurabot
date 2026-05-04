@@ -340,38 +340,135 @@ final class AuraBotCoreTests: XCTestCase {
         let config = try JSONDecoder().decode(AppConfig.self, from: payload)
 
         XCTAssertFalse(config.computerUse.enabled)
-        XCTAssertTrue(config.computerUse.autoStart)
-        XCTAssertTrue(config.computerUse.allowUpdateChecks)
         XCTAssertFalse(config.computerUse.recordTrajectories)
         XCTAssertEqual(config.computerUse.captureMode, "som")
+        XCTAssertEqual(config.computerUse.maxImageDimension, 1600)
     }
 
-    func testCuaDriverVendorManifestTargetsBundledAuraComputerUseEngine() throws {
-        let manifest = try CuaDriverInstallationManager().loadManifest()
-        let artifact = try XCTUnwrap(manifest.artifacts.first)
+    func testComputerUseConfigIgnoresRemovedHelperSettings() throws {
+        let payload = """
+        {
+          "computerUse": {
+            "enabled": true,
+            "autoStart": false,
+            "allowUpdateChecks": false,
+            "installedVersion": "0.1.2",
+            "recordTrajectories": true,
+            "captureMode": "vision",
+            "maxImageDimension": 1024
+          }
+        }
+        """.data(using: .utf8)!
 
-        XCTAssertEqual(manifest.name, "AuraBot Computer Use")
-        XCTAssertEqual(manifest.version, "0.1.2")
-        XCTAssertEqual(manifest.bundleIdentifier, "com.trycua.driver")
-        XCTAssertEqual(manifest.license, "MIT")
-        XCTAssertEqual(artifact.architecture, "arm64")
-        XCTAssertEqual(
-            artifact.sha256,
-            "bbe83a79f15d3da11b5de94cda414b70727b621b2d5319e6e2fa1a1137157654"
-        )
+        let config = try JSONDecoder().decode(AppConfig.self, from: payload)
+
+        XCTAssertTrue(config.computerUse.enabled)
+        XCTAssertTrue(config.computerUse.recordTrajectories)
+        XCTAssertEqual(config.computerUse.captureMode, "vision")
+        XCTAssertEqual(config.computerUse.maxImageDimension, 1024)
     }
 
-    func testCuaDriverBundleIsVendoredAndVerifiable() throws {
-        let manager = CuaDriverInstallationManager()
-        let appURL = try manager.bundledAppURL()
-
-        XCTAssertTrue(try manager.validateBundle(at: appURL))
-        XCTAssertEqual(manager.bundleVersion(for: appURL), "0.1.2")
-        XCTAssertTrue(
-            FileManager.default.isExecutableFile(
-                atPath: appURL.appendingPathComponent("Contents/MacOS/cua-driver").path
+    func testComputerUsePermissionParsingFromEmbeddedToolText() async throws {
+        var config = ComputerUseConfig()
+        config.enabled = true
+        let service = ComputerUseService(
+            config: config,
+            tools: FakeComputerUseTools(
+                results: [
+                    "check_permissions": .success(
+                        output: """
+                        Accessibility: granted
+                        Screen Recording: NOT granted
+                        """
+                    ),
+                ]
             )
         )
+
+        let permissions = await service.checkPermissions(prompt: false)
+
+        XCTAssertTrue(permissions.accessibility)
+        XCTAssertFalse(permissions.screenRecording)
+    }
+
+    func testComputerUseRoutesListAppsAndWindowsThroughEmbeddedTools() async throws {
+        let fake = FakeComputerUseTools(
+            results: [
+                "list_apps": .success(output: "[{\"name\":\"Finder\"}]"),
+                "list_windows": .success(output: "[{\"title\":\"Desktop\"}]"),
+            ]
+        )
+        let service = ComputerUseService(config: ComputerUseConfig(), tools: fake)
+
+        let apps = await service.listApps()
+        let windows = await service.listWindows()
+
+        XCTAssertTrue(apps.succeeded)
+        XCTAssertEqual(apps.output, "[{\"name\":\"Finder\"}]")
+        XCTAssertTrue(windows.succeeded)
+        XCTAssertEqual(windows.output, "[{\"title\":\"Desktop\"}]")
+        XCTAssertEqual(await fake.calls.map(\.name), ["list_apps", "list_windows"])
+    }
+
+    func testComputerUseSmokeTestSuccessAndFailureStates() async throws {
+        var config = ComputerUseConfig()
+        config.enabled = true
+        let successService = ComputerUseService(
+            config: config,
+            tools: FakeComputerUseTools(
+                results: [
+                    "check_permissions": .success(
+                        structuredContent: .object([
+                            "accessibility": .bool(true),
+                            "screenRecording": .bool(true),
+                        ])
+                    ),
+                    "list_windows": .success(output: "[]"),
+                ]
+            )
+        )
+        let failingService = ComputerUseService(
+            config: config,
+            tools: FakeComputerUseTools(
+                results: [
+                    "check_permissions": .success(
+                        structuredContent: .object([
+                            "accessibility": .bool(true),
+                            "screenRecording": .bool(true),
+                        ])
+                    ),
+                    "list_windows": .failure("AuraBot Computer Use could not list windows."),
+                ]
+            )
+        )
+
+        let success = await successService.runSafeSmokeTest()
+        let failure = await failingService.runSafeSmokeTest()
+
+        XCTAssertEqual(success.state, .ready)
+        XCTAssertEqual(success.message, "Computer Use test passed.")
+        XCTAssertEqual(failure.state, .failed)
+    }
+
+    func testComputerUseScreenshotWritesEmbeddedImageData() async throws {
+        let outputURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("aurabot-computer-use-\(UUID().uuidString).png")
+        defer { try? FileManager.default.removeItem(at: outputURL) }
+        let imageData = Data([0x89, 0x50, 0x4E, 0x47])
+        let service = ComputerUseService(
+            config: ComputerUseConfig(),
+            tools: FakeComputerUseTools(
+                results: [
+                    "screenshot": .success(output: "captured", imageData: imageData),
+                ]
+            )
+        )
+
+        let result = await service.screenshot(windowID: 42, outputURL: outputURL)
+
+        XCTAssertTrue(result.succeeded)
+        XCTAssertEqual(result.output, outputURL.path)
+        XCTAssertEqual(try Data(contentsOf: outputURL), imageData)
     }
 
     func testOldComputerUseImplementationIsRemoved() {
@@ -433,6 +530,36 @@ final class AuraBotCoreTests: XCTestCase {
         )
     }
 
+}
+
+@available(macOS 14.0, *)
+private struct FakeComputerUseToolCall: Equatable, Sendable {
+    let name: String
+    let arguments: [String: ComputerUseArgument]
+}
+
+@available(macOS 14.0, *)
+private actor FakeComputerUseTools: ComputerUseToolCalling {
+    nonisolated let toolNames: [String]
+    private let results: [String: ComputerUseToolResult]
+    private var recordedCalls: [FakeComputerUseToolCall] = []
+
+    init(results: [String: ComputerUseToolResult]) {
+        self.results = results
+        self.toolNames = Array(results.keys).sorted()
+    }
+
+    var calls: [FakeComputerUseToolCall] {
+        recordedCalls
+    }
+
+    func call(
+        _ name: String,
+        arguments: [String: ComputerUseArgument]
+    ) async throws -> ComputerUseToolResult {
+        recordedCalls.append(FakeComputerUseToolCall(name: name, arguments: arguments))
+        return results[name] ?? .failure("No fake result for \(name).")
+    }
 }
 
 @available(macOS 14.0, *)
