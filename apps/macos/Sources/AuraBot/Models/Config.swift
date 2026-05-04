@@ -242,18 +242,12 @@ struct AppSettings: Codable {
 
 struct ComputerUseConfig: Codable, Equatable {
     var enabled: Bool = false
-    var autoStart: Bool = true
-    var allowUpdateChecks: Bool = true
-    var installedVersion: String = ""
     var recordTrajectories: Bool = false
     var captureMode: String = "som"
     var maxImageDimension: Int = 1600
 
     enum CodingKeys: String, CodingKey {
         case enabled
-        case autoStart
-        case allowUpdateChecks
-        case installedVersion
         case recordTrajectories
         case captureMode
         case maxImageDimension
@@ -264,9 +258,6 @@ struct ComputerUseConfig: Codable, Equatable {
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         enabled = try container.decodeIfPresent(Bool.self, forKey: .enabled) ?? false
-        autoStart = try container.decodeIfPresent(Bool.self, forKey: .autoStart) ?? true
-        allowUpdateChecks = try container.decodeIfPresent(Bool.self, forKey: .allowUpdateChecks) ?? true
-        installedVersion = try container.decodeIfPresent(String.self, forKey: .installedVersion) ?? ""
         recordTrajectories = try container.decodeIfPresent(Bool.self, forKey: .recordTrajectories) ?? false
         captureMode = try container.decodeIfPresent(String.self, forKey: .captureMode) ?? "som"
         maxImageDimension = try container.decodeIfPresent(Int.self, forKey: .maxImageDimension) ?? 1600
