@@ -18,8 +18,6 @@ struct SettingsView: View {
     @State private var memoryCollection = "screen_memories_v3"
     @State private var browserExtensionAPIKey = ""
     @State private var computerUseEnabled = false
-    @State private var computerUseAutoStart = true
-    @State private var computerUseAllowUpdateChecks = true
     @State private var computerUseRecordTrajectories = false
     @State private var overlayPosition: OverlayPosition = .bottomRight
     @State private var showSavedToast = false
@@ -63,8 +61,6 @@ struct SettingsView: View {
                 ComputerUseSettingsSection(
                     service: service,
                     enabled: $computerUseEnabled,
-                    autoStart: $computerUseAutoStart,
-                    allowUpdateChecks: $computerUseAllowUpdateChecks,
                     recordTrajectories: $computerUseRecordTrajectories
                 )
                 .opacity(appearAnimation ? 1 : 0)
@@ -123,8 +119,6 @@ struct SettingsView: View {
         memoryCollection = config.memory.collectionName
         browserExtensionAPIKey = config.browserExtension.apiKey
         computerUseEnabled = config.computerUse.enabled
-        computerUseAutoStart = config.computerUse.autoStart
-        computerUseAllowUpdateChecks = config.computerUse.allowUpdateChecks
         computerUseRecordTrajectories = config.computerUse.recordTrajectories
         overlayPosition = config.app.overlayPosition
     }
@@ -148,8 +142,6 @@ struct SettingsView: View {
             updatedConfig.memory.collectionName = memoryCollection.trimmingCharacters(in: .whitespacesAndNewlines)
             updatedConfig.browserExtension.apiKey = browserExtensionAPIKey.trimmingCharacters(in: .whitespacesAndNewlines)
             updatedConfig.computerUse.enabled = computerUseEnabled
-            updatedConfig.computerUse.autoStart = computerUseAutoStart
-            updatedConfig.computerUse.allowUpdateChecks = computerUseAllowUpdateChecks
             updatedConfig.computerUse.recordTrajectories = computerUseRecordTrajectories
             updatedConfig.app.overlayPosition = overlayPosition
 
@@ -523,8 +515,6 @@ struct PermissionsSection: View {
 struct ComputerUseSettingsSection: View {
     @ObservedObject var service: AppService
     @Binding var enabled: Bool
-    @Binding var autoStart: Bool
-    @Binding var allowUpdateChecks: Bool
     @Binding var recordTrajectories: Bool
 
     var body: some View {
@@ -547,19 +537,6 @@ struct ComputerUseSettingsSection: View {
                     }
 
                     Spacer()
-
-                    VStack(alignment: .trailing, spacing: Spacing.xs) {
-                        if let installed = service.computerUseStatus.installedVersion {
-                            Text("Installed \(installed)")
-                                .font(Typography.caption)
-                                .foregroundColor(Colors.textMuted)
-                        }
-                        if let bundled = service.computerUseStatus.bundledVersion {
-                            Text("Bundled \(bundled)")
-                                .font(Typography.caption)
-                                .foregroundColor(Colors.textMuted)
-                        }
-                    }
                 }
 
                 Divider()
@@ -569,24 +546,6 @@ struct ComputerUseSettingsSection: View {
                     title: "Enable Computer Use",
                     description: "Let AuraBot inspect and control app windows when you ask it to.",
                     isOn: $enabled
-                )
-
-                Divider()
-                    .background(Colors.glassBorder)
-
-                CustomToggle(
-                    title: "Start with AuraBot",
-                    description: "Start the computer-use engine automatically when AuraBot launches.",
-                    isOn: $autoStart
-                )
-
-                Divider()
-                    .background(Colors.glassBorder)
-
-                CustomToggle(
-                    title: "Check for Updates",
-                    description: "Allow AuraBot to check for reviewed computer-use engine updates.",
-                    isOn: $allowUpdateChecks
                 )
 
                 Divider()
@@ -606,41 +565,12 @@ struct ComputerUseSettingsSection: View {
                         Task { await service.refreshComputerUseStatus() }
                     }
 
-                    SecondaryButton("Repair", icon: "wrench.adjustable") {
-                        Task { await service.repairComputerUse() }
-                    }
-
-                    SecondaryButton(
-                        service.computerUseStatus.daemonRunning ? "Stop" : "Start",
-                        icon: service.computerUseStatus.daemonRunning ? "stop.fill" : "play.fill"
-                    ) {
-                        Task {
-                            if service.computerUseStatus.daemonRunning {
-                                await service.stopComputerUse()
-                            } else {
-                                await service.startComputerUse()
-                            }
-                        }
-                    }
-                }
-
-                HStack(spacing: Spacing.md) {
                     SecondaryButton("Permissions", icon: "lock.shield") {
                         Task { await service.requestComputerUsePermissions() }
                     }
 
                     SecondaryButton("Run Test", icon: "checkmark.seal") {
                         Task { await service.runComputerUseSmokeTest() }
-                    }
-
-                    SecondaryButton("Check for Updates", icon: "sparkle.magnifyingglass") {
-                        Task { await service.checkComputerUseUpdates() }
-                    }
-
-                    if service.computerUseStatus.state == .updateAvailable {
-                        SecondaryButton("Install Update", icon: "square.and.arrow.down") {
-                            Task { await service.installComputerUseUpdate() }
-                        }
                     }
                 }
             }
@@ -649,25 +579,17 @@ struct ComputerUseSettingsSection: View {
 }
 
 @available(macOS 14.0, *)
-private extension CuaDriverStatus.State {
+private extension ComputerUseStatus.State {
     var displayName: String {
         switch self {
         case .disabled:
             return "Disabled"
-        case .notInstalled:
-            return "Ready to Install"
-        case .installed:
-            return "Installed"
         case .starting:
             return "Starting"
         case .ready:
             return "Ready"
         case .needsPermission:
             return "Needs Permission"
-        case .repairNeeded:
-            return "Repair Needed"
-        case .updateAvailable:
-            return "Update Available"
         case .failed:
             return "Needs Attention"
         }
@@ -681,11 +603,9 @@ private extension CuaDriverStatus.State {
             return "lock.trianglebadge.exclamationmark.fill"
         case .starting:
             return "hourglass.circle.fill"
-        case .updateAvailable:
-            return "arrow.down.circle.fill"
-        case .failed, .repairNeeded:
+        case .failed:
             return "exclamationmark.triangle.fill"
-        case .disabled, .notInstalled, .installed:
+        case .disabled:
             return "desktopcomputer"
         }
     }
@@ -694,11 +614,11 @@ private extension CuaDriverStatus.State {
         switch self {
         case .ready:
             return Colors.success
-        case .needsPermission, .updateAvailable, .starting:
+        case .needsPermission, .starting:
             return Colors.warning
-        case .failed, .repairNeeded:
+        case .failed:
             return Colors.danger
-        case .disabled, .notInstalled, .installed:
+        case .disabled:
             return Colors.primary
         }
     }
