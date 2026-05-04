@@ -2,7 +2,6 @@ import SwiftUI
 import AppKit
 import AVFoundation
 import CoreGraphics
-@preconcurrency import ScreenCaptureKit
 
 enum AppPermissionKind: String, CaseIterable, Identifiable, Hashable, Codable, Sendable {
     case screenRecording
@@ -186,22 +185,6 @@ enum PermissionCenter {
         }
     }
 
-    static func verifyScreenRecordingAccess() async -> Bool {
-        if CGPreflightScreenCaptureAccess() {
-            markScreenRecordingGranted()
-            return true
-        }
-
-        do {
-            _ = try await SCShareableContent.current
-            markScreenRecordingGranted()
-            return true
-        } catch {
-            screenCaptureProbeGranted = false
-            return false
-        }
-    }
-
     static func markScreenRecordingGranted() {
         screenCaptureProbeGranted = true
         requestedKinds.remove(.screenRecording)
@@ -235,7 +218,6 @@ enum PermissionCenter {
         switch kind {
         case .screenRecording:
             requestedKinds.insert(kind)
-            _ = CGRequestScreenCaptureAccess()
             openSystemSettings(for: kind)
         case .accessibility:
             let trusted = SystemAccessibilityPermissionChecker().isTrusted(prompt: true)
@@ -331,7 +313,7 @@ struct PermissionOnboardingView: View {
                             service.requestPermission(kind)
                         },
                         onRefresh: {
-                            service.refreshPermissionStatuses(verifyScreenRecording: true)
+                            service.refreshPermissionStatuses()
                         },
                         onContinue: {
                             move(to: .browserExtension)

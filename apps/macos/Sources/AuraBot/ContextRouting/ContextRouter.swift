@@ -210,11 +210,32 @@ actor ContextRouter {
         }
 
         lastVisualFallbackAt = now
+        let event = activeApp.map { activeApp in
+            ContextEvent(
+                mode: .genericVisual,
+                source: "active_app_metadata",
+                summary: "User is using \(activeApp.displayName)",
+                activities: ["desktop", "active_app"],
+                keyElements: compact([
+                    activeApp.name,
+                    activeApp.windowTitle,
+                    activeApp.bundleIdentifier
+                ]),
+                userIntent: "Desktop activity context",
+                importance: 0.42,
+                ttl: "session",
+                fingerprint: "desktop|\(activeApp.bundleIdentifier ?? activeApp.name)|\(activeApp.windowTitle ?? "")",
+                timestamp: now,
+                browserContext: nil,
+                captureReason: reason
+            )
+        }
+
         return ContextCapturePlan(
             mode: .genericVisual,
             confidence: activeApp == nil ? 0.2 : 0.45,
             screenshotDirective: .fallback,
-            event: nil,
+            event: event,
             browserContext: nil,
             reason: reason
         )

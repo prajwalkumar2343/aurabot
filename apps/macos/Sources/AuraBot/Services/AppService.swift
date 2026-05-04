@@ -39,7 +39,6 @@ class AppService: ObservableObject {
     
     private var contextProcessingTask: Task<Void, Never>?
     private var permissionRefreshTask: Task<Void, Never>?
-    private var lastScreenCaptureVerificationAt: Date?
     
     init(config: AppConfig = .default) {
         self.config = config
@@ -241,31 +240,16 @@ class AppService: ObservableObject {
         return "Grant Screen Recording to enable visual capture. Accessibility can be enabled later for richer controls."
     }
 
-    func refreshPermissionStatuses(verifyScreenRecording: Bool = false) {
+    func refreshPermissionStatuses() {
         permissionStatuses = PermissionCenter.allStatuses()
         capturePermissionMessage = permissionGuidanceMessage
 
         Task { [weak self] in
-            if verifyScreenRecording {
-                _ = await PermissionCenter.verifyScreenRecordingAccess()
-            } else {
-                await PermissionCenter.updateScreenRecordingProbe()
-            }
+            await PermissionCenter.updateScreenRecordingProbe()
             guard let self else { return }
             self.permissionStatuses = PermissionCenter.allStatuses()
             self.capturePermissionMessage = self.permissionGuidanceMessage
         }
-    }
-
-    func verifyPermissionStatuses() {
-        let now = Date()
-        guard lastScreenCaptureVerificationAt.map({ now.timeIntervalSince($0) >= 8 }) ?? true else {
-            refreshPermissionStatuses()
-            return
-        }
-
-        lastScreenCaptureVerificationAt = now
-        refreshPermissionStatuses(verifyScreenRecording: true)
     }
 
     func openSystemSettings(for kind: AppPermissionKind) {
@@ -574,6 +558,10 @@ class AppService: ObservableObject {
             await storeContextEvent(event)
         case .fallback:
             guard await canAttemptVisualCapture() else {
+                if let event = plan.event {
+                    overlayActivity = .thinking
+                    await storeContextEvent(event)
+                }
                 updateOverlayActivityForCurrentState()
                 return
             }
@@ -584,6 +572,10 @@ class AppService: ObservableObject {
                 browserContext: plan.browserContext,
                 reason: plan.reason
             ) else {
+                if let event = plan.event {
+                    overlayActivity = .thinking
+                    await storeContextEvent(event)
+                }
                 updateOverlayActivityForCurrentState()
                 return
             }
@@ -597,22 +589,16 @@ class AppService: ObservableObject {
     }
 
     private func canAttemptVisualCapture() async -> Bool {
+        await PermissionCenter.updateScreenRecordingProbe()
+        permissionStatuses = PermissionCenter.allStatuses()
+
         if PermissionCenter.isGranted(.screenRecording) {
             capturePermissionMessage = permissionGuidanceMessage
             return true
         }
 
-        let now = Date()
-        guard lastScreenCaptureVerificationAt.map({ now.timeIntervalSince($0) >= 30 }) ?? true else {
-            capturePermissionMessage = "Screen Recording is still unavailable, so Aura will keep saving structured app/browser context and retry screenshots shortly."
-            return false
-        }
-
-        lastScreenCaptureVerificationAt = now
-        let granted = await PermissionCenter.verifyScreenRecordingAccess()
-        permissionStatuses = PermissionCenter.allStatuses()
-        capturePermissionMessage = permissionGuidanceMessage
-        return granted
+        capturePermissionMessage = "Screen Recording is unavailable. Aura will keep saving structured app/browser context; enable Screen Recording in System Settings, then restart Aura if macOS asks."
+        return false
     }
 
     private func storeContextEvent(_ event: ContextEvent) async {
