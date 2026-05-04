@@ -243,7 +243,7 @@ struct AppSettings: Codable {
 struct ComputerUseConfig: Codable, Equatable {
     var enabled: Bool = false
     var recordTrajectories: Bool = false
-    var captureMode: String = "som"
+    var captureMode: ComputerUseCaptureMode = .som
     var maxImageDimension: Int = 1600
 
     enum CodingKeys: String, CodingKey {
@@ -259,8 +259,38 @@ struct ComputerUseConfig: Codable, Equatable {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         enabled = try container.decodeIfPresent(Bool.self, forKey: .enabled) ?? false
         recordTrajectories = try container.decodeIfPresent(Bool.self, forKey: .recordTrajectories) ?? false
-        captureMode = try container.decodeIfPresent(String.self, forKey: .captureMode) ?? "som"
+        captureMode = try container.decodeIfPresent(ComputerUseCaptureMode.self, forKey: .captureMode) ?? .som
         maxImageDimension = try container.decodeIfPresent(Int.self, forKey: .maxImageDimension) ?? 1600
+    }
+}
+
+enum ComputerUseCaptureMode: String, Codable, CaseIterable, Identifiable, Sendable {
+    case som
+    case vision
+    case ax
+
+    var id: String { rawValue }
+
+    var displayName: String {
+        switch self {
+        case .som:
+            return "SOM"
+        case .vision:
+            return "Vision"
+        case .ax:
+            return "Accessibility"
+        }
+    }
+
+    var description: String {
+        switch self {
+        case .som:
+            return "Capture screenshots and accessibility structure."
+        case .vision:
+            return "Capture screenshots without indexing controls."
+        case .ax:
+            return "Read accessibility structure without screenshots."
+        }
     }
 }
 

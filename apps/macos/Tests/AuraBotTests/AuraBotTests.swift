@@ -341,7 +341,7 @@ final class AuraBotCoreTests: XCTestCase {
 
         XCTAssertFalse(config.computerUse.enabled)
         XCTAssertFalse(config.computerUse.recordTrajectories)
-        XCTAssertEqual(config.computerUse.captureMode, "som")
+        XCTAssertEqual(config.computerUse.captureMode, .som)
         XCTAssertEqual(config.computerUse.maxImageDimension, 1600)
     }
 
@@ -364,8 +364,20 @@ final class AuraBotCoreTests: XCTestCase {
 
         XCTAssertTrue(config.computerUse.enabled)
         XCTAssertTrue(config.computerUse.recordTrajectories)
-        XCTAssertEqual(config.computerUse.captureMode, "vision")
+        XCTAssertEqual(config.computerUse.captureMode, .vision)
         XCTAssertEqual(config.computerUse.maxImageDimension, 1024)
+    }
+
+    func testComputerUseConfigRejectsInvalidCaptureMode() {
+        let payload = """
+        {
+          "computerUse": {
+            "captureMode": "screeenshot"
+          }
+        }
+        """.data(using: .utf8)!
+
+        XCTAssertThrowsError(try JSONDecoder().decode(AppConfig.self, from: payload))
     }
 
     func testComputerUsePermissionParsingFromEmbeddedToolText() async throws {
@@ -385,10 +397,29 @@ final class AuraBotCoreTests: XCTestCase {
             )
         )
 
-        let permissions = await service.checkPermissions(prompt: false)
+        let permissions = try await service.checkPermissions(prompt: false)
 
         XCTAssertTrue(permissions.accessibility)
         XCTAssertFalse(permissions.screenRecording)
+    }
+
+    func testComputerUsePermissionFailureSurfacesAsFailedStatus() async throws {
+        var config = ComputerUseConfig()
+        config.enabled = true
+        let service = ComputerUseService(
+            config: config,
+            tools: FakeComputerUseTools(
+                results: [
+                    "set_config": .success(),
+                    "check_permissions": .failure("Unknown tool: check_permissions"),
+                ]
+            )
+        )
+
+        let status = await service.refreshStatus()
+
+        XCTAssertEqual(status.state, .failed)
+        XCTAssertEqual(status.message, "Unknown tool: check_permissions")
     }
 
     func testComputerUseRoutesListAppsAndWindowsThroughEmbeddedTools() async throws {
@@ -417,6 +448,7 @@ final class AuraBotCoreTests: XCTestCase {
             config: config,
             tools: FakeComputerUseTools(
                 results: [
+                    "set_config": .success(),
                     "check_permissions": .success(
                         structuredContent: .object([
                             "accessibility": .bool(true),
@@ -431,6 +463,7 @@ final class AuraBotCoreTests: XCTestCase {
             config: config,
             tools: FakeComputerUseTools(
                 results: [
+                    "set_config": .success(),
                     "check_permissions": .success(
                         structuredContent: .object([
                             "accessibility": .bool(true),
@@ -459,6 +492,7 @@ final class AuraBotCoreTests: XCTestCase {
             config: ComputerUseConfig(),
             tools: FakeComputerUseTools(
                 results: [
+                    "set_config": .success(),
                     "screenshot": .success(output: "captured", imageData: imageData),
                 ]
             )

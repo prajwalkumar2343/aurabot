@@ -19,6 +19,8 @@ struct SettingsView: View {
     @State private var browserExtensionAPIKey = ""
     @State private var computerUseEnabled = false
     @State private var computerUseRecordTrajectories = false
+    @State private var computerUseCaptureMode: ComputerUseCaptureMode = .som
+    @State private var computerUseMaxImageDimension: Double = 1600
     @State private var overlayPosition: OverlayPosition = .bottomRight
     @State private var showSavedToast = false
     @State private var appearAnimation = false
@@ -61,7 +63,9 @@ struct SettingsView: View {
                 ComputerUseSettingsSection(
                     service: service,
                     enabled: $computerUseEnabled,
-                    recordTrajectories: $computerUseRecordTrajectories
+                    recordTrajectories: $computerUseRecordTrajectories,
+                    captureMode: $computerUseCaptureMode,
+                    maxImageDimension: $computerUseMaxImageDimension
                 )
                 .opacity(appearAnimation ? 1 : 0)
                 .offset(y: appearAnimation ? 0 : 20)
@@ -120,6 +124,8 @@ struct SettingsView: View {
         browserExtensionAPIKey = config.browserExtension.apiKey
         computerUseEnabled = config.computerUse.enabled
         computerUseRecordTrajectories = config.computerUse.recordTrajectories
+        computerUseCaptureMode = config.computerUse.captureMode
+        computerUseMaxImageDimension = Double(config.computerUse.maxImageDimension)
         overlayPosition = config.app.overlayPosition
     }
 
@@ -143,6 +149,8 @@ struct SettingsView: View {
             updatedConfig.browserExtension.apiKey = browserExtensionAPIKey.trimmingCharacters(in: .whitespacesAndNewlines)
             updatedConfig.computerUse.enabled = computerUseEnabled
             updatedConfig.computerUse.recordTrajectories = computerUseRecordTrajectories
+            updatedConfig.computerUse.captureMode = computerUseCaptureMode
+            updatedConfig.computerUse.maxImageDimension = Int(computerUseMaxImageDimension)
             updatedConfig.app.overlayPosition = overlayPosition
 
             do {
@@ -516,6 +524,8 @@ struct ComputerUseSettingsSection: View {
     @ObservedObject var service: AppService
     @Binding var enabled: Bool
     @Binding var recordTrajectories: Bool
+    @Binding var captureMode: ComputerUseCaptureMode
+    @Binding var maxImageDimension: Double
 
     var body: some View {
         SettingsSection(title: "Computer Use", icon: "cursorarrow.motionlines") {
@@ -551,6 +561,79 @@ struct ComputerUseSettingsSection: View {
                 Divider()
                     .background(Colors.glassBorder)
 
+                VStack(alignment: .leading, spacing: Spacing.md) {
+                    HStack(spacing: Spacing.md) {
+                        Image(systemName: "square.stack.3d.down.right")
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundColor(Colors.primary)
+
+                        VStack(alignment: .leading, spacing: Spacing.xs) {
+                            Text("Capture Mode")
+                                .font(Typography.subheadline)
+                                .fontWeight(.medium)
+                                .foregroundColor(Colors.textPrimary)
+
+                            Text(captureMode.description)
+                                .font(Typography.caption)
+                                .foregroundColor(Colors.textMuted)
+                        }
+
+                        Spacer()
+                    }
+
+                    Picker("Capture Mode", selection: $captureMode) {
+                        ForEach(ComputerUseCaptureMode.allCases) { mode in
+                            Text(mode.displayName).tag(mode)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                }
+
+                Divider()
+                    .background(Colors.glassBorder)
+
+                VStack(alignment: .leading, spacing: Spacing.md) {
+                    HStack {
+                        Text("Max Image Dimension")
+                            .font(Typography.subheadline)
+                            .foregroundColor(Colors.textPrimary)
+
+                        Spacer()
+
+                        Text(maxImageDimensionLabel)
+                            .font(Typography.subheadline)
+                            .fontWeight(.semibold)
+                            .foregroundColor(Colors.primary)
+                            .padding(.horizontal, Spacing.sm)
+                            .padding(.vertical, Spacing.xs)
+                            .background(
+                                ZStack {
+                                    RoundedRectangle(cornerRadius: Radius.sm)
+                                        .fill(Colors.primary.opacity(0.1))
+                                    RoundedRectangle(cornerRadius: Radius.sm)
+                                        .stroke(Colors.primary.opacity(0.15), lineWidth: 1)
+                                }
+                            )
+                    }
+
+                    CustomSlider(
+                        value: $maxImageDimension,
+                        range: 0...4096,
+                        step: 128
+                    )
+
+                    HStack {
+                        Text("Native")
+                        Spacer()
+                        Text("4096 px")
+                    }
+                    .font(Typography.caption2)
+                    .foregroundColor(Colors.textMuted)
+                }
+
+                Divider()
+                    .background(Colors.glassBorder)
+
                 CustomToggle(
                     title: "Record Trajectories",
                     description: "Save computer-use action traces for debugging and replay.",
@@ -575,6 +658,11 @@ struct ComputerUseSettingsSection: View {
                 }
             }
         }
+    }
+
+    private var maxImageDimensionLabel: String {
+        let value = Int(maxImageDimension)
+        return value == 0 ? "Native" : "\(value) px"
     }
 }
 
@@ -731,18 +819,38 @@ struct CustomSlider: View {
                     .shadow(color: Colors.primary.opacity(0.3), radius: 8, x: 0, y: 2)
                     .offset(x: thumbPosition(in: geometry.size.width) - 10)
             }
+            .contentShape(Rectangle())
+            .gesture(
+                DragGesture(minimumDistance: 0)
+                    .onChanged { gesture in
+                        value = steppedValue(for: gesture.location.x, width: geometry.size.width)
+                    }
+            )
         }
         .frame(height: 20)
     }
     
     private func fillWidth(in totalWidth: CGFloat) -> CGFloat {
-        let percentage = (value - range.lowerBound) / (range.upperBound - range.lowerBound)
+        let percentage = clampedPercentage
         return totalWidth * CGFloat(percentage)
     }
     
     private func thumbPosition(in totalWidth: CGFloat) -> CGFloat {
-        let percentage = (value - range.lowerBound) / (range.upperBound - range.lowerBound)
+        let percentage = clampedPercentage
         return totalWidth * CGFloat(percentage)
+    }
+
+    private var clampedPercentage: Double {
+        let raw = (value - range.lowerBound) / (range.upperBound - range.lowerBound)
+        return min(max(raw, 0), 1)
+    }
+
+    private func steppedValue(for x: CGFloat, width: CGFloat) -> Double {
+        guard width > 0 else { return value }
+        let percentage = min(max(Double(x / width), 0), 1)
+        let rawValue = range.lowerBound + percentage * (range.upperBound - range.lowerBound)
+        let steps = ((rawValue - range.lowerBound) / step).rounded()
+        return min(max(range.lowerBound + steps * step, range.lowerBound), range.upperBound)
     }
 }
 

@@ -31,7 +31,18 @@ actor ComputerUseService {
             return .disabled
         }
 
-        let permissions = await checkPermissions(prompt: false)
+        let configResult = await syncConfiguration()
+        guard configResult.succeeded else {
+            return failedStatus(ComputerUseError.toolFailed(auraMessage(for: configResult)))
+        }
+
+        let permissions: ComputerUsePermissionStatus
+        do {
+            permissions = try await checkPermissions(prompt: false)
+        } catch {
+            return failedStatus(error)
+        }
+
         if permissions.isReady {
             return ComputerUseStatus(
                 state: .ready,
@@ -47,13 +58,13 @@ actor ComputerUseService {
         )
     }
 
-    func checkPermissions(prompt: Bool) async -> ComputerUsePermissionStatus {
+    func checkPermissions(prompt: Bool) async throws -> ComputerUsePermissionStatus {
         let result = await callTool(
             "check_permissions",
             arguments: ["prompt": .bool(prompt)]
         )
         guard result.succeeded else {
-            return ComputerUsePermissionStatus(accessibility: false, screenRecording: false)
+            throw ComputerUseError.toolFailed(auraMessage(for: result))
         }
         return parsePermissions(from: result)
     }
@@ -67,15 +78,15 @@ actor ComputerUseService {
     }
 
     func getWindowState(pid: Int, windowID: Int, maxImageDimension: Int? = nil) async -> ComputerUseToolResult {
-        var args: [String: ComputerUseArgument] = [
+        let configResult = await syncConfiguration(maxImageDimension: maxImageDimension)
+        guard configResult.succeeded else {
+            return configResult
+        }
+
+        let args: [String: ComputerUseArgument] = [
             "pid": .int(pid),
             "window_id": .int(windowID),
         ]
-        if let maxImageDimension {
-            args["max_image_dimension"] = .int(maxImageDimension)
-        } else if config.maxImageDimension > 0 {
-            args["max_image_dimension"] = .int(config.maxImageDimension)
-        }
         return await callTool("get_window_state", arguments: args)
     }
 
@@ -116,6 +127,11 @@ actor ComputerUseService {
     }
 
     func screenshot(windowID: Int, outputURL: URL) async -> ComputerUseToolResult {
+        let configResult = await syncConfiguration()
+        guard configResult.succeeded else {
+            return configResult
+        }
+
         let result = await callTool(
             "screenshot",
             arguments: [
@@ -165,7 +181,18 @@ actor ComputerUseService {
             return .disabled
         }
 
-        let permissions = await checkPermissions(prompt: false)
+        let configResult = await syncConfiguration()
+        guard configResult.succeeded else {
+            return failedStatus(ComputerUseError.toolFailed(auraMessage(for: configResult)))
+        }
+
+        let permissions: ComputerUsePermissionStatus
+        do {
+            permissions = try await checkPermissions(prompt: false)
+        } catch {
+            return failedStatus(error)
+        }
+
         guard permissions.isReady else {
             return ComputerUseStatus(
                 state: .needsPermission,
@@ -184,6 +211,27 @@ actor ComputerUseService {
         }
 
         return failedStatus(ComputerUseError.toolFailed(auraMessage(for: result)))
+    }
+
+    private func syncConfiguration(maxImageDimension override: Int? = nil) async -> ComputerUseToolResult {
+        let modeResult = await callTool(
+            "set_config",
+            arguments: [
+                "key": .string("capture_mode"),
+                "value": .string(config.captureMode.rawValue),
+            ]
+        )
+        guard modeResult.succeeded else {
+            return modeResult
+        }
+
+        return await callTool(
+            "set_config",
+            arguments: [
+                "key": .string("max_image_dimension"),
+                "value": .int(override ?? config.maxImageDimension),
+            ]
+        )
     }
 
     private func callTool(

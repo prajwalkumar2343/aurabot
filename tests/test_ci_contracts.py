@@ -120,7 +120,7 @@ class EmbeddedComputerUseContractTests(unittest.TestCase):
     def test_package_uses_embedded_cua_products(self):
         manifest = (REPO_ROOT / "apps/macos/Package.swift").read_text()
         self.assertIn("https://github.com/trycua/cua.git", manifest)
-        self.assertIn("91724df9d790a5ea4d8fd033bd6503b8490e742f", manifest)
+        self.assertIn('revision: "cua-driver-v0.1.2"', manifest)
         self.assertIn('name: "CuaDriverCore"', manifest)
         self.assertIn('name: "CuaDriverServer"', manifest)
 

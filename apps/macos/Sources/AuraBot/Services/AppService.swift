@@ -192,7 +192,12 @@ class AppService: ObservableObject {
     }
 
     func requestComputerUsePermissions() async {
-        _ = await computerUseService.checkPermissions(prompt: true)
+        do {
+            _ = try await computerUseService.checkPermissions(prompt: true)
+        } catch {
+            computerUseStatus = computerUseFailureStatus(error)
+            return
+        }
         computerUseStatus = await computerUseService.refreshStatus()
     }
 
