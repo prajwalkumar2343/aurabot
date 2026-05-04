@@ -328,13 +328,7 @@ final class AuraBotCoreTests: XCTestCase {
 
     func testComputerUseConfigDecodesMissingPayloadWithAuraDefaults() throws {
         let payload = """
-        {
-          "capture": {},
-          "llm": {},
-          "memory": {},
-          "app": {},
-          "extension": {}
-        }
+        {}
         """.data(using: .utf8)!
 
         let config = try JSONDecoder().decode(AppConfig.self, from: payload)
