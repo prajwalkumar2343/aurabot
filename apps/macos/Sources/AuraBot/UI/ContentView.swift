@@ -98,7 +98,7 @@ struct MainContentView: View {
             service.refreshPermissionStatuses()
         }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
-            service.refreshPermissionStatuses()
+            service.verifyPermissionStatuses()
         }
         .onChange(of: service.needsOnboarding) { _, needsOnboarding in
             if !needsOnboarding {

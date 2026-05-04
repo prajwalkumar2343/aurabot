@@ -72,9 +72,9 @@ enum AppPermissionKind: String, CaseIterable, Identifiable, Hashable, Codable, S
 
     var isRequired: Bool {
         switch self {
-        case .screenRecording, .accessibility:
+        case .screenRecording:
             return true
-        case .microphone:
+        case .accessibility, .microphone:
             return false
         }
     }
@@ -184,6 +184,27 @@ enum PermissionCenter {
         if screenCaptureProbeGranted {
             requestedKinds.remove(.screenRecording)
         }
+    }
+
+    static func verifyScreenRecordingAccess() async -> Bool {
+        if CGPreflightScreenCaptureAccess() {
+            markScreenRecordingGranted()
+            return true
+        }
+
+        do {
+            _ = try await SCShareableContent.current
+            markScreenRecordingGranted()
+            return true
+        } catch {
+            screenCaptureProbeGranted = false
+            return false
+        }
+    }
+
+    static func markScreenRecordingGranted() {
+        screenCaptureProbeGranted = true
+        requestedKinds.remove(.screenRecording)
     }
 
     private static func hasScreenRecordingAccess() -> Bool {
@@ -310,7 +331,7 @@ struct PermissionOnboardingView: View {
                             service.requestPermission(kind)
                         },
                         onRefresh: {
-                            service.refreshPermissionStatuses()
+                            service.refreshPermissionStatuses(verifyScreenRecording: true)
                         },
                         onContinue: {
                             move(to: .browserExtension)
@@ -491,7 +512,7 @@ private struct OnboardingWelcomeScreen: View {
                             .foregroundColor(Colors.textPrimary)
                             .fixedSize(horizontal: false, vertical: true)
 
-                        Text("Aura needs a small set of macOS permissions before it can understand your workspace. The next screen checks status as you return from System Settings and shows when a restart is needed.")
+                        Text("Aura needs Screen Recording before it can visually understand your workspace. The next screen checks status as you return from System Settings and shows when a restart is needed.")
                             .font(Typography.body)
                             .foregroundColor(Colors.textSecondary)
                             .frame(maxWidth: 560, alignment: .leading)
@@ -543,11 +564,11 @@ private struct OnboardingPermissionsScreen: View {
                     onboardingBadge("Live Status", icon: "arrow.triangle.2.circlepath")
 
                     VStack(alignment: .leading, spacing: Spacing.sm) {
-                        Text("Grant required permissions.")
+                        Text("Grant Screen Recording.")
                             .font(Typography.title1)
                             .foregroundColor(Colors.textPrimary)
 
-                        Text(guidanceMessage ?? "Aura unlocks once Screen Recording and Accessibility are enabled.")
+                        Text(guidanceMessage ?? "Aura unlocks once Screen Recording is enabled.")
                             .font(Typography.callout)
                             .foregroundColor(Colors.textSecondary)
                     }
