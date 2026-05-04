@@ -438,7 +438,8 @@ final class AuraBotCoreTests: XCTestCase {
         XCTAssertEqual(apps.output, "[{\"name\":\"Finder\"}]")
         XCTAssertTrue(windows.succeeded)
         XCTAssertEqual(windows.output, "[{\"title\":\"Desktop\"}]")
-        XCTAssertEqual(await fake.calls.map(\.name), ["list_apps", "list_windows"])
+        let callNames = await fake.calls.map(\.name)
+        XCTAssertEqual(callNames, ["list_apps", "list_windows"])
     }
 
     func testComputerUseSmokeTestSuccessAndFailureStates() async throws {
