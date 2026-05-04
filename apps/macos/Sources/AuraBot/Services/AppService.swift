@@ -489,11 +489,23 @@ class AppService: ObservableObject {
     }
 
     private func relaunchHost() {
-        guard let bundleURL = Bundle.main.bundleURL as URL? else { return }
+        let bundlePath = Bundle.main.bundleURL.path
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/bin/sh")
+        process.arguments = [
+            "-c",
+            "sleep 0.8; /usr/bin/open -n \"$1\"",
+            "aurabot-relaunch",
+            bundlePath
+        ]
 
-        let configuration = NSWorkspace.OpenConfiguration()
-        NSWorkspace.shared.openApplication(at: bundleURL, configuration: configuration) { _, _ in
+        do {
+            try process.run()
             NSApp.terminate(nil)
+        } catch {
+            NSWorkspace.shared.openApplication(at: Bundle.main.bundleURL, configuration: .init()) { _, _ in
+                NSApp.terminate(nil)
+            }
         }
     }
     

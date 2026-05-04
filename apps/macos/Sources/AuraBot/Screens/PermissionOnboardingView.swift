@@ -235,6 +235,11 @@ enum PermissionCenter {
         switch kind {
         case .screenRecording:
             requestedKinds.insert(kind)
+            let granted = CGRequestScreenCaptureAccess()
+            if granted {
+                markScreenRecordingGranted()
+                return
+            }
             openSystemSettings(for: kind)
         case .accessibility:
             let trusted = SystemAccessibilityPermissionChecker().isTrusted(prompt: true)
