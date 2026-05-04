@@ -23,6 +23,7 @@ class AppService: ObservableObject {
     @Published private(set) var pluginCatalogStatus: PluginCatalogStatus = .idle
     @Published private(set) var activePlugin: InstalledPluginRecord?
     @Published private(set) var computerUseStatus: ComputerUseStatus = .disabled
+    @Published private(set) var overlayActivity: OverlayActivity = .idle
     
     @Published private(set) var config: AppConfig
     private let pluginHost = PluginHost()
@@ -72,6 +73,7 @@ class AppService: ObservableObject {
     func start() {
         status = .running
         captureEnabled = config.capture.enabled
+        updateOverlayActivityForCurrentState()
         captureInterval = config.capture.intervalSeconds
         refreshPermissionStatuses()
         browserExtensionServer?.start()
@@ -116,6 +118,7 @@ class AppService: ObservableObject {
     
     func stop() async {
         status = .stopped
+        updateOverlayActivityForCurrentState()
         stopContextProcessing()
         browserExtensionServer?.stop()
         await memoryBackendSupervisor.stop()
@@ -138,6 +141,7 @@ class AppService: ObservableObject {
         } else {
             stopContextProcessing()
         }
+        updateOverlayActivityForCurrentState()
     }
     
     func chat(message: String) async throws -> String {
@@ -171,6 +175,18 @@ class AppService: ObservableObject {
 
         if wasRunning {
             start()
+        }
+    }
+
+    func persistOverlayOrigin(_ origin: OverlayOrigin) {
+        var updatedConfig = config
+        updatedConfig.app.overlayOrigin = origin
+
+        do {
+            try updatedConfig.save(to: AppConfig.defaultURL.path)
+            config = updatedConfig
+        } catch {
+            print("Failed to persist overlay origin: \(error)")
         }
     }
 
@@ -487,6 +503,13 @@ class AppService: ObservableObject {
     }
     
     func enhance(text: String) async throws -> EnhancementResult {
+        let previousActivity = overlayActivity
+        overlayActivity = .working
+        defer {
+            overlayActivity = previousActivity
+            updateOverlayActivityForCurrentState()
+        }
+
         // Get relevant memories for context
         let relevantMemories = try await memoryService.search(query: text, limit: 5)
         let memoryInfos = relevantMemories.map { 
@@ -535,22 +558,28 @@ class AppService: ObservableObject {
         guard config.app.processOnCapture else { return }
         guard requiredPermissionsGranted else { return }
 
+        overlayActivity = .listening
         let plan = await contextRouter.capturePlan(force: force)
 
         switch plan.screenshotDirective {
         case .skip:
             guard let event = plan.event else { return }
+            overlayActivity = .thinking
             await storeContextEvent(event)
         case .fallback:
+            overlayActivity = .working
             guard let capture = await captureService?.captureDisplay(
                 displayID: CGMainDisplayID(),
                 browserContext: plan.browserContext,
                 reason: plan.reason
             ) else {
+                updateOverlayActivityForCurrentState()
                 return
             }
             await processCapture(capture)
         }
+
+        updateOverlayActivityForCurrentState()
     }
 
     private func storeContextEvent(_ event: ContextEvent) async {
@@ -571,6 +600,7 @@ class AppService: ObservableObject {
         guard config.app.processOnCapture else { return }
         
         do {
+            overlayActivity = .thinking
             let recent = try await memoryService.getRecent(limit: config.app.memoryWindow)
             var contextParts = recent.map { $0.content }
 
@@ -615,9 +645,27 @@ class AppService: ObservableObject {
             await refreshMemories()
             
         } catch {
+            overlayActivity = .error
             print("Failed to process capture: \(error)")
         }
     }
+
+    private func updateOverlayActivityForCurrentState() {
+        guard status == .running else {
+            overlayActivity = .idle
+            return
+        }
+
+        overlayActivity = captureEnabled ? .listening : .idle
+    }
+}
+
+enum OverlayActivity: String, Equatable, Sendable {
+    case idle
+    case listening
+    case thinking
+    case working
+    case error
 }
 
 enum PluginInstallError: Error, Equatable {
