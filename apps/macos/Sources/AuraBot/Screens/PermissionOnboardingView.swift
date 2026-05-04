@@ -2,7 +2,6 @@ import SwiftUI
 import AppKit
 import AVFoundation
 import CoreGraphics
-@preconcurrency import ScreenCaptureKit
 
 enum AppPermissionKind: String, CaseIterable, Identifiable, Hashable, Codable, Sendable {
     case screenRecording
@@ -187,22 +186,6 @@ enum PermissionCenter {
         }
     }
 
-    static func verifyScreenRecordingAccess() async -> Bool {
-        if CGPreflightScreenCaptureAccess() {
-            markScreenRecordingGranted()
-            return true
-        }
-
-        do {
-            _ = try await SCShareableContent.current
-            markScreenRecordingGranted()
-            return true
-        } catch {
-            screenCaptureProbeGranted = false
-            return false
-        }
-    }
-
     static func markScreenRecordingGranted() {
         screenCaptureProbeGranted = true
         clearRequested(.screenRecording)
@@ -210,10 +193,6 @@ enum PermissionCenter {
 
     private static func hasScreenRecordingAccess() -> Bool {
         CGPreflightScreenCaptureAccess() || screenCaptureProbeGranted
-    }
-
-    static var needsScreenRecordingFollowUp: Bool {
-        requestedKinds.contains(.screenRecording) && !hasScreenRecordingAccess()
     }
 
     static var appIdentityWarning: String? {

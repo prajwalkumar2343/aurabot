@@ -39,7 +39,6 @@ class AppService: ObservableObject {
     
     private var contextProcessingTask: Task<Void, Never>?
     private var permissionRefreshTask: Task<Void, Never>?
-    private var lastActiveScreenRecordingVerificationAt: Date?
     private var lastComputerUseStatusAutoRefreshAt: Date?
     
     init(config: AppConfig = .default) {
@@ -238,22 +237,18 @@ class AppService: ObservableObject {
         }
 
         if requiredPermissionStatuses.contains(where: { $0.kind == .screenRecording && $0.state == .pendingRestart }) {
-            return "Screen Recording was requested. After enabling it in System Settings, restart Aura from this row, then refresh status if needed."
+            return "Screen Recording was requested. After enabling it in System Settings, restart Aura from this row if macOS asks. Aura updates this status automatically."
         }
 
         return "Grant Screen Recording to enable visual capture. Accessibility can be enabled later for richer controls."
     }
 
-    func refreshPermissionStatuses(activelyVerifyScreenRecording: Bool = false) {
+    func refreshPermissionStatuses() {
         permissionStatuses = PermissionCenter.allStatuses()
         capturePermissionMessage = permissionGuidanceMessage
 
         Task { [weak self] in
-            if activelyVerifyScreenRecording {
-                _ = await PermissionCenter.verifyScreenRecordingAccess()
-            } else {
-                await PermissionCenter.updateScreenRecordingProbe()
-            }
+            await PermissionCenter.updateScreenRecordingProbe()
             guard let self else { return }
             self.permissionStatuses = PermissionCenter.allStatuses()
             self.capturePermissionMessage = self.permissionGuidanceMessage
@@ -271,7 +266,7 @@ class AppService: ObservableObject {
         }
 
         PermissionCenter.requestAccess(for: kind)
-        refreshPermissionStatuses(activelyVerifyScreenRecording: kind == .screenRecording)
+        refreshPermissionStatuses()
         startPermissionAutoRefresh()
     }
 
@@ -307,30 +302,12 @@ class AppService: ObservableObject {
     }
 
     private func autoRefreshPermissionStatuses() {
-        refreshPermissionStatuses(
-            activelyVerifyScreenRecording: shouldActivelyVerifyScreenRecordingNow()
-        )
+        refreshPermissionStatuses()
 
         guard config.computerUse.enabled, shouldRefreshComputerUseStatusNow() else { return }
         Task { [weak self] in
             await self?.refreshComputerUseStatus()
         }
-    }
-
-    private func shouldActivelyVerifyScreenRecordingNow() -> Bool {
-        guard PermissionCenter.needsScreenRecordingFollowUp else {
-            lastActiveScreenRecordingVerificationAt = nil
-            return false
-        }
-
-        let now = Date()
-        if let lastActiveScreenRecordingVerificationAt,
-           now.timeIntervalSince(lastActiveScreenRecordingVerificationAt) < 6 {
-            return false
-        }
-
-        lastActiveScreenRecordingVerificationAt = now
-        return true
     }
 
     private func shouldRefreshComputerUseStatusNow() -> Bool {
