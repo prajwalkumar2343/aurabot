@@ -141,7 +141,8 @@ enum AppPermissionState: Equatable {
 
 @MainActor
 enum PermissionCenter {
-    private static var requestedKinds = Set<AppPermissionKind>()
+    private static let requestedKindsDefaultsKey = "AuraBotRequestedPermissionKinds"
+    private static var requestedKinds = loadRequestedKinds()
     private static var screenCaptureProbeGranted = false
 
     static func allStatuses() -> [AppPermissionStatus] {
@@ -156,7 +157,7 @@ enum PermissionCenter {
         switch kind {
         case .screenRecording:
             if hasScreenRecordingAccess() {
-                requestedKinds.remove(kind)
+                clearRequested(kind)
                 return .granted
             }
 
@@ -182,7 +183,7 @@ enum PermissionCenter {
     static func updateScreenRecordingProbe() async {
         screenCaptureProbeGranted = CGPreflightScreenCaptureAccess()
         if screenCaptureProbeGranted {
-            requestedKinds.remove(.screenRecording)
+            clearRequested(.screenRecording)
         }
     }
 
@@ -204,11 +205,15 @@ enum PermissionCenter {
 
     static func markScreenRecordingGranted() {
         screenCaptureProbeGranted = true
-        requestedKinds.remove(.screenRecording)
+        clearRequested(.screenRecording)
     }
 
     private static func hasScreenRecordingAccess() -> Bool {
         CGPreflightScreenCaptureAccess() || screenCaptureProbeGranted
+    }
+
+    static var needsScreenRecordingFollowUp: Bool {
+        requestedKinds.contains(.screenRecording) && !hasScreenRecordingAccess()
     }
 
     static var appIdentityWarning: String? {
@@ -228,13 +233,13 @@ enum PermissionCenter {
 
     static func requestAccess(for kind: AppPermissionKind) {
         guard !isGranted(kind) else {
-            requestedKinds.remove(kind)
+            clearRequested(kind)
             return
         }
 
         switch kind {
         case .screenRecording:
-            requestedKinds.insert(kind)
+            markRequested(kind)
             let granted = CGRequestScreenCaptureAccess()
             if granted {
                 markScreenRecordingGranted()
@@ -244,7 +249,7 @@ enum PermissionCenter {
         case .accessibility:
             let trusted = SystemAccessibilityPermissionChecker().isTrusted(prompt: true)
             if trusted {
-                requestedKinds.remove(kind)
+                clearRequested(kind)
             } else {
                 openSystemSettings(for: kind)
             }
@@ -265,7 +270,7 @@ enum PermissionCenter {
             case .denied, .restricted:
                 openSystemSettings(for: kind)
             case .authorized:
-                requestedKinds.remove(kind)
+                clearRequested(kind)
             @unknown default:
                 openSystemSettings(for: kind)
             }
@@ -279,6 +284,28 @@ enum PermissionCenter {
         }
 
         NSWorkspace.shared.open(url)
+    }
+
+    private static func markRequested(_ kind: AppPermissionKind) {
+        requestedKinds.insert(kind)
+        persistRequestedKinds()
+    }
+
+    private static func clearRequested(_ kind: AppPermissionKind) {
+        requestedKinds.remove(kind)
+        persistRequestedKinds()
+    }
+
+    private static func loadRequestedKinds() -> Set<AppPermissionKind> {
+        let rawValues = UserDefaults.standard.stringArray(forKey: requestedKindsDefaultsKey) ?? []
+        return Set(rawValues.compactMap(AppPermissionKind.init(rawValue:)))
+    }
+
+    private static func persistRequestedKinds() {
+        UserDefaults.standard.set(
+            requestedKinds.map(\.rawValue).sorted(),
+            forKey: requestedKindsDefaultsKey
+        )
     }
 
     private static func hasUsageDescription(_ key: String) -> Bool {
@@ -296,8 +323,6 @@ struct PermissionOnboardingView: View {
     @State private var selectedStep: OnboardingStep = .welcome
     @State private var isCompleting = false
     @State private var completionError: String?
-
-    private let statusTimer = Timer.publish(every: 1.5, on: .main, in: .common).autoconnect()
 
     private var requiredStatuses: [AppPermissionStatus] {
         service.permissionStatuses.filter { $0.kind.isRequired }
@@ -347,9 +372,6 @@ struct PermissionOnboardingView: View {
                         onRequest: { kind in
                             service.requestPermission(kind)
                         },
-                        onRefresh: {
-                            service.refreshPermissionStatuses(activelyVerifyScreenRecording: true)
-                        },
                         onContinue: {
                             move(to: .browserExtension)
                         }
@@ -374,9 +396,6 @@ struct PermissionOnboardingView: View {
         .onAppear {
             service.refreshPermissionStatuses()
             selectedStep = service.requiredPermissionsGranted ? .browserExtension : .welcome
-        }
-        .onReceive(statusTimer) { _ in
-            service.refreshPermissionStatuses()
         }
         .onChange(of: allRequiredGranted) { _, granted in
             guard granted, selectedStep == .permissions else { return }
@@ -559,7 +578,6 @@ private struct OnboardingPermissionsScreen: View {
     let progressValue: Double
     let guidanceMessage: String?
     let onRequest: (AppPermissionKind) -> Void
-    let onRefresh: () -> Void
     let onContinue: () -> Void
 
     private var allRequiredGranted: Bool {
@@ -621,18 +639,14 @@ private struct OnboardingPermissionsScreen: View {
                         progressValue: progressValue
                     )
 
-                    HStack(spacing: Spacing.md) {
-                        SecondaryButton("Refresh", icon: "arrow.clockwise") {
-                            onRefresh()
-                        }
-
+                    Group {
                         GradientButton(allRequiredGranted ? "Continue" : "Waiting", icon: allRequiredGranted ? "arrow.right" : "hourglass") {
                             guard allRequiredGranted else {
-                                onRefresh()
                                 return
                             }
                             onContinue()
                         }
+                        .disabled(!allRequiredGranted)
                     }
                 }
                 .frame(width: 260)

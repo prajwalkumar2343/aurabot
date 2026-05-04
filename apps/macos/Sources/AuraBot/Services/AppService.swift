@@ -39,6 +39,8 @@ class AppService: ObservableObject {
     
     private var contextProcessingTask: Task<Void, Never>?
     private var permissionRefreshTask: Task<Void, Never>?
+    private var lastActiveScreenRecordingVerificationAt: Date?
+    private var lastComputerUseStatusAutoRefreshAt: Date?
     
     init(config: AppConfig = .default) {
         self.config = config
@@ -76,6 +78,7 @@ class AppService: ObservableObject {
         updateOverlayActivityForCurrentState()
         captureInterval = config.capture.intervalSeconds
         refreshPermissionStatuses()
+        startPermissionAutoRefresh()
         browserExtensionServer?.start()
         Task {
             await refreshComputerUseStatus()
@@ -119,6 +122,7 @@ class AppService: ObservableObject {
     func stop() async {
         status = .stopped
         updateOverlayActivityForCurrentState()
+        stopPermissionAutoRefresh()
         stopContextProcessing()
         browserExtensionServer?.stop()
         await memoryBackendSupervisor.stop()
@@ -267,8 +271,8 @@ class AppService: ObservableObject {
         }
 
         PermissionCenter.requestAccess(for: kind)
-        refreshPermissionStatuses()
-        schedulePermissionStatusRefreshes()
+        refreshPermissionStatuses(activelyVerifyScreenRecording: kind == .screenRecording)
+        startPermissionAutoRefresh()
     }
 
     func completeOnboarding() async throws {
@@ -284,22 +288,60 @@ class AppService: ObservableObject {
         refreshPermissionStatuses()
     }
 
-    private func schedulePermissionStatusRefreshes() {
+    private func startPermissionAutoRefresh() {
         permissionRefreshTask?.cancel()
         permissionRefreshTask = Task { [weak self] in
-            let delays: [UInt64] = [
-                500_000_000,
-                1_500_000_000,
-                3_000_000_000,
-                6_000_000_000
-            ]
+            self?.autoRefreshPermissionStatuses()
 
-            for delay in delays {
-                try? await Task.sleep(nanoseconds: delay)
+            while !Task.isCancelled {
+                try? await Task.sleep(nanoseconds: 2_000_000_000)
                 guard !Task.isCancelled else { return }
-                self?.refreshPermissionStatuses()
+                self?.autoRefreshPermissionStatuses()
             }
         }
+    }
+
+    private func stopPermissionAutoRefresh() {
+        permissionRefreshTask?.cancel()
+        permissionRefreshTask = nil
+    }
+
+    private func autoRefreshPermissionStatuses() {
+        refreshPermissionStatuses(
+            activelyVerifyScreenRecording: shouldActivelyVerifyScreenRecordingNow()
+        )
+
+        guard config.computerUse.enabled, shouldRefreshComputerUseStatusNow() else { return }
+        Task { [weak self] in
+            await self?.refreshComputerUseStatus()
+        }
+    }
+
+    private func shouldActivelyVerifyScreenRecordingNow() -> Bool {
+        guard PermissionCenter.needsScreenRecordingFollowUp else {
+            lastActiveScreenRecordingVerificationAt = nil
+            return false
+        }
+
+        let now = Date()
+        if let lastActiveScreenRecordingVerificationAt,
+           now.timeIntervalSince(lastActiveScreenRecordingVerificationAt) < 6 {
+            return false
+        }
+
+        lastActiveScreenRecordingVerificationAt = now
+        return true
+    }
+
+    private func shouldRefreshComputerUseStatusNow() -> Bool {
+        let now = Date()
+        if let lastComputerUseStatusAutoRefreshAt,
+           now.timeIntervalSince(lastComputerUseStatusAutoRefreshAt) < 10 {
+            return false
+        }
+
+        lastComputerUseStatusAutoRefreshAt = now
+        return true
     }
 
     var browserExtensionServerURL: String {

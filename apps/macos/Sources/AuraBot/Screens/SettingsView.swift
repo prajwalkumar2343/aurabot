@@ -520,10 +520,6 @@ struct PermissionsSection: View {
                     }
 
                     Spacer()
-
-                    SecondaryButton("Refresh", icon: "arrow.clockwise") {
-                        service.refreshPermissionStatuses(activelyVerifyScreenRecording: true)
-                    }
                 }
 
                 PermissionChecklistGroup(statuses: service.permissionStatuses) { kind in
@@ -661,10 +657,6 @@ struct ComputerUseSettingsSection: View {
                     .background(Colors.glassBorder)
 
                 HStack(spacing: Spacing.md) {
-                    SecondaryButton("Refresh", icon: "arrow.clockwise") {
-                        Task { await service.refreshComputerUseStatus() }
-                    }
-
                     SecondaryButton("Permissions", icon: "lock.shield") {
                         Task { await service.requestComputerUsePermissions() }
                     }
