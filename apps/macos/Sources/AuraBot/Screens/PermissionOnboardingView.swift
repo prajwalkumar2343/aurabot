@@ -2,6 +2,7 @@ import SwiftUI
 import AppKit
 import AVFoundation
 import CoreGraphics
+@preconcurrency import ScreenCaptureKit
 
 enum AppPermissionKind: String, CaseIterable, Identifiable, Hashable, Codable, Sendable {
     case screenRecording
@@ -185,6 +186,22 @@ enum PermissionCenter {
         }
     }
 
+    static func verifyScreenRecordingAccess() async -> Bool {
+        if CGPreflightScreenCaptureAccess() {
+            markScreenRecordingGranted()
+            return true
+        }
+
+        do {
+            _ = try await SCShareableContent.current
+            markScreenRecordingGranted()
+            return true
+        } catch {
+            screenCaptureProbeGranted = false
+            return false
+        }
+    }
+
     static func markScreenRecordingGranted() {
         screenCaptureProbeGranted = true
         requestedKinds.remove(.screenRecording)
@@ -229,6 +246,11 @@ enum PermissionCenter {
         case .microphone:
             switch AVCaptureDevice.authorizationStatus(for: .audio) {
             case .notDetermined:
+                guard hasUsageDescription("NSMicrophoneUsageDescription") else {
+                    openSystemSettings(for: kind)
+                    return
+                }
+
                 AVCaptureDevice.requestAccess(for: .audio) { granted in
                     guard !granted else { return }
                     Task { @MainActor in
@@ -252,6 +274,14 @@ enum PermissionCenter {
         }
 
         NSWorkspace.shared.open(url)
+    }
+
+    private static func hasUsageDescription(_ key: String) -> Bool {
+        guard let value = Bundle.main.object(forInfoDictionaryKey: key) as? String else {
+            return false
+        }
+
+        return !value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 }
 
@@ -313,7 +343,7 @@ struct PermissionOnboardingView: View {
                             service.requestPermission(kind)
                         },
                         onRefresh: {
-                            service.refreshPermissionStatuses()
+                            service.refreshPermissionStatuses(activelyVerifyScreenRecording: true)
                         },
                         onContinue: {
                             move(to: .browserExtension)

@@ -129,6 +129,12 @@ cat > "${APP_BUNDLE}/Contents/Info.plist" <<EOF
     <string>14.0</string>
     <key>NSHumanReadableCopyright</key>
     <string>Copyright © 2024</string>
+    <key>NSAppleEventsUsageDescription</key>
+    <string>Aura uses browser automation only to read the current tab title and URL when browser extension context is unavailable.</string>
+    <key>NSAudioCaptureUsageDescription</key>
+    <string>Aura uses system audio capture only when you choose screen and audio context features.</string>
+    <key>NSMicrophoneUsageDescription</key>
+    <string>Aura uses microphone access only when you choose voice input or meeting features.</string>
 </dict>
 </plist>
 EOF

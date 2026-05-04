@@ -522,7 +522,7 @@ struct PermissionsSection: View {
                     Spacer()
 
                     SecondaryButton("Refresh", icon: "arrow.clockwise") {
-                        service.refreshPermissionStatuses()
+                        service.refreshPermissionStatuses(activelyVerifyScreenRecording: true)
                     }
                 }
 

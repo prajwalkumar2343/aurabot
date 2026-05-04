@@ -240,12 +240,16 @@ class AppService: ObservableObject {
         return "Grant Screen Recording to enable visual capture. Accessibility can be enabled later for richer controls."
     }
 
-    func refreshPermissionStatuses() {
+    func refreshPermissionStatuses(activelyVerifyScreenRecording: Bool = false) {
         permissionStatuses = PermissionCenter.allStatuses()
         capturePermissionMessage = permissionGuidanceMessage
 
         Task { [weak self] in
-            await PermissionCenter.updateScreenRecordingProbe()
+            if activelyVerifyScreenRecording {
+                _ = await PermissionCenter.verifyScreenRecordingAccess()
+            } else {
+                await PermissionCenter.updateScreenRecordingProbe()
+            }
             guard let self else { return }
             self.permissionStatuses = PermissionCenter.allStatuses()
             self.capturePermissionMessage = self.permissionGuidanceMessage
