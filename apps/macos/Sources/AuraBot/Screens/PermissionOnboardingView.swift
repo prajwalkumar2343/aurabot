@@ -180,18 +180,9 @@ enum PermissionCenter {
     }
 
     static func updateScreenRecordingProbe() async {
-        guard !CGPreflightScreenCaptureAccess() else {
-            screenCaptureProbeGranted = true
+        screenCaptureProbeGranted = CGPreflightScreenCaptureAccess()
+        if screenCaptureProbeGranted {
             requestedKinds.remove(.screenRecording)
-            return
-        }
-
-        do {
-            _ = try await SCShareableContent.current
-            screenCaptureProbeGranted = true
-            requestedKinds.remove(.screenRecording)
-        } catch {
-            screenCaptureProbeGranted = false
         }
     }
 

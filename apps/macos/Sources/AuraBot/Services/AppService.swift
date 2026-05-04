@@ -401,8 +401,6 @@ class AppService: ObservableObject {
         let fileManager = FileManager.default
 
         let bundledCandidates = [
-            Bundle.module.resourceURL?.appendingPathComponent("BrowserExtension/chromium", isDirectory: true),
-            Bundle.module.resourceURL?.appendingPathComponent("chromium", isDirectory: true),
             Bundle.main.resourceURL?.appendingPathComponent("BrowserExtension/chromium", isDirectory: true),
             Bundle.main.resourceURL?.appendingPathComponent("chromium", isDirectory: true)
         ].compactMap { $0 }

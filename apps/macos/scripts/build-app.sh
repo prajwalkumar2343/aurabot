@@ -74,7 +74,13 @@ cp ".build/release/${APP_NAME}" "${APP_BUNDLE}/Contents/MacOS/"
 chmod +x "${APP_BUNDLE}/Contents/MacOS/${APP_NAME}"
 
 # Copy SwiftPM resource bundles used by Bundle.module.
+find ".build/release" -maxdepth 1 -name "*.bundle" -exec cp -R {} "${APP_BUNDLE}/" \;
 find ".build/release" -maxdepth 1 -name "*.bundle" -exec cp -R {} "${APP_BUNDLE}/Contents/Resources/" \;
+
+# Copy resources to normal app locations so runtime code does not need to
+# touch SwiftPM's generated Bundle.module accessor.
+mkdir -p "${APP_BUNDLE}/Contents/Resources/BrowserExtension"
+cp -R "BrowserExtension/chromium" "${APP_BUNDLE}/Contents/Resources/BrowserExtension/"
 
 # Bundle the Memory PGlite service and a node executable for normal app launches.
 MEMORY_BUNDLE_DIR="${APP_BUNDLE}/Contents/Resources/MemoryPglite"
@@ -86,8 +92,22 @@ cp "${MEMORY_SERVICE_DIR}/package-lock.json" "${MEMORY_BUNDLE_DIR}/"
 if [ -d "${MEMORY_SERVICE_DIR}/templates" ]; then
     cp -R "${MEMORY_SERVICE_DIR}/templates" "${MEMORY_BUNDLE_DIR}/"
 fi
-cp "$(command -v node)" "${MEMORY_BUNDLE_DIR}/node/bin/node"
+NODE_BIN="$(command -v node)"
+cp "${NODE_BIN}" "${MEMORY_BUNDLE_DIR}/node/bin/node"
 chmod +x "${MEMORY_BUNDLE_DIR}/node/bin/node"
+
+# Homebrew Node can be a small executable that resolves libnode via @rpath.
+# Include the adjacent library when present so the bundled backend can launch.
+mkdir -p "${MEMORY_BUNDLE_DIR}/node/lib"
+NODE_REALPATH="$(python3 -c 'import os, sys; print(os.path.realpath(sys.argv[1]))' "${NODE_BIN}")"
+for NODE_LIB_CANDIDATE in \
+    "$(dirname "$(dirname "${NODE_REALPATH}")")/lib"/libnode*.dylib \
+    "$(dirname "$(dirname "${NODE_BIN}")")/lib"/libnode*.dylib
+do
+    if [ -f "${NODE_LIB_CANDIDATE}" ]; then
+        cp "${NODE_LIB_CANDIDATE}" "${MEMORY_BUNDLE_DIR}/node/lib/"
+    fi
+done
 
 # Info.plist
 cat > "${APP_BUNDLE}/Contents/Info.plist" <<EOF

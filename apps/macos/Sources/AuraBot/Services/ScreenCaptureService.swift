@@ -1,6 +1,6 @@
 import Foundation
 import CoreGraphics
-import ScreenCaptureKit
+@preconcurrency import ScreenCaptureKit
 import AppKit
 
 @available(macOS 12.3, *)
@@ -79,41 +79,35 @@ actor ScreenCaptureService {
     }
 
     func captureDisplay(displayID: CGDirectDisplayID, browserContext: BrowserContext?, reason: String?) async -> ScreenCapture? {
-        do {
-            guard let image = await captureImage(
-                displayID: displayID,
-                maxWidth: config.maxWidth,
-                maxHeight: config.maxHeight
-            ) else {
-                return nil
-            }
-
-            guard let data = image.jpegData(compressionQuality: Double(config.quality) / 100.0) else {
-                return nil
-            }
-            
-            let capture = ScreenCapture(
-                displayID: displayID,
-                imageData: data,
-                timestamp: Date(),
-                displayNum: 1,
-                browserContext: browserContext,
-                captureReason: reason
-            )
-
-            lastAcceptedFingerprint = image.differenceHash()
-            lastAcceptedPageSignature = browserContext?.pageSignature
-            lastAcceptedViewportSignature = browserContext?.viewportSignature
-            lastAcceptedMediaSession = browserContext?.activity == .media ? browserContext?.sessionKey : nil
-            lastAcceptedAt = capture.timestamp
-            
-            await onCapture?(capture)
-            return capture
-            
-        } catch {
-            print("Screen capture error: \(error)")
+        guard let image = await captureImage(
+            displayID: displayID,
+            maxWidth: config.maxWidth,
+            maxHeight: config.maxHeight
+        ) else {
             return nil
         }
+
+        guard let data = image.jpegData(compressionQuality: Double(config.quality) / 100.0) else {
+            return nil
+        }
+
+        let capture = ScreenCapture(
+            displayID: displayID,
+            imageData: data,
+            timestamp: Date(),
+            displayNum: 1,
+            browserContext: browserContext,
+            captureReason: reason
+        )
+
+        lastAcceptedFingerprint = image.differenceHash()
+        lastAcceptedPageSignature = browserContext?.pageSignature
+        lastAcceptedViewportSignature = browserContext?.viewportSignature
+        lastAcceptedMediaSession = browserContext?.activity == .media ? browserContext?.sessionKey : nil
+        lastAcceptedAt = capture.timestamp
+
+        await onCapture?(capture)
+        return capture
     }
 
     private func captureImage(displayID: CGDirectDisplayID, maxWidth: Int, maxHeight: Int) async -> CGImage? {
