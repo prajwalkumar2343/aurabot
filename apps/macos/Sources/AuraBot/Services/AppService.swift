@@ -607,6 +607,9 @@ class AppService: ObservableObject {
                 browserContext: plan.browserContext,
                 reason: plan.reason
             ) else {
+                if let failureMessage = await captureService?.lastCaptureFailureMessage() {
+                    capturePermissionMessage = failureMessage
+                }
                 if let event = plan.event {
                     overlayActivity = .thinking
                     await storeContextEvent(event)
@@ -614,7 +617,6 @@ class AppService: ObservableObject {
                 updateOverlayActivityForCurrentState()
                 return
             }
-            PermissionCenter.markScreenRecordingGranted()
             permissionStatuses = PermissionCenter.allStatuses()
             capturePermissionMessage = permissionGuidanceMessage
             await processCapture(capture)

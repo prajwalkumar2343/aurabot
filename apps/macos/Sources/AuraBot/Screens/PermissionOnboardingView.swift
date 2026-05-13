@@ -142,7 +142,8 @@ enum AppPermissionState: Equatable {
 enum PermissionCenter {
     private static let requestedKindsDefaultsKey = "AuraBotRequestedPermissionKinds"
     private static var requestedKinds = loadRequestedKinds()
-    private static var screenCaptureProbeGranted = false
+    private static var cachedAppIdentityWarning: String?
+    private static var checkedAppIdentity = false
 
     static func allStatuses() -> [AppPermissionStatus] {
         AppPermissionKind.allCases.map(status(for:))
@@ -180,19 +181,13 @@ enum PermissionCenter {
     }
 
     static func updateScreenRecordingProbe() async {
-        screenCaptureProbeGranted = CGPreflightScreenCaptureAccess()
-        if screenCaptureProbeGranted {
+        if CGPreflightScreenCaptureAccess() {
             clearRequested(.screenRecording)
         }
     }
 
-    static func markScreenRecordingGranted() {
-        screenCaptureProbeGranted = true
-        clearRequested(.screenRecording)
-    }
-
     private static func hasScreenRecordingAccess() -> Bool {
-        CGPreflightScreenCaptureAccess() || screenCaptureProbeGranted
+        CGPreflightScreenCaptureAccess()
     }
 
     static var appIdentityWarning: String? {
@@ -207,7 +202,13 @@ enum PermissionCenter {
             return "Aura is running outside Applications. Move AuraBot.app to Applications and open that copy before granting permissions to avoid duplicate macOS privacy entries."
         }
 
-        return nil
+        if checkedAppIdentity {
+            return cachedAppIdentityWarning
+        }
+
+        cachedAppIdentityWarning = codeSignatureWarning(for: bundleURL)
+        checkedAppIdentity = true
+        return cachedAppIdentityWarning
     }
 
     static func requestAccess(for kind: AppPermissionKind) {
@@ -221,7 +222,9 @@ enum PermissionCenter {
             markRequested(kind)
             let granted = CGRequestScreenCaptureAccess()
             if granted {
-                markScreenRecordingGranted()
+                if CGPreflightScreenCaptureAccess() {
+                    clearRequested(kind)
+                }
                 return
             }
             openSystemSettings(for: kind)
@@ -293,6 +296,31 @@ enum PermissionCenter {
         }
 
         return !value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    private static func codeSignatureWarning(for bundleURL: URL) -> String? {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/codesign")
+        process.arguments = ["-d", "--verbose=4", bundleURL.path]
+
+        let pipe = Pipe()
+        process.standardOutput = pipe
+        process.standardError = pipe
+
+        do {
+            try process.run()
+            process.waitUntilExit()
+        } catch {
+            return "Aura could not verify its code signature. Use a Developer ID signed and notarized build so macOS can preserve privacy permissions reliably."
+        }
+
+        let data = pipe.fileHandleForReading.readDataToEndOfFile()
+        let output = String(data: data, encoding: .utf8) ?? ""
+        if output.contains("Signature=adhoc") || output.contains("TeamIdentifier=not set") {
+            return "Aura is running from a local ad-hoc build. macOS may not preserve Screen Recording reliably across rebuilds; use a Developer ID signed and notarized build for stable permissions."
+        }
+
+        return nil
     }
 }
 

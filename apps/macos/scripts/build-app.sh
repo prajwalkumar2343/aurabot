@@ -1,5 +1,5 @@
 #!/bin/bash
-# Build AuraBot for direct distribution (no Apple account needed)
+# Build AuraBot for local testing or Developer ID distribution.
 
 set -e
 
@@ -15,6 +15,13 @@ echo "========================"
 APP_NAME="AuraBot"
 VERSION="1.0.0"
 BUNDLE_ID="com.yourname.aurabot"
+BUILD_MODE="${AURABOT_BUILD_MODE:-dev}"
+SIGNING_IDENTITY="${DEVELOPER_ID_APPLICATION:-}"
+NOTARIZE="${AURABOT_NOTARIZE:-0}"
+NOTARY_PROFILE="${NOTARY_PROFILE:-}"
+NOTARY_APPLE_ID="${NOTARY_APPLE_ID:-}"
+NOTARY_PASSWORD="${NOTARY_PASSWORD:-}"
+NOTARY_TEAM_ID="${NOTARY_TEAM_ID:-}"
 APP_BUNDLE="${APP_NAME}.app"
 DMG_NAME="${APP_NAME}-${VERSION}.dmg"
 RW_DMG_NAME="${APP_NAME}-${VERSION}-temp.dmg"
@@ -22,6 +29,63 @@ MEMORY_SERVICE_DIR="../../services/memory-pglite"
 STAGING_DIR="$(mktemp -d /tmp/aurabot-dmg.XXXXXX)"
 DMG_DEVICE=""
 DMG_MOUNT_POINT=""
+
+usage() {
+    cat <<EOF
+Usage: AURABOT_BUILD_MODE=dev|release ./scripts/build-app.sh
+
+Environment:
+  AURABOT_BUILD_MODE        dev (default) or release
+  DEVELOPER_ID_APPLICATION Developer ID Application signing identity for release
+  AURABOT_NOTARIZE         1 to submit the release DMG to Apple notary service
+  NOTARY_PROFILE           notarytool keychain profile name, preferred
+  NOTARY_APPLE_ID          Apple ID for notarytool fallback credentials
+  NOTARY_PASSWORD          App-specific password for notarytool fallback credentials
+  NOTARY_TEAM_ID           Apple Developer Team ID for notarytool fallback credentials
+EOF
+}
+
+for ARG in "$@"; do
+    case "${ARG}" in
+        --release)
+            BUILD_MODE="release"
+            ;;
+        --dev)
+            BUILD_MODE="dev"
+            ;;
+        --notarize)
+            NOTARIZE="1"
+            ;;
+        --help|-h)
+            usage
+            exit 0
+            ;;
+        *)
+            echo -e "${RED}Error: unknown argument ${ARG}${NC}"
+            usage
+            exit 1
+            ;;
+    esac
+done
+
+if [ "${BUILD_MODE}" != "dev" ] && [ "${BUILD_MODE}" != "release" ]; then
+    echo -e "${RED}Error: AURABOT_BUILD_MODE must be dev or release${NC}"
+    exit 1
+fi
+
+if [ "${BUILD_MODE}" = "release" ] && [ -z "${SIGNING_IDENTITY}" ]; then
+    echo -e "${RED}Error: release builds require DEVELOPER_ID_APPLICATION${NC}"
+    echo "Example: DEVELOPER_ID_APPLICATION='Developer ID Application: Example, Inc. (TEAMID)' AURABOT_BUILD_MODE=release ./scripts/build-app.sh"
+    exit 1
+fi
+
+if [ "${BUILD_MODE}" = "release" ]; then
+    if ! security find-identity -v -p codesigning | grep -F "${SIGNING_IDENTITY}" >/dev/null; then
+        echo -e "${RED}Error: Developer ID signing identity was not found or is not valid${NC}"
+        security find-identity -v -p codesigning || true
+        exit 1
+    fi
+fi
 
 # Check directory
 if [ ! -f "Package.swift" ]; then
@@ -41,6 +105,11 @@ fi
 
 if ! command -v npm >/dev/null 2>&1; then
     echo -e "${RED}Error: npm is required on the packaging machine to build the memory service${NC}"
+    exit 1
+fi
+
+if [ "${NOTARIZE}" = "1" ] && ! command -v xcrun >/dev/null 2>&1; then
+    echo -e "${RED}Error: xcrun is required for notarization${NC}"
     exit 1
 fi
 
@@ -142,16 +211,59 @@ EOF
 
 echo "APPL????" > "${APP_BUNDLE}/Contents/PkgInfo"
 
-# Ad-hoc sign the app for local distribution. The explicit designated
-# requirement keeps the app's local TCC identity stable across rebuilds.
+sign_code() {
+    local path="$1"
+    local identifier="${2:-}"
+    shift 2 || true
+    local extra_args=("$@")
+    local identity="-"
+    local requirement_args=(--requirements "=designated => identifier \"${BUNDLE_ID}\"")
+    local release_args=()
+
+    if [ "${BUILD_MODE}" = "release" ]; then
+        identity="${SIGNING_IDENTITY}"
+        requirement_args=()
+        release_args=(--options runtime --timestamp)
+    fi
+
+    local identifier_args=()
+    if [ -n "${identifier}" ]; then
+        identifier_args=(-i "${identifier}")
+    fi
+
+    codesign \
+        --force \
+        --sign "${identity}" \
+        "${release_args[@]}" \
+        "${requirement_args[@]}" \
+        "${identifier_args[@]}" \
+        "${extra_args[@]}" \
+        "${path}"
+}
+
+is_macho_file() {
+    file "$1" | grep -E 'Mach-O|dynamically linked shared library' >/dev/null
+}
+
+# Sign nested code before the containing app. Apple recommends signing each
+# code item directly instead of relying on --deep as the signing strategy.
+echo -e "${YELLOW}🔏 Signing nested code...${NC}"
+while IFS= read -r -d '' CANDIDATE; do
+    if [ "${CANDIDATE}" = "${APP_BUNDLE}/Contents/MacOS/${APP_NAME}" ]; then
+        continue
+    fi
+
+    if is_macho_file "${CANDIDATE}"; then
+        RELATIVE_PATH="${CANDIDATE#${APP_BUNDLE}/Contents/}"
+        CODE_IDENTIFIER="${BUNDLE_ID}.$(echo "${RELATIVE_PATH}" | tr '/ _' '...')"
+        sign_code "${CANDIDATE}" "${CODE_IDENTIFIER}"
+    fi
+done < <(find "${APP_BUNDLE}/Contents" -type f -print0)
+
 echo -e "${YELLOW}🔏 Signing app bundle...${NC}"
-codesign \
-    --force \
-    --deep \
-    --sign - \
-    --requirements "=designated => identifier \"${BUNDLE_ID}\"" \
-    --entitlements AuraBot.entitlements \
-    "${APP_BUNDLE}"
+sign_code "${APP_BUNDLE}/Contents/MacOS/${APP_NAME}" "${BUNDLE_ID}" --entitlements AuraBot.entitlements
+sign_code "${APP_BUNDLE}" "" --entitlements AuraBot.entitlements
+codesign --verify --strict --deep "${APP_BUNDLE}"
 
 # Zip it
 echo -e "${YELLOW}📦 Creating zip...${NC}"
@@ -209,6 +321,40 @@ DMG_DEVICE=""
 DMG_MOUNT_POINT=""
 hdiutil convert "${RW_DMG_NAME}" -format UDZO -imagekey zlib-level=9 -o "${DMG_NAME}"
 rm -f "${RW_DMG_NAME}"
+
+if [ "${BUILD_MODE}" = "release" ]; then
+    echo -e "${YELLOW}🔏 Signing DMG...${NC}"
+    codesign --force --sign "${SIGNING_IDENTITY}" --timestamp "${DMG_NAME}"
+fi
+
+if [ "${NOTARIZE}" = "1" ]; then
+    if [ "${BUILD_MODE}" != "release" ]; then
+        echo -e "${RED}Error: notarization requires AURABOT_BUILD_MODE=release${NC}"
+        exit 1
+    fi
+
+    echo -e "${YELLOW}📨 Submitting DMG for notarization...${NC}"
+    if [ -n "${NOTARY_PROFILE}" ]; then
+        xcrun notarytool submit "${DMG_NAME}" --keychain-profile "${NOTARY_PROFILE}" --wait
+    elif [ -n "${NOTARY_APPLE_ID}" ] && [ -n "${NOTARY_PASSWORD}" ] && [ -n "${NOTARY_TEAM_ID}" ]; then
+        xcrun notarytool submit "${DMG_NAME}" \
+            --apple-id "${NOTARY_APPLE_ID}" \
+            --password "${NOTARY_PASSWORD}" \
+            --team-id "${NOTARY_TEAM_ID}" \
+            --wait
+    else
+        echo -e "${RED}Error: notarization requires NOTARY_PROFILE or NOTARY_APPLE_ID/NOTARY_PASSWORD/NOTARY_TEAM_ID${NC}"
+        exit 1
+    fi
+
+    echo -e "${YELLOW}📎 Stapling notarization ticket...${NC}"
+    xcrun stapler staple "${DMG_NAME}"
+    spctl -a -vv -t open --context context:primary-signature "${DMG_NAME}"
+fi
+
+if [ "${BUILD_MODE}" = "release" ]; then
+    spctl -a -vv "${APP_BUNDLE}"
+fi
 
 echo ""
 echo -e "${GREEN}✅ Done!${NC}"
